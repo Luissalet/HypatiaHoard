@@ -8,10 +8,11 @@ from typing import Any, Callable
 from pydantic import BaseModel, Field
 
 from .services import Services
+from .store import normalize_text
 
 AGENT_INSTRUCTIONS = """Hypatia's Hoard is the user's own flashcards, scheduled by the app (SM-2); the assistant is the author and, in chat, the examiner.
 Add cards only from material the user actually has: a passage from their library, a saved page, something they just said. One fact per card, the back short, and always fill `source` so the card is traceable.
-When quizzing: call cards_due, show only the front, wait for the user's actual answer, then compare it with the back yourself and call card_review once with the grade that answer earns — again if wrong, hard if partly right, good if right, easy only if instant and complete — and then say what the back said.
+When quizzing: call cards_due, show only the front, wait for the user's actual answer, then compare it with the back yourself and call card_review once — with the front you showed (and the id) — with the grade that answer earns: again (0) if wrong, blank or "no me acuerdo", hard (1) if partly right, good (2) if right, easy (3) only if instant and complete — and then say what the back said.
 Never reveal the back before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent cards or grades. Never read the data folder or the database directly; use these tools only."""
 
 
@@ -47,8 +48,10 @@ class CardsDueArgs(BaseModel):
 
 
 class CardReviewArgs(BaseModel):
-    id: int = Field(..., ge=1)
-    grade: int | str = Field(..., description="0/1/2/3 or again/hard/good/easy.")
+    id: int | None = Field(None, ge=1, description="The card's id, as returned by cards_due.")
+    grade: int | str = Field(..., description="0 again (wrong, blank, or 'no me acuerdo'), 1 hard (partly right), 2 good (right), 3 easy (instant and complete); or the words again/hard/good/easy.")
+    front: str | None = Field(None, max_length=4000, description="The front you showed the user. Give it always: alone it identifies the card; with an id that belongs to another card the call is refused.")
+    deck: str | None = Field(None, max_length=200, description="Deck name or id, to disambiguate a front that exists in several decks.")
     elapsed_ms: int | None = Field(None, ge=0, le=3_600_000)
 
 
@@ -128,8 +131,28 @@ def run_cards_due(services: Services, args: CardsDueArgs) -> dict:
 
 
 def run_card_review(services: Services, args: CardReviewArgs) -> dict:
-    if services.cards.get(args.id) is None:
+    if args.id is None and not (args.front or "").strip():
+        raise ValueError("card_review needs the card's id or its front.")
+    deck_id = _resolve_deck_id(services, args.deck) if args.deck else None
+    by_front = services.cards.find_by_front(args.front, deck_id) if (args.front or "").strip() else None
+    if args.id is None:
+        # The front alone names the card: a local model quizzing the user
+        # kept passing the ordinal ("tarjeta 1") as the id.
+        if by_front is None:
+            raise LookupError(f"No card has the front «{args.front}».")
+        return services.review_card(by_front["id"], args.grade, args.elapsed_ms)
+    card = services.cards.get(args.id)
+    if card is None:
+        if by_front is not None:
+            return services.review_card(by_front["id"], args.grade, args.elapsed_ms)
         raise LookupError(f"Card {args.id} does not exist.")
+    if args.front and normalize_text(args.front) != normalize_text(card["front"]):
+        # The id and the front disagree: the front is what the user saw, so
+        # it wins when it names exactly one card; otherwise nothing is
+        # recorded and the caller learns which card that front belongs to.
+        if by_front is not None:
+            return services.review_card(by_front["id"], args.grade, args.elapsed_ms)
+        raise ValueError(f"Card {args.id} is «{card['front']}», not «{args.front}»; no grade recorded.")
     return services.review_card(args.id, args.grade, args.elapsed_ms)
 
 
@@ -176,7 +199,7 @@ TOOLS: list[Tool] = [
     Tool("deck_create", "Create a deck (write). Idempotent on name: creating an existing name returns it unchanged.\nSinónimos: crear mazo, nuevo mazo, nueva baraja, añadir mazo.", DeckCreateArgs, _ann(False, False, True), run_deck_create),
     Tool("cards_add", "Add one or more flashcards to a deck (write, deck created if it does not exist yet; up to 100 cards). Idempotent per deck on the normalised front: an existing front updates back/tags/source and comes back as `existing: true`. Write the front so it has ONE unambiguous answer, keep the back short, and always fill `source` (e.g. 'apuntes.pdf, p. 14' or a URL).\nSinónimos: añadir tarjeta, crear tarjeta, nueva tarjeta, apuntar, memorizar esto, ficha, flashcard.", CardsAddArgs, _ann(False, False, True), run_cards_add),
     Tool("cards_due", "The cards due for review right now (front, back, tags, source, state, times seen). This is what the assistant uses to quiz the user in chat: show only the front, never the back, until the user has answered.\nSinónimos: repasar, tarjetas pendientes, quiz, examíname, pregúntame, hoy toca repasar.", CardsDueArgs, _ann(True), run_cards_due),
-    Tool("card_review", "Grade one card the user just answered in chat (write): 0 again (wrong), 1 hard (partly right), 2 good (right), 3 easy (instant and complete). Call it exactly once per real answer the user gave; never grade on the user's behalf or guess. Returns the new schedule and the next due card in the same deck.\nSinónimos: calificar, he acertado, he fallado, lo sabía, no lo sabía, siguiente tarjeta.", CardReviewArgs, _ann(False, False, True), run_card_review),
+    Tool("card_review", "Grade one card the user just answered in chat (write): 0 again (wrong, blank or 'no me acuerdo'), 1 hard (partly right), 2 good (right), 3 easy (instant and complete). Pass the front you showed (and the id if you have it): the front is what the user saw, so it decides which card is graded; a front that matches no card is refused. Call it exactly once per real answer the user gave; never grade on the user's behalf or guess. Returns the new schedule and the next due card in the same deck.\nSinónimos: calificar, he acertado, he fallado, lo sabía, no lo sabía, siguiente tarjeta.", CardReviewArgs, _ann(False, False, True), run_card_review),
     Tool("cards_search", "Full-text search over the user's cards (front, back, tags, source), diacritics-insensitive.\nSinónimos: buscar tarjeta, dónde tengo esto, busca en mis tarjetas.", CardsSearchArgs, _ann(True), run_cards_search),
     Tool("card_update", "Edit a card's front/back/tags/source/deck/suspended (write). Only given fields change.\nSinónimos: editar tarjeta, corregir, cambiar mazo, suspender tarjeta.", CardUpdateArgs, _ann(False, False, True), run_card_update),
     Tool("card_delete", "Permanently delete a card (write, destructive).\nSinónimos: borrar tarjeta, eliminar tarjeta, quitar ficha.", CardDeleteArgs, _ann(False, True, True), run_card_delete),

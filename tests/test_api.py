@@ -173,3 +173,31 @@ def test_agent_tools_and_auth(client):
     deleted = client.post("/api/agent/call", json={"name": "card_delete", "arguments": {"id": card_id}}, headers=auth).json()
     assert deleted["ok"] is True
     assert client.post("/api/agent/call", json={"name": "card_review", "arguments": {"id": card_id, "grade": "good"}}, headers=auth).status_code == 404
+
+
+def test_card_review_refuses_a_front_that_belongs_to_another_card(client):
+    """A local model quizzing the user showed card 2 and graded card 1. With
+    the front it showed, the mismatch is refused and nothing is recorded."""
+    headers = {"Authorization": f"Bearer {client.services.token}"}
+    added = client.post("/api/agent/call", json={"name": "cards_add", "arguments": {"deck": "Redes", "cards": [
+        {"front": "¿Qué es un plugin?", "back": "Una app conectada.", "source": "a.md"},
+        {"front": "¿Dónde busca el manifiesto?", "back": "En plugins/<id>/plugin.json.", "source": "a.md"},
+    ]}}, headers=headers).json()
+    first, second = (c["id"] for c in added["cards"])
+    # the front is what the user saw: it wins over a wrong id
+    r = client.post("/api/agent/call", json={"name": "card_review", "arguments": {"id": first, "grade": 2, "front": "¿Dónde busca el manifiesto?"}}, headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["card"]["id"] == second and r.json()["card"]["repetitions"] == 1
+    assert client.get(f"/api/cards/{first}").json()["state"] == "new"
+    # a front that names no card is refused, id or not
+    r = client.post("/api/agent/call", json={"name": "card_review", "arguments": {"id": first, "grade": 2, "front": "¿Cuál es la capital de Francia?"}}, headers=headers)
+    assert r.status_code == 400, r.text
+    r = client.post("/api/agent/call", json={"name": "card_review", "arguments": {"grade": 2, "front": "¿Cuál es la capital de Francia?"}}, headers=headers)
+    assert r.status_code == 404, r.text
+    # the front alone is enough
+    r = client.post("/api/agent/call", json={"name": "card_review", "arguments": {"grade": "again", "front": "¿Qué es un plugin?"}}, headers=headers)
+    assert r.status_code == 200 and r.json()["card"]["id"] == first and r.json()["card"]["lapses"] == 1
+    # the same front with accents dropped and different spacing still matches its own card
+    ok = client.post("/api/agent/call", json={"name": "card_review", "arguments": {"id": second, "grade": "good", "front": "  ¿Donde busca el   manifiesto? "}}, headers=headers)
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["card"]["repetitions"] == 2

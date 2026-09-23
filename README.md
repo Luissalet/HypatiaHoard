@@ -75,7 +75,7 @@ All JSON; errors are `{ "error": "..." }`.
 | `deck_create` | Create a deck (write, idempotent by name). |
 | `cards_add` | Add up to 100 cards to a deck, creating it if needed (write, idempotent per normalised front). |
 | `cards_due` | The due queue with front AND back, for the assistant to quiz the user in chat. |
-| `card_review` | Grade one card the user just answered (write): again/hard/good/easy. |
+| `card_review` | Grade one card the user just answered (write): again/hard/good/easy — a blank or "I don't remember" is again. Takes the front that was shown (and optionally the id): the front decides which card is graded, so a wrong id never lands a grade on another card; a front that matches no card is refused. |
 | `cards_search` | Full-text search over the user's cards. |
 | `card_update` | Edit a card's fields (write). |
 | `card_delete` | Delete a card (write, destructive). |

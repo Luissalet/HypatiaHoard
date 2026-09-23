@@ -52,7 +52,7 @@ El servidor escucha en 127.0.0.1 y solo responde a peticiones cuyo `Host` sea `l
 
 `mcp_server.py` es un puente stdio: pide la lista de herramientas a la aplicación en marcha y reenvía cada llamada a `POST /api/agent/call` con el token de `data/mcp-token`. Nunca abre la base de datos. Faustus detecta la aplicación por `/api/health` y rellena la conexión con `faustus-plugin.json`.
 
-Herramientas: `decks_list`, `deck_create`, `cards_add`, `cards_due`, `card_review`, `cards_search`, `card_update`, `card_delete`, `cards_stats` y `cards_export`. Las instrucciones obligan al asistente a añadir tarjetas solo desde material real, con una fuente en cada una; al examinar, a mostrar solo el frente, esperar la respuesta real y calificar con `card_review`; a no revelar nunca el reverso antes de tiempo ni calificar sin una respuesta real del usuario.
+Herramientas: `decks_list`, `deck_create`, `cards_add`, `cards_due`, `card_review`, `cards_search`, `card_update`, `card_delete`, `cards_stats` y `cards_export`. Las instrucciones obligan al asistente a añadir tarjetas solo desde material real, con una fuente en cada una; al examinar, a mostrar solo el frente, esperar la respuesta real y calificar con `card_review` (con el frente mostrado, que decide la tarjeta aunque el id venga mal; un «no me acuerdo» es «otra vez»); a no revelar nunca el reverso antes de tiempo ni calificar sin una respuesta real del usuario.
 
 ## Pruebas
 

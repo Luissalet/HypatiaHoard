@@ -181,6 +181,16 @@ class CardStore:
             row = self.db.conn.execute("SELECT * FROM cards WHERE id = ?", (card_id,)).fetchone()
         return card_to_dict(row) if row else None
 
+    def find_by_front(self, front: str, deck_id: int | None = None) -> dict | None:
+        """The card whose normalised front equals `front` (any deck unless given)."""
+        sql, params = "SELECT * FROM cards WHERE normalized_front = ?", [normalize_text(front)]
+        if deck_id is not None:
+            sql += " AND deck_id = ?"
+            params.append(deck_id)
+        with self.db.lock:
+            row = self.db.conn.execute(sql + " ORDER BY id LIMIT 1", params).fetchone()
+        return card_to_dict(row) if row else None
+
     def list(self, deck_id: int | None = None, tag: str | None = None, state: str | None = None,
               q: str | None = None, due_before: float | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
         sql = "SELECT * FROM cards WHERE 1=1"
