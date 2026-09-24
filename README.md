@@ -15,6 +15,7 @@ Part of the Hoard family (see `faustus-plugin.json`).
 - **Stats**: per deck or total — counts by state, due now, reviewed today, 30-day retention (good+easy over non-new reviews), a streak of consecutive days with at least one review, and a 7-day forecast.
 - **Search**: FTS5 over front/back/tags/source, diacritics-insensitive, prefix match, filterable by deck/tag/state.
 - **Import/export**: a deck accepts a JSON list `[{front, back, tags?, source?}]` or CSV (`front,back,tags,source`) and dedupes on import; export returns the deck's cards with their full scheduling state, so it can move between machines.
+- **Suggest cards from what you heard, not only what you read**: a "Sugerir/Suggest" panel (and the `cards_suggest` tool) drafts cards with a local model from pasted text or a Scribe's Hoard session/time range — one fact per card, a filled `source` — as a proposal you review, edit and tick before anything is saved. See [Suggesting cards](#suggesting-cards-from-text-or-a-scribes-hoard-session).
 
 ## Requirements
 
@@ -45,6 +46,9 @@ Open http://127.0.0.1:5187, go to **Mazos** to create a deck, then **Tarjetas** 
 | `HYPATIA_PORT` / `PORT` | `5187` | Preferred port; `PORT_STRICT=1` pins it, otherwise the first free port from there. |
 | `HYPATIA_DATA_DIR` | `<repo>/data` | Database (`hypatia-hoard.db`), `mcp-token`. |
 | `HYPATIA_ALLOWED_HOSTS` | | Extra host names accepted behind a tunnel (see below). |
+| `SCRIBE_URL` | (sibling's `data/url`, else `http://127.0.0.1:5185`) | Where Scribe's Hoard is, for `cards_suggest`'s `scribe` source. |
+| `SCRIBE_TOKEN` | (sibling's `data/mcp-token`) | Bearer token for Scribe's Hoard's agent API. |
+| `SCRIBE_DIR` / `SCRIBE_DATA_DIR` | (a sibling folder named `Scribe's Hoard`) | Override where Scribe's Hoard (or its `data/` folder) is found. |
 
 ### Access from your phone (behind a tunnel)
 
@@ -63,7 +67,16 @@ All JSON; errors are `{ "error": "..." }`.
 - `GET /api/review/queue?deck&limit` (front only, never the back), `POST /api/review/{card_id}` `{grade, elapsed_ms?}`
 - `GET /api/stats?deck`
 - `GET /api/search?q&deck&tag&state&limit`
+- `POST /api/suggest` `{source, deck, max_cards?, language?}` → drafts (or `material` when no model backend is available), `GET /api/suggest/scribe/sessions?q&kind&since&until&limit` (proxies Scribe's Hoard, never fails: `{reachable: false, reason}` when it isn't running), `POST /api/suggest/accept` `{deck, drafts}` (same effect as `POST /api/cards`)
 - `GET /api/agent/tools` (catalog + instructions), `POST /api/agent/call` (Bearer token from `data/mcp-token`)
+
+## Suggesting cards from text or a Scribe's Hoard session
+
+Besides writing cards by hand from what you *read*, the **Sugerir/Suggest** panel in **Tarjetas** (and the assistant's `cards_suggest` tool) drafts cards from what you *heard*, too: paste a passage, or point at a Scribe's Hoard session (by id, or a since/until range across several sessions). Drafting itself runs on a local model through [Hoard Link](https://github.com/Luissalet/HoardLink) (vendored at `hypatia/hoard_link/`, see its `VENDORED.txt`) — the same shared-backend resolution Faustus's other plugins use, so it reuses whatever `llm` server is already loaded instead of loading a second copy of a model. Nothing is saved automatically: drafting returns `drafts` (front/back/source) for you (or the assistant) to review, edit and tick, and only `cards_suggest_accept` / `POST /api/suggest/accept` (or a plain `cards_add`) writes them to a deck.
+
+If no model backend can be resolved (or it replies with something that isn't the expected JSON), `cards_suggest` never fails silently: it comes back with `drafts: []`, the gathered `material` (the pasted text, or the rendered transcript), and a `note` explaining why, so the assistant can draft the cards itself from `material` instead.
+
+`cards_suggest`'s `scribe` source talks to Scribe's Hoard exactly the way Faustus's plugins talk to each other: `GET /api/agent/tools` / `POST /api/agent/call` on Scribe's own port, authenticated with *Scribe's* token (read from its sibling `data/mcp-token`, or `SCRIBE_TOKEN`/`SCRIBE_URL` above). Hypatia's Hoard never opens Scribe's database and never writes to it.
 
 ## MCP tools
 
@@ -81,6 +94,8 @@ All JSON; errors are `{ "error": "..." }`.
 | `card_delete` | Delete a card (write, destructive). |
 | `cards_stats` | Study statistics. |
 | `cards_export` | Export a deck's cards as JSON. |
+| `cards_suggest` | Draft flashcards (proposal, nothing saved) from pasted text or a Scribe's Hoard transcript. |
+| `cards_suggest_accept` | Save the drafts the user accepted (write, same effect as `cards_add`). |
 
 The shipped instructions tell the assistant: add cards only from material the user actually has, one fact per card with a source; when quizzing, show only the front, wait for the real answer, then grade with `card_review` and say what the back said; never reveal the back first, never grade without a real answer, never touch the database directly.
 
@@ -90,7 +105,7 @@ The shipped instructions tell the assistant: add cards only from material the us
 venv\Scripts\python -m pytest -q
 ```
 
-Covers the SM-2 scheduler (every grade path, caps, lapses, ease floor), store dedupe and normalisation, FTS search with accents, stats (retention, streak across midnight, forecast) with a fully injectable clock, import (JSON + CSV), the HTTP API, agent tools through `/api/agent/call`, the request guard, the PWA endpoints, and a subprocess end-to-end test through the MCP stdio bridge.
+Covers the SM-2 scheduler (every grade path, caps, lapses, ease floor), store dedupe and normalisation, FTS search with accents, stats (retention, streak across midnight, forecast) with a fully injectable clock, import (JSON + CSV), the HTTP API, agent tools through `/api/agent/call`, the request guard, the PWA endpoints, `cards_suggest`/`cards_suggest_accept` (prompt building, JSON parsing, a fake Hoard Link, a fake Scribe's Hoard ASGI app, the fallback-to-`material` path, tool schema and the `/api/suggest*` HTTP API), and a subprocess end-to-end test through the MCP stdio bridge.
 
 ## License
 

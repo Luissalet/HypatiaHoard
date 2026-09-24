@@ -44,4 +44,8 @@ export const api = {
 
   stats: (deck) => request("GET", "/api/stats", { params: { deck } }),
   search: (params) => request("GET", "/api/search", { params }),
+
+  suggest: (body) => request("POST", "/api/suggest", { body }),
+  suggestAccept: (body) => request("POST", "/api/suggest/accept", { body }),
+  scribeSessions: (params) => request("GET", "/api/suggest/scribe/sessions", { params }),
 };

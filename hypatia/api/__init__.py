@@ -8,5 +8,7 @@ from .review import router as review_router
 from .search import router as search_router
 from .stats import router as stats_router
 from .status import router as status_router
+from .suggest import router as suggest_router
 
-ROUTERS = [status_router, decks_router, cards_router, review_router, stats_router, search_router, pwa_router, agent_router]
+ROUTERS = [status_router, decks_router, cards_router, review_router, stats_router, search_router, pwa_router,
+           suggest_router, agent_router]

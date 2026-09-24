@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import secrets
 import time
-from typing import Callable
+from typing import Any, Callable
 
 from . import __version__
+from .backend import load_link_config
 from .config import Config
 from .db import Database
+from .hoard_link import ChatResult, Link
 from .scheduler import parse_grade
 from .search import Search
 from .stats import Stats
@@ -34,7 +36,8 @@ class Services:
     injectable (tests pass a fixed function) so nothing depends on wall time.
     """
 
-    def __init__(self, config: Config, clock: Callable[[], float] | None = None):
+    def __init__(self, config: Config, clock: Callable[[], float] | None = None,
+                 link_chat: Callable[..., ChatResult] | None = None, scribe_client: Any = None):
         self.config = config
         self.clock = clock or time.time
         self.started_at = self.clock()
@@ -46,11 +49,42 @@ class Services:
         self.search = Search(self.db)
         self.stats = Stats(self.db)
         self.default_deck = self.decks.ensure_default(self.clock())
+        self._link: Link | None = None
+        # Tests inject a fake `link_chat(messages, **kwargs) -> ChatResult`
+        # (raising Unavailable/BackendError as needed) instead of a real
+        # Hoard Link, so cards_suggest can be tested fully offline.
+        self._link_chat_override = link_chat
+        # Tests inject a fake ScribeClient (e.g. pointed at an ASGI transport)
+        # instead of one that resolves Scribe's real sibling folder/port.
+        self._scribe_client_override = scribe_client
 
     def now(self) -> float:
         return self.clock()
 
+    def make_scribe_client(self):
+        if self._scribe_client_override is not None:
+            return self._scribe_client_override
+        from .scribe_client import ScribeClient
+
+        return ScribeClient()
+
+    @property
+    def link(self) -> Link:
+        """Hoard Link, built lazily (only `cards_suggest` needs it): a Link
+        the app never used never opens an event-loop thread or an HTTP
+        client, which keeps every other test and request unaffected."""
+        if self._link is None:
+            self._link = Link(load_link_config(self.config.data_dir))
+        return self._link
+
+    def link_chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> ChatResult:
+        if self._link_chat_override is not None:
+            return self._link_chat_override(messages, **kwargs)
+        return self.link.sync.chat(messages, **kwargs)
+
     def stop(self) -> None:
+        if self._link is not None:
+            self._link.sync.close()
         self.db.close()
 
     # ---------- decks ----------

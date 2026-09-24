@@ -128,7 +128,7 @@ def test_agent_tools_and_auth(client):
     catalog = client.get("/api/agent/tools").json()
     names = [t["name"] for t in catalog["tools"]]
     assert names == ["decks_list", "deck_create", "cards_add", "cards_due", "card_review", "cards_search",
-                     "card_update", "card_delete", "cards_stats", "cards_export"]
+                     "card_update", "card_delete", "cards_stats", "cards_export", "cards_suggest", "cards_suggest_accept"]
     assert "sm-2" in catalog["instructions"].lower() or "grade" in catalog["instructions"].lower()
     for tool in catalog["tools"]:
         assert "Sinónimos:" in tool["description"] and tool["inputSchema"]["type"] == "object"

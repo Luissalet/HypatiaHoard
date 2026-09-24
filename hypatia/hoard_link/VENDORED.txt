@@ -1,0 +1,12 @@
+Vendored from HoardLink (https://github.com/Luissalet/HoardLink), version 0.3.0
+
+Do not edit; replace the whole folder with a byte-identical copy of that
+version to update.
+
+Hypatia's Hoard talks to Hoard Link only through hypatia/backend.py, which
+loads data/backend.json plus the environment into a LinkConfig for this app
+and builds the cards_suggest prompt, without editing any vendored file. When
+re-vendoring a later HoardLink version, drop in the new files here and
+re-run `pytest tests/test_backend.py tests/test_suggest.py` to confirm the
+wrapper still lines up with the public API (Link, LinkConfig,
+CapabilityConfig, Resolution, Unavailable, BackendError).

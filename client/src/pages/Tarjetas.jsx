@@ -53,12 +53,165 @@ function CardForm({ decks, defaultDeck, initial, onSubmit, onCancel, submitLabel
   );
 }
 
+const EMPTY_SUGGEST = { mode: "text", text: "", sessionId: "", since: "", until: "", deck: "", maxCards: 12, language: "auto" };
+
+function SuggestPanel({ decks, defaultDeck, act, notify, onAdded, onClose }) {
+  const [form, setForm] = useState({ ...EMPTY_SUGGEST, deck: defaultDeck || "" });
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [scribe, setScribe] = useState({ reachable: null, sessions: [], reason: null });
+  const [result, setResult] = useState(null);
+  const [drafts, setDrafts] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (form.mode !== "scribe" || scribe.reachable !== null) return;
+    api.scribeSessions({}).then(setScribe).catch(() => setScribe({ reachable: false, sessions: [], reason: "Error de conexión." }));
+  }, [form.mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function generate() {
+    if (!form.deck) return;
+    const source = form.mode === "text"
+      ? { kind: "text", text: form.text }
+      : form.sessionId
+        ? { kind: "scribe", session_id: form.sessionId }
+        : { kind: "scribe", since: form.since || undefined, until: form.until || undefined };
+    setBusy(true);
+    try {
+      const r = await act(() => api.suggest({ source, deck: form.deck, max_cards: Number(form.maxCards) || 12, language: form.language }));
+      setResult(r);
+      setDrafts((r.drafts || []).map((d) => ({ ...d, include: true })));
+    } catch {
+      // act() already surfaced the error as a toast.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function updateDraft(i, patch) {
+    setDrafts((ds) => ds.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  }
+
+  async function accept() {
+    const chosen = drafts.filter((d) => d.include).map(({ front, back, source }) => ({ front, back, source }));
+    if (!chosen.length) return;
+    await act(() => api.suggestAccept({ deck: form.deck, drafts: chosen }), `${chosen.length} tarjeta(s) añadida(s).`);
+    setResult(null);
+    setDrafts([]);
+    onAdded();
+  }
+
+  return (
+    <div className="panel grid gap-3">
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <label className="label">Mazo destino</label>
+          <select className="field" value={form.deck} onChange={set("deck")} required>
+            <option value="" disabled>Elige un mazo</option>
+            {decks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Máx. tarjetas</label>
+          <input className="field" type="number" min="1" max="40" value={form.maxCards} onChange={set("maxCards")} />
+        </div>
+        <div>
+          <label className="label">Idioma</label>
+          <select className="field" value={form.language} onChange={set("language")}>
+            <option value="auto">Automático</option>
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <button type="button" className={`btn btn-sm ${form.mode === "text" ? "btn-primary" : ""}`} onClick={() => setForm((f) => ({ ...f, mode: "text" }))}>Texto</button>
+        <button type="button" className={`btn btn-sm ${form.mode === "scribe" ? "btn-primary" : ""}`} onClick={() => setForm((f) => ({ ...f, mode: "scribe" }))}>Sesión de Scribe</button>
+      </div>
+
+      {form.mode === "text" ? (
+        <div>
+          <label className="label">Pega el texto (apuntes, página guardada…)</label>
+          <textarea className="field" rows={6} value={form.text} onChange={set("text")} placeholder="Pega aquí el pasaje del que quieres sacar tarjetas…" />
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {scribe.reachable === false && (
+            <p className="help">No se pudo conectar con Scribe's Hoard ({scribe.reason}). Abre la app o usa una fecha manualmente.</p>
+          )}
+          {scribe.sessions.length > 0 && (
+            <div>
+              <label className="label">Sesión</label>
+              <select className="field" value={form.sessionId} onChange={set("sessionId")}>
+                <option value="">— elige una sesión, o filtra por fecha abajo —</option>
+                {scribe.sessions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.title} · {s.started_at} · {s.duration}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {!form.sessionId && (
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="label">Desde</label>
+                <input className="field" value={form.since} onChange={set("since")} placeholder="ayer, esta semana, 2026-01-01…" />
+              </div>
+              <div>
+                <label className="label">Hasta</label>
+                <input className="field" value={form.until} onChange={set("until")} placeholder="hoy…" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-primary" onClick={generate} disabled={busy || !form.deck || (form.mode === "text" && !form.text.trim())}>
+          {busy ? "Generando…" : "Generar propuestas"}
+        </button>
+        <button type="button" className="btn" onClick={onClose}>Cerrar</button>
+      </div>
+
+      {result && result.note && (
+        <p className="help rounded-md border p-3" style={{ borderColor: "var(--field-line)" }}>{result.note}</p>
+      )}
+      {result && result.material && (
+        <details className="panel-white p-3">
+          <summary className="font-medium cursor-pointer">Material (sin tarjetas automáticas: revísalo tú)</summary>
+          <pre className="help mt-2 whitespace-pre-wrap">{result.material}</pre>
+        </details>
+      )}
+
+      {drafts.length > 0 && (
+        <div className="grid gap-2">
+          {drafts.map((d, i) => (
+            <div key={i} className="panel-white grid gap-2 p-3">
+              <div className="flex items-start gap-2">
+                <input type="checkbox" className="mt-2" checked={d.include} onChange={(e) => updateDraft(i, { include: e.target.checked })} />
+                <div className="flex-1 grid gap-2">
+                  <textarea className="field" rows={2} value={d.front} onChange={(e) => updateDraft(i, { front: e.target.value })} />
+                  <textarea className="field" rows={2} value={d.back} onChange={(e) => updateDraft(i, { back: e.target.value })} />
+                  <input className="field" value={d.source} onChange={(e) => updateDraft(i, { source: e.target.value })} placeholder="Fuente" />
+                </div>
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-primary" onClick={accept} disabled={!drafts.some((d) => d.include)}>
+            Añadir seleccionadas
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Tarjetas() {
   const { decks, act, notify } = useApp();
   const [filters, setFilters] = useState({ deck: "", tag: "", state: "", q: "" });
   const [cards, setCards] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [showNew, setShowNew] = useState(false);
+  const [showSuggest, setShowSuggest] = useState(false);
   const [importDeck, setImportDeck] = useState("");
   const fileRef = useRef(null);
 
@@ -115,14 +268,32 @@ export default function Tarjetas() {
   return (
     <div>
       <PageHeader title="Tarjetas" description="Busca, edita, suspende o elimina tus tarjetas.">
-        <button type="button" className="btn btn-primary" onClick={() => setShowNew((v) => !v)}>
-          {showNew ? "Cerrar" : "Nueva tarjeta"}
-        </button>
+        <div className="flex gap-2">
+          <button type="button" className="btn" onClick={() => { setShowSuggest((v) => !v); setShowNew(false); }}>
+            {showSuggest ? "Cerrar" : "Sugerir de lo leído/hablado"}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => { setShowNew((v) => !v); setShowSuggest(false); }}>
+            {showNew ? "Cerrar" : "Nueva tarjeta"}
+          </button>
+        </div>
       </PageHeader>
 
       {showNew && (
         <div className="mb-5">
           <CardForm decks={decks} onSubmit={createCard} onCancel={() => setShowNew(false)} submitLabel="Guardar" />
+        </div>
+      )}
+
+      {showSuggest && (
+        <div className="mb-5">
+          <SuggestPanel
+            decks={decks}
+            defaultDeck={filters.deck}
+            act={act}
+            notify={notify}
+            onAdded={() => { refresh(); }}
+            onClose={() => setShowSuggest(false)}
+          />
         </div>
       )}
 

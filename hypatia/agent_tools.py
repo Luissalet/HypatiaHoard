@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Annotated, Any, Callable, Literal, Union
 
 from pydantic import BaseModel, Field
 
+from . import suggest
 from .services import Services
 from .store import normalize_text
 
 AGENT_INSTRUCTIONS = """Hypatia's Hoard is the user's own flashcards, scheduled by the app (SM-2); the assistant is the author and, in chat, the examiner.
 Add cards only from material the user actually has: a passage from their library, a saved page, something they just said. One fact per card, the back short, and always fill `source` so the card is traceable.
-When quizzing: call cards_due, show only the front, wait for the user's actual answer, then compare it with the back yourself and call card_review once — with the front you showed (and the id) — with the grade that answer earns: again (0) if wrong, blank or "no me acuerdo", hard (1) if partly right, good (2) if right, easy (3) only if instant and complete — and then say what the back said.
+When the user asks for cards from what was said/discussed/a meeting/a transcript ("hazme tarjetas de lo que hablamos/de la reunión/de esta transcripción"): call cards_suggest (source kind "scribe" with a session_id or a since/until range, or kind "text" for pasted text), show the drafts to the user as proposed cards, and save with cards_suggest_accept (or cards_add) only the ones the user accepts — never add a draft the user did not approve. If cards_suggest comes back with `drafts: []` and a `material` field, no model was available to draft automatically: read `material` yourself, draft the cards following the same rules (one fact per card, short back, source filled), show them, and save only what the user accepts.
+When quizzing: call cards_due, show only the front, wait for the user's actual answer, then compare it with the back yourself and call card_review once — with the front you showed (and the id) — with the grade that answer earns: again (0) if wrong, blank, "no me acuerdo" or about something else than the question (a true sentence about another topic is still wrong), hard (1) if partly right, good (2) if right, easy (3) only if instant and complete — and then say what the back said.
 Never reveal the back before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent cards or grades. Never read the data folder or the database directly; use these tools only."""
 
 
@@ -79,6 +81,41 @@ class CardDeleteArgs(BaseModel):
 
 class CardsExportArgs(BaseModel):
     deck: str = Field(..., min_length=1, max_length=200)
+
+
+class TextSource(BaseModel):
+    kind: Literal["text"]
+    text: str = Field(..., min_length=1, max_length=200_000, description="Pasted passage/page to draft cards from.")
+
+
+class ScribeSource(BaseModel):
+    kind: Literal["scribe"]
+    session_id: str | None = Field(None, max_length=64, description="One Scribe session; takes priority over since/until.")
+    since: str | None = Field(None, max_length=100, description="Start of the range (Scribe's own date words, e.g. 'ayer', 'esta semana', or ISO).")
+    until: str | None = Field(None, max_length=100, description="End of the range.")
+
+
+Source = Annotated[Union[TextSource, ScribeSource], Field(discriminator="kind")]
+
+
+class CardsSuggestArgs(BaseModel):
+    source: Source
+    deck: str = Field(..., min_length=1, max_length=200, description="Deck the drafts would go into (not created until accepted).")
+    max_cards: int = Field(12, ge=1, le=40)
+    language: Literal["es", "en", "auto"] = "auto"
+
+
+class DraftIn(BaseModel):
+    front: str = Field(..., min_length=1, max_length=4000)
+    back: str = Field(..., min_length=1, max_length=8000)
+    tags: list[str] = Field(default_factory=list, max_length=30)
+    source: str = Field("", max_length=1000)
+    source_url: str = Field("", max_length=2000)
+
+
+class CardsSuggestAcceptArgs(BaseModel):
+    deck: str = Field(..., min_length=1, max_length=200, description="Deck name or id; a new name is created.")
+    drafts: list[DraftIn] = Field(..., min_length=1, max_length=100, description="The drafts the user accepted, front/back as shown (edited or not).")
 
 
 @dataclass(frozen=True)
@@ -190,6 +227,17 @@ def run_cards_export(services: Services, args: CardsExportArgs) -> dict:
     return {"deck": deck.to_dict(), "cards": export_deck(services.cards, deck.id)}
 
 
+def run_cards_suggest(services: Services, args: CardsSuggestArgs) -> dict:
+    try:
+        return suggest.suggest_cards(services, args.source.model_dump(), args.deck, args.max_cards, args.language)
+    except suggest.SuggestInputError as error:
+        raise ValueError(str(error)) from error
+
+
+def run_cards_suggest_accept(services: Services, args: CardsSuggestAcceptArgs) -> dict:
+    return run_cards_add(services, CardsAddArgs(deck=args.deck, cards=[CardIn(**d.model_dump()) for d in args.drafts]))
+
+
 def _ann(read_only: bool, destructive: bool = False, idempotent: bool | None = None) -> dict[str, bool]:
     return {"readOnlyHint": read_only, "destructiveHint": destructive, "idempotentHint": read_only if idempotent is None else idempotent, "openWorldHint": False}
 
@@ -205,6 +253,8 @@ TOOLS: list[Tool] = [
     Tool("card_delete", "Permanently delete a card (write, destructive).\nSinónimos: borrar tarjeta, eliminar tarjeta, quitar ficha.", CardDeleteArgs, _ann(False, True, True), run_card_delete),
     Tool("cards_stats", "Study statistics: counts by state, due now, reviewed today, 30-day retention, streak, 7-day forecast.\nSinónimos: estadísticas, cuánto llevo, racha, retención, progreso.", DeckArgs, _ann(True), run_cards_stats),
     Tool("cards_export", "Export every card of a deck as JSON, with its scheduling fields, for the user to keep or move to another machine.\nSinónimos: exportar mazo, descargar tarjetas, copia de seguridad.", CardsExportArgs, _ann(True), run_cards_export),
+    Tool("cards_suggest", "Draft flashcards (proposal, nothing saved) from pasted text or a Scribe's Hoard transcript, with a local model. Returns `drafts` to show the user, or (no model available) `material` for the assistant to draft from itself.\nSinónimos: sugerir tarjetas, tarjetas de la reunión, tarjetas de lo que hablamos, tarjetas de la transcripción, propón tarjetas.", CardsSuggestArgs, _ann(False, False, False), run_cards_suggest),
+    Tool("cards_suggest_accept", "Save the drafts the user accepted from cards_suggest (write, same effect as cards_add).\nSinónimos: acepta las tarjetas, guarda las sugeridas, añade las que acepté.", CardsSuggestAcceptArgs, _ann(False, False, True), run_cards_suggest_accept),
 ]
 
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}

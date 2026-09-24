@@ -3,7 +3,7 @@
   "id": "hypatia",
   "name": "Hypatia's Hoard",
   "purpose": "The user's own flashcards with spaced repetition (SM-2): the assistant fills cards from what the user reads and can quiz them in chat; the app is the scheduler and the review UI.",
-  "capabilities": ["flashcards", "spaced-repetition", "decks", "review-queue", "quiz", "search", "stats", "import-export"],
+  "capabilities": ["flashcards", "spaced-repetition", "decks", "review-queue", "quiz", "search", "stats", "import-export", "card-suggestions"],
   "placeholders": ["HYPATIA_DIR", "APP_URL", "TOKEN_FILE", "PYTHON"],
   "defaults": {
     "APP_URL": "http://127.0.0.1:5187",
