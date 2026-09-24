@@ -4,7 +4,10 @@ from fixtures import CSV_SAMPLE, SAMPLE_CARDS
 
 
 def test_health_and_local_only(client):
-    assert client.get("/api/health").json() == {"service": "hypatia-hoard", "version": "0.1.0", "dataDirConfigured": True}
+    health = client.get("/api/health").json()
+    family_block = health.pop("hoard_link")
+    assert health == {"service": "hypatia-hoard", "version": "0.1.0", "dataDirConfigured": True}
+    assert family_block["family"] and family_block["app"] == "hypatia" and "events" in family_block
     assert client.get("/api/health", headers={"host": "evil.example"}).status_code == 403
     assert client.get("/api/status", headers={"origin": "http://evil.example"}).status_code == 403
     assert client.get("/api/nope").status_code == 404
