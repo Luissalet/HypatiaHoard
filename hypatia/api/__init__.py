@@ -1,14 +1,11 @@
-"""API routers."""
+"""API routers (the notebook router is Agent B's, mounted in main.py when present)."""
 
 from .agent import router as agent_router
-from .cards import router as cards_router
-from .decks import router as decks_router
-from .pwa import router as pwa_router
-from .review import router as review_router
-from .search import router as search_router
-from .stats import router as stats_router
+from .ai import router as ai_router
+from .bank import router as bank_router
+from .resources import router as resources_router
 from .status import router as status_router
-from .suggest import router as suggest_router
+from .study import router as study_router
+from .sync import router as sync_router
 
-ROUTERS = [status_router, decks_router, cards_router, review_router, stats_router, search_router, pwa_router,
-           suggest_router, agent_router]
+ROUTERS = [status_router, sync_router, bank_router, study_router, ai_router, agent_router, resources_router]

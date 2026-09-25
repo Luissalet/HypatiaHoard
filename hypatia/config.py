@@ -10,7 +10,6 @@ from .guard import parse_allowed_hosts
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PORT = 5187
-DEFAULT_NEW_PER_DAY = 20
 
 
 def _env(name: str, default: str = "") -> str:
@@ -26,6 +25,8 @@ class Config:
     port_strict: bool = False
     allowed_hosts: tuple[str, ...] = ()  # extra Host values (exact or *.suffix) besides localhost
     data_dir_configured: bool = False
+    resources_dir: Path = field(default_factory=lambda: REPO_ROOT / "resources")
+    dist_dir: Path = field(default_factory=lambda: REPO_ROOT / "dist-hoard")
 
     @property
     def db_path(self) -> Path:
@@ -45,10 +46,12 @@ class Config:
             port = DEFAULT_PORT
         if not 1 <= port <= 65535:
             port = DEFAULT_PORT
+        resources = _env("HYPATIA_RESOURCES_DIR")
         return cls(
             data_dir=Path(raw_dir).expanduser() if raw_dir else REPO_ROOT / "data",
             port=port,
             port_strict=_env("PORT_STRICT") == "1",
             allowed_hosts=parse_allowed_hosts(_env("HYPATIA_ALLOWED_HOSTS")),
             data_dir_configured=bool(raw_dir),
+            resources_dir=Path(resources).expanduser() if resources else REPO_ROOT / "resources",
         )

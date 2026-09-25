@@ -1,81 +1,31 @@
-"""SQLite connection (WAL, FTS5) and ordered schema migrations."""
+"""SQLite connection (WAL, FTS5, one shared connection behind an RLock) and the core schema."""
 
 from __future__ import annotations
 
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 MIN_SQLITE = (3, 35, 0)
 
-MIGRATIONS: list[str] = [
-    # 1: decks, cards, reviews log, FTS over cards
-    """
-    CREATE TABLE decks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      normalized_name TEXT NOT NULL UNIQUE,
-      description TEXT NOT NULL DEFAULT '',
-      new_per_day INTEGER NOT NULL DEFAULT 20,
-      created_at REAL NOT NULL
-    );
-    CREATE TABLE cards (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      deck_id INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
-      front TEXT NOT NULL,
-      back TEXT NOT NULL,
-      normalized_front TEXT NOT NULL,
-      tags TEXT NOT NULL DEFAULT '[]',
-      source TEXT NOT NULL DEFAULT '',
-      source_url TEXT NOT NULL DEFAULT '',
-      suspended INTEGER NOT NULL DEFAULT 0,
-      ease REAL NOT NULL DEFAULT 2.5,
-      interval_days INTEGER NOT NULL DEFAULT 0,
-      repetitions INTEGER NOT NULL DEFAULT 0,
-      due_at REAL NOT NULL,
-      state TEXT NOT NULL DEFAULT 'new',
-      lapses INTEGER NOT NULL DEFAULT 0,
-      last_reviewed_at REAL,
-      times_seen INTEGER NOT NULL DEFAULT 0,
-      created_at REAL NOT NULL,
-      updated_at REAL NOT NULL,
-      UNIQUE(deck_id, normalized_front)
-    );
-    CREATE INDEX cards_deck ON cards(deck_id);
-    CREATE INDEX cards_due ON cards(due_at);
-    CREATE INDEX cards_state ON cards(state);
-    CREATE TABLE reviews (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
-      deck_id INTEGER NOT NULL,
-      reviewed_at REAL NOT NULL,
-      grade INTEGER NOT NULL,
-      interval_before INTEGER NOT NULL,
-      interval_after INTEGER NOT NULL,
-      ease_after REAL NOT NULL,
-      elapsed_ms INTEGER,
-      was_new INTEGER NOT NULL DEFAULT 0
-    );
-    CREATE INDEX reviews_card ON reviews(card_id);
-    CREATE INDEX reviews_deck_time ON reviews(deck_id, reviewed_at);
-    CREATE VIRTUAL TABLE cards_fts USING fts5(
-      front, back, tags, source,
-      content='cards', content_rowid='id',
-      tokenize = 'unicode61 remove_diacritics 2'
-    );
-    CREATE TRIGGER cards_ai AFTER INSERT ON cards BEGIN
-      INSERT INTO cards_fts(rowid, front, back, tags, source) VALUES (new.id, new.front, new.back, new.tags, new.source);
-    END;
-    CREATE TRIGGER cards_ad AFTER DELETE ON cards BEGIN
-      INSERT INTO cards_fts(cards_fts, rowid, front, back, tags, source) VALUES ('delete', old.id, old.front, old.back, old.tags, old.source);
-    END;
-    CREATE TRIGGER cards_au AFTER UPDATE ON cards BEGIN
-      INSERT INTO cards_fts(cards_fts, rowid, front, back, tags, source) VALUES ('delete', old.id, old.front, old.back, old.tags, old.source);
-      INSERT INTO cards_fts(rowid, front, back, tags, source) VALUES (new.id, new.front, new.back, new.tags, new.source);
-    END;
-    CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-    """,
-]
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS records(
+  kind TEXT NOT NULL, id TEXT NOT NULL, subject_id TEXT, content_hash TEXT,
+  updated_at TEXT, rev INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(kind, id));
+CREATE INDEX IF NOT EXISTS records_subject ON records(kind, subject_id);
+CREATE INDEX IF NOT EXISTS records_hash ON records(kind, content_hash);
+CREATE INDEX IF NOT EXISTS records_rev ON records(rev);
+CREATE TABLE IF NOT EXISTS tombstones(kind TEXT, id TEXT, rev INTEGER, deleted_at TEXT, PRIMARY KEY(kind, id));
+CREATE INDEX IF NOT EXISTS tombstones_rev ON tombstones(rev);
+CREATE TABLE IF NOT EXISTS images(filename TEXT PRIMARY KEY, mime TEXT, data BLOB, rev INTEGER);
+CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS reviews(id INTEGER PRIMARY KEY, question_id TEXT, grade TEXT, result TEXT, at TEXT, via TEXT);
+CREATE INDEX IF NOT EXISTS reviews_at ON reviews(at);
+CREATE VIRTUAL TABLE IF NOT EXISTS questions_fts USING fts5(
+  id UNINDEXED, subject_id UNINDEXED, text, tokenize='unicode61 remove_diacritics 2');
+"""
 
 
 def check_sqlite() -> None:
@@ -94,40 +44,46 @@ def check_sqlite() -> None:
 class Database:
     """One connection shared by every thread, guarded by a re-entrant lock.
 
-    The app is the only writer; the MCP bridge never opens this file.
+    Autocommit mode (isolation_level=None): single statements commit on their
+    own; `tx()` groups several into one BEGIN IMMEDIATE ... COMMIT. `tx()` is
+    re-entrant: a nested `tx()` joins the outer transaction.
     """
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path | str):
         check_sqlite()
-        path.parent.mkdir(parents=True, exist_ok=True)
+        if str(path) != ":memory:":
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self.lock = threading.RLock()
+        self._depth = 0
         self.conn = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
-        self.migrate()
-
-    def migrate(self) -> None:
         with self.lock:
-            self.conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
-            row = self.conn.execute("SELECT MAX(version) AS v FROM schema_version").fetchone()
-            current = row["v"] or 0
-            for index, sql in enumerate(MIGRATIONS, start=1):
-                if index <= current:
-                    continue
-                script = f"BEGIN;\n{sql}\nINSERT INTO schema_version(version) VALUES ({index});\nCOMMIT;"
-                try:
-                    self.conn.executescript(script)
-                except Exception:
-                    if self.conn.in_transaction:
-                        self.conn.execute("ROLLBACK")
-                    raise
+            self.conn.executescript(SCHEMA)
 
-    def transaction(self):
-        """`with db.transaction():` — BEGIN IMMEDIATE / COMMIT (ROLLBACK on error) under the lock."""
-        return _Transaction(self)
+    @contextmanager
+    def tx(self) -> Iterator[sqlite3.Connection]:
+        with self.lock:
+            if self._depth:
+                self._depth += 1
+                try:
+                    yield self.conn
+                finally:
+                    self._depth -= 1
+                return
+            self.conn.execute("BEGIN IMMEDIATE")
+            self._depth = 1
+            try:
+                yield self.conn
+            except BaseException:
+                self._depth = 0
+                self.conn.execute("ROLLBACK")
+                raise
+            self._depth = 0
+            self.conn.execute("COMMIT")
 
     def close(self) -> None:
         with self.lock:
@@ -136,23 +92,3 @@ class Database:
             except sqlite3.Error:
                 pass
             self.conn.close()
-
-
-class _Transaction:
-    def __init__(self, db: Database):
-        self.db = db
-
-    def __enter__(self):
-        self.db.lock.acquire()
-        self.db.conn.execute("BEGIN IMMEDIATE")
-        return self.db.conn
-
-    def __exit__(self, exc_type, exc, tb):
-        try:
-            if exc_type is None:
-                self.db.conn.execute("COMMIT")
-            else:
-                self.db.conn.execute("ROLLBACK")
-        finally:
-            self.db.lock.release()
-        return False

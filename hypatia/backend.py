@@ -1,12 +1,6 @@
-"""App-specific wrapper around the vendored `hoard_link` package.
-
-Hypatia's Hoard uses exactly one model capability -- `llm`, for drafting
-flashcards with `cards_suggest` -- so this module stays small: it turns
-`data/backend.json` plus the environment into a `LinkConfig` for this app,
-and builds the drafting prompt. `services.py`/`suggest.py` stay about the
-app's own logic; this is where the Hoard Link specifics live so the
-vendored package (`hypatia/hoard_link/`) never has to be edited.
-"""
+"""App-specific wrapper around the vendored `hoard_link` package: `data/backend.json`
++ environment -> LinkConfig, and the prompts of the study features. The vendored
+package (`hypatia/hoard_link/`) is never edited."""
 
 from __future__ import annotations
 
@@ -20,25 +14,9 @@ from .hoard_link import LinkConfig
 APP_ID = "hypatia"
 BACKEND_FILE = "backend.json"
 
-# One fact per card is a short answer, but a reasoning model counts its
-# hidden thinking against the same budget (Hoard Link strips it from the
-# text before this app ever sees it), so the cap must leave room for both.
-SUGGEST_MAX_TOKENS = 2048
-
-SUGGEST_SYSTEM = (
-    "You write spaced-repetition flashcards from material the user actually has "
-    "(a passage, a meeting transcript). Rules: one fact per card; the front is a "
-    "short, unambiguous question; the back is a short answer, no more than one or "
-    "two sentences; never invent a fact that is not in the material; write in {language}; "
-    'reply with STRICT JSON only, no prose, no markdown fences: a JSON array of up to '
-    '{max_cards} objects, each {{"front": "...", "back": "...", "source": "..."}}, where '
-    '"source" is a short pointer back into the material you were given (e.g. a quoted '
-    "phrase, a timestamp, a section) so the user can trace the fact. If the material has "
-    "fewer facts than {max_cards}, return fewer cards rather than padding. Return [] if "
-    "the material has no fact worth a card."
-)
-
-_LANGUAGE_NAME = {"es": "Spanish", "en": "English", "auto": "the same language as the material"}
+# Room for a reasoning model's hidden thinking on top of the visible reply.
+SUGGEST_MAX_TOKENS = 4096
+GRADE_MAX_TOKENS = 1536
 
 
 def backend_json_path(data_dir: Path) -> Path:
@@ -61,16 +39,41 @@ def load_link_config(data_dir: Path, env: Optional[Mapping[str, str]] = None) ->
     return LinkConfig.load(backend_json_path(data_dir), env=env if env is not None else os.environ, app=APP_ID)
 
 
-def build_suggest_messages(material: str, language: str, max_cards: int) -> list[dict[str, str]]:
-    """Chat messages asking the model to draft flashcards from `material`.
+SUGGEST_SYSTEM = (
+    "Eres un profesor que redacta preguntas de examen a partir de material que el alumno realmente tiene "
+    "(apuntes, un fragmento, una transcripción). Reglas: cada pregunta evalúa un único concepto; nunca inventes "
+    "nada que no esté en el material; escribe en {language}. Tipos permitidos: {types}. "
+    "TEST: 3-5 opciones con ids 'a','b','c'...; correctOptionIds con los ids correctos. "
+    "DESARROLLO/PRACTICO: modelAnswer breve y keywords (3-6 términos clave). "
+    "COMPLETAR: clozeText con huecos '{{{{blank1}}}}', '{{{{blank2}}}}'... y blanks [{{\"id\":\"blank1\",\"accepted\":[...]}}]. "
+    "Añade explanation (1-2 frases) y difficulty 1-5. "
+    "Responde SOLO con JSON estricto, sin texto ni bloques ```: un array de hasta {n} objetos con la forma "
+    '{{"type","prompt","options","correctOptionIds","modelAnswer","keywords","clozeText","blanks","explanation","difficulty"}}. '
+    "Si el material tiene menos contenido, devuelve menos preguntas; [] si no hay nada preguntable."
+)
 
-    `material` is whatever text the assistant handed `cards_suggest`
-    (a pasted passage, or a rendered Scribe transcript) -- capped by the
-    caller before it gets here so the prompt stays within the model's
-    context.
-    """
-    system = SUGGEST_SYSTEM.format(language=_LANGUAGE_NAME.get(language, language), max_cards=max_cards)
-    return [
-        {"role": "system", "content": system},
-        {"role": "user", "content": material},
-    ]
+_LANGUAGE_NAME = {"es": "español", "en": "inglés", "auto": "el mismo idioma que el material"}
+
+
+def build_suggest_messages(material: str, n: int, types: list[str], language: str = "es") -> list[dict[str, str]]:
+    system = SUGGEST_SYSTEM.format(language=_LANGUAGE_NAME.get(language, language), types=", ".join(types), n=n)
+    return [{"role": "system", "content": system}, {"role": "user", "content": material}]
+
+
+GRADE_SYSTEM = (
+    "Eres un profesor que corrige respuestas de examen con honestidad. Compara la respuesta del alumno con la "
+    "respuesta modelo y las palabras clave. Una afirmación cierta pero sobre otra cosa no puntúa. "
+    'Responde SOLO con JSON estricto: {"verdict":"correct|partial|wrong","score":0-10,'
+    '"feedback":"2-3 frases en español dirigidas al alumno","missing":["conceptos que faltan"]}.'
+)
+
+
+def build_grade_messages(question: dict[str, Any], answer: str) -> list[dict[str, str]]:
+    keywords = ", ".join(question.get("keywords") or []) or "(ninguna)"
+    user = (
+        f"Pregunta: {question.get('prompt', '')}\n\n"
+        f"Respuesta modelo: {question.get('modelAnswer') or '(no hay)'}\n"
+        + (f"Resultado numérico esperado: {question['numericAnswer']}\n" if question.get("numericAnswer") else "")
+        + f"Palabras clave: {keywords}\n\nRespuesta del alumno: {answer}"
+    )
+    return [{"role": "system", "content": GRADE_SYSTEM}, {"role": "user", "content": user}]

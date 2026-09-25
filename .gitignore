@@ -1,13 +1,27 @@
-node_modules/
-hypatia/static/
-dist/
-data/
-venv/
-.venv/
+node_modules
+/dist
+/dist-hoard
+vite.config.ts.timestamp*
+
+# Local runtime: database, token, uploads, extracted package resources, studio output
+/data
+/resources
+
+# Subject packages (password-protected content) never go in the repo
+*.examcoach.zip
+*.examcoach.enc
+/packages
+
+# Python
+/venv
+/.venv
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Secrets and local scripts
 .env
 .env.*
 !.env.example
+/scripts
 *.log

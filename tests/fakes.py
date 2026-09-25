@@ -1,78 +1,88 @@
-"""Test doubles for cards_suggest (see CLAUDE... no: see hypatia/suggest.py):
-a fake Scribe's Hoard ASGI app (the family HTTP contract, not the real app)
-and small helpers to build a `ChatResult`. Not a test module itself --
-pytest only collects files matching test_*.py.
-"""
+"""Test doubles (not a test module): FakeLink, a stand-in for hoard_link.Link that
+never touches the network, and a tiny WAV writer."""
 
 from __future__ import annotations
 
-from typing import Any
+import hashlib
+import io
+import json
+import math
+import wave
+from typing import Any, Callable
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.testclient import TestClient
+from hypatia.hoard_link import ChatResult, Resolution, Unavailable, Usage
 
-from hypatia.hoard_link import ChatResult, Usage
-from hypatia.scribe_client import ScribeClient
-
-FAKE_SCRIBE_TOKEN = "scribe-fake-token"
-
-
-def chat_text(text: str, model: str = "fake-qwen") -> ChatResult:
-    return ChatResult(text=text, model=model, provider="fake", usage=Usage(), elapsed_ms=5.0)
+ALL_CAPABILITIES = ("llm", "embeddings", "tts", "vision")
 
 
-def make_fake_scribe_app(sessions: list[dict[str, Any]], transcripts: dict[str, list[dict[str, Any]]],
-                          token: str = FAKE_SCRIBE_TOKEN) -> FastAPI:
-    """A tiny stand-in for Scribe's Hoard `/api/agent/*` (never the real app).
-
-    `sessions`: session briefs as `scribe_sessions` would return them (id,
-    title, started_at, ...). `transcripts`: session id -> list of segment
-    dicts (t, start_s, end_s, speaker, text); paginated 2 segments per page
-    so pagination (`next_from_s`) is actually exercised.
-    """
-    app = FastAPI()
-
-    @app.get("/api/agent/tools")
-    def tools():
-        return {"instructions": "fake scribe", "tools": []}
-
-    @app.post("/api/agent/call")
-    def call(request: Request, body: dict[str, Any]):
-        header = request.headers.get("authorization", "")
-        given = header[7:].strip() if header.startswith("Bearer ") else ""
-        if given != token:
-            raise HTTPException(401, "Invalid token.")
-        name = body.get("name")
-        args = body.get("arguments") or {}
-        if name == "scribe_sessions":
-            rows = sessions
-            q = (args.get("q") or "").lower()
-            if q:
-                rows = [s for s in rows if q in s["title"].lower()]
-            return {"total": len(rows), "sessions": rows[: args.get("limit", 20)]}
-        if name == "scribe_transcript":
-            sid = args["session_id"]
-            if sid not in transcripts:
-                raise HTTPException(404, f"Unknown session: {sid}")
-            segs = transcripts[sid]
-            from_s = args.get("from_s") or 0
-            page = [s for s in segs if s["start_s"] >= from_s][:2]
-            next_from = None
-            if page:
-                idx = segs.index(page[-1]) + 1
-                if idx < len(segs):
-                    next_from = segs[idx]["start_s"]
-            session = next((s for s in sessions if s["id"] == sid), {"id": sid, "title": sid, "started_at": ""})
-            return {"session": session, "status": "done", "notes": "", "segments": page, "next_from_s": next_from,
-                    "note": ""}
-        raise HTTPException(404, f"Unknown tool: {name}")
-
-    return app
+def tiny_wav(ms: int = 100, rate: int = 16000) -> bytes:
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(b"\x00\x00" * (rate * ms // 1000))
+    return buf.getvalue()
 
 
-def make_fake_scribe_client(sessions: list[dict[str, Any]], transcripts: dict[str, list[dict[str, Any]]],
-                             token: str = FAKE_SCRIBE_TOKEN, unauthorized: bool = False) -> ScribeClient:
-    app = make_fake_scribe_app(sessions, transcripts, token)
-    test_client = TestClient(app)  # keeps the app alive for the transport's lifetime
-    return ScribeClient(base_url="http://scribe.test", token=(token + "x" if unauthorized else token),
-                         transport=test_client._transport)
+def default_reply(messages: list[dict[str, Any]], **kwargs: Any) -> str:
+    """Canned replies by prompt kind (the system prompt says what is asked)."""
+    system = " ".join(str(m.get("content")) for m in messages if m.get("role") == "system").lower()
+    if "corrige" in system:
+        return json.dumps({"verdict": "partial", "score": 6, "feedback": "Falta un concepto.", "missing": ["cohesión"]})
+    if "redacta preguntas" in system:
+        return json.dumps([
+            {"type": "TEST", "prompt": "¿Qué es un requisito funcional?",
+             "options": [{"id": "a", "text": "Lo que hace el sistema"}, {"id": "b", "text": "Cuánto tarda"}],
+             "correctOptionIds": ["a"], "explanation": "Describe comportamiento.", "difficulty": 2},
+            {"type": "DESARROLLO", "prompt": "Explica el acoplamiento.", "modelAnswer": "Grado de dependencia entre módulos.",
+             "keywords": ["dependencia", "módulos"]},
+            {"type": "TEST", "prompt": "Inválida sin opciones"},
+        ])
+    return "Respuesta de prueba [1]."
+
+
+class FakeLink:
+    def __init__(self, capabilities: tuple[str, ...] = ALL_CAPABILITIES,
+                 chat_handler: Callable[..., str] | None = None, model: str = "fake-llm", dim: int = 16):
+        self.capabilities = tuple(capabilities)
+        self.chat_handler = chat_handler or default_reply
+        self.model = model
+        self.dim = dim
+        self.calls: list[dict[str, Any]] = []
+
+    async def resolve(self, capability: str) -> Resolution:
+        ok = capability in self.capabilities
+        return Resolution(capability=capability, provider="fake" if ok else None, url="http://fake" if ok else None,
+                          model=self.model if ok else None, api="openai" if ok else None,
+                          state="resolved" if ok else "unavailable", reason="fake")
+
+    def _need(self, capability: str) -> None:
+        if capability not in self.capabilities:
+            raise Unavailable(capability, ["fake: not available"])
+
+    async def chat(self, messages, images=None, max_tokens=None, temperature=None, capability="llm", response_format=None):
+        self._need(capability)
+        self.calls.append({"kind": "chat", "messages": messages, "capability": capability, "max_tokens": max_tokens,
+                           "temperature": temperature, "response_format": response_format, "images": images})
+        text = self.chat_handler(messages, capability=capability, response_format=response_format)
+        return ChatResult(text=text, model=self.model, provider="fake", usage=Usage(1, 2, 3), elapsed_ms=1.0)
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        self._need("embeddings")
+        self.calls.append({"kind": "embed", "n": len(texts)})
+        out = []
+        for text in texts:
+            digest = hashlib.sha256(text.encode("utf-8")).digest()
+            vec = [(digest[i % len(digest)] - 128) / 128 for i in range(self.dim)]
+            norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+            out.append([v / norm for v in vec])
+        return out
+
+    async def tts(self, text: str, voice: str | None = None) -> bytes:
+        self._need("tts")
+        self.calls.append({"kind": "tts", "text": text, "voice": voice})
+        return tiny_wav()
+
+    async def aclose(self) -> None:
+        pass

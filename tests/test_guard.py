@@ -1,7 +1,7 @@
 """Request guard: host allow-list, Origin rule and Fetch Metadata rules."""
 
 import pytest
-from conftest import make_config
+from hoardtest import make_config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 

@@ -4,11 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hypatia-hoard"
-version = "0.1.0"
-description = "The user's own flashcards with spaced repetition (SM-2), filled by the assistant from what the user reads, exposed to assistants through MCP."
-readme = "README.md"
+version = "2.0.0"
+description = "Exam Coach's local server: the study bank synced with the PWA, spaced repetition, quizzes and mock exams, and a notebook of your own sources with citations, exposed to assistants through MCP."
+readme = "HOARD.md"
 requires-python = ">=3.11"
-license = { file = "LICENSE" }
 authors = [{ name = "Luissalet" }]
 dependencies = [
   "fastapi>=0.115",
@@ -16,10 +15,12 @@ dependencies = [
   "pydantic>=2.7",
   "httpx>=0.27",
   "mcp>=1.10,<2",
+  "pypdf>=4",
+  "cryptography>=42",  # AES-GCM for password-protected subject packages
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "reportlab>=4"]  # reportlab: test fixtures only (PDF generation)
 
 [project.scripts]
 hypatia-hoard = "hypatia.__main__:main"

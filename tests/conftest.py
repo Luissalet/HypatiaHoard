@@ -1,3 +1,7 @@
+"""Shared fixtures: a settable clock, Services/TestClient on a temp data folder,
+and FakeLink (no network ever: every Services gets a FakeLink with NO capability
+by default; the `link` fixture swaps in one where everything resolves)."""
+
 import sys
 import warnings
 from pathlib import Path
@@ -11,31 +15,32 @@ for entry in (str(ROOT), str(ROOT / "tests")):
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-from hypatia.config import Config  # noqa: E402
+from fakes import FakeLink  # noqa: E402
+from hoardtest import FakeClock, make_config, make_services  # noqa: E402,F401
+from hypatia import ai  # noqa: E402
 from hypatia.main import create_app  # noqa: E402
-from hypatia.services import Services  # noqa: E402
 
 
-class FakeClock:
-    """A settable clock: `now()` returns `.value`; `.advance(seconds)` moves it.
-    Every service and store call takes `now` explicitly, so pinning this fixture
-    makes scheduling, streaks and retention fully deterministic in tests.
-    """
+@pytest.fixture(autouse=True)
+def _no_siblings(monkeypatch):
+    """On the user's PC the sibling apps DO run (Prospero, Scribe, the hub):
+    tests must never reach them, so point every sibling at a closed port."""
+    from hypatia import voice
 
-    def __init__(self, start: float = 1_700_000_000.0):  # 2023-11-14 22:13:20 UTC
-        self.value = start
+    monkeypatch.setenv("HYPATIA_PROSPERO_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("SCRIBE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("HOARD_EVENTS", "0")
+    monkeypatch.setenv("HOARD_HUB_URL", "http://127.0.0.1:1")
+    voice.reset_cache()
+    yield
+    voice.reset_cache()
 
-    def __call__(self) -> float:
-        return self.value
 
-    def advance(self, seconds: float = 0, days: float = 0) -> None:
-        self.value += seconds + days * 86400
-
-
-def make_config(tmp_path: Path, **overrides) -> Config:
-    base = dict(data_dir=tmp_path / "data", data_dir_configured=True)
-    base.update(overrides)
-    return Config(**base)
+@pytest.fixture(autouse=True)
+def _fresh_status_cache():
+    ai.reset_status_cache()
+    yield
+    ai.reset_status_cache()
 
 
 @pytest.fixture
@@ -45,17 +50,25 @@ def clock():
 
 @pytest.fixture
 def services(tmp_path, clock):
-    svc = Services(make_config(tmp_path), clock=clock)
+    svc = make_services(tmp_path, clock)
     yield svc
     svc.stop()
+
+
+@pytest.fixture
+def link(services):
+    """A FakeLink where llm/embeddings/tts/vision all resolve, installed on `services`."""
+    fake = FakeLink()
+    services.link = lambda: fake
+    return fake
 
 
 @pytest.fixture
 def client(tmp_path, clock):
     from fastapi.testclient import TestClient
 
-    svc = Services(make_config(tmp_path), clock=clock)
-    app = create_app(make_config(tmp_path), services=svc)
+    svc = make_services(tmp_path, clock)
+    app = create_app(svc.config, services=svc)
     with TestClient(app, base_url="http://127.0.0.1") as test_client:
         test_client.services = app.state.services
         test_client.clock = clock

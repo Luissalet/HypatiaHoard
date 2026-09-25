@@ -1,30 +1,25 @@
-# Hypatia's Hoard
+# Hypatia's Hoard — Exam Coach 2, con Faustus
 
-Tus propias tarjetas de repaso, programadas en tu ordenador con el algoritmo clásico de repetición espaciada SM-2. La aplicación es el calendario y la interfaz de repaso; un asistente accede a las mismas tarjetas por MCP, así que puede rellenarlas con lo que acabas de leer o decir, y examinarte en el chat — mostrando solo el frente, esperando tu respuesta real, y calificándola contra el reverso.
+[English](README.md)
 
-Todo se queda en tu máquina: SQLite para tarjetas, mazos y el registro de repasos, sin cuentas y sin red.
+Hypatia's Hoard es la segunda versión de [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), pensada para correr en tu PC y para que la maneje un asistente. Exam Coach se queda como estaba: una PWA pública que usaron alumnos. Hypatia lo incluye entero y añade:
 
-## Qué hace
+- **Un servidor local** (Python, `hypatia/`) que sirve la app en `http://127.0.0.1:5187`, guarda tus datos de estudio en SQLite y los sincroniza con el IndexedDB de la app.
+- **Control por asistente**: 28 herramientas MCP para que Faustus (o cualquier cliente MCP) te examine con repaso espaciado, monte simulacros sobre tus temas flojos, corrija respuestas abiertas y añada o proponga preguntas a partir de tu propio material.
+- **Un cuaderno sobre tus fuentes**: respuestas con citas de tus PDFs, guía de estudio, resumen ejecutivo, FAQ, glosario, cronología, mapa mental, resumen en audio a dos voces y tutor socrático.
+- **Solo modelos locales**, a través de Hoard Link (copiado en `hypatia/hoard_link/`), el mismo backend compartido que usa el resto de la familia Hoard. El podcast habla con la voz de Prospero's Hoard. Sin ningún modelo en marcha, cada función de IA devuelve igualmente el material para que el asistente haga el trabajo, y la app desactiva los botones que necesitan un modelo.
 
-- **Mazos** = grupos con nombre, cada uno con su límite de tarjetas nuevas al día (`new_per_day`). Existe siempre un mazo por defecto «General»; crear un mazo con un nombre ya existente (sin distinguir tildes ni mayúsculas) devuelve el mismo mazo.
-- **Tarjetas** = frente (pregunta, markdown) / reverso (respuesta, markdown) / etiquetas / fuente. Añadir una tarjeta cuyo frente ya existe en el mazo (normalizado: minúsculas, sin tildes, espacios colapsados) actualiza su reverso/etiquetas/fuente en vez de duplicarla.
-- **Programación**: SM-2 — calificaciones otra vez/difícil/bien/fácil; la facilidad empieza en 2,5 (mínimo 1,3); las tarjetas nuevas pasan por «aprendiendo» (1 día, luego 6 días) hasta «repaso» (intervalo × facilidad); un fallo en repaso pasa la tarjeta a «olvidada» y vuelve a aprenderse desde ahí; cada repaso queda registrado. Los intervalos se limitan a 365 días.
-- **Cola de repaso**: primero las olvidadas/aprendiendo, luego las de repaso por fecha, luego las nuevas por orden de creación, limitadas por el `new_per_day` de cada mazo. La interfaz nunca recibe el reverso antes de que lo revelas; la herramienta `cards_due` del asistente sí lo recibe, porque es quien califica tu respuesta hablada.
-- **Estadísticas**: por mazo o en total — recuentos por estado, pendientes ahora, repasadas hoy, retención a 30 días, racha de días consecutivos con al menos un repaso, y previsión a 7 días.
-- **Búsqueda**: FTS5 sobre frente/reverso/etiquetas/fuente, sin distinguir tildes, con coincidencia de prefijo, filtrable por mazo/etiqueta/estado.
-- **Importar/exportar**: un mazo acepta una lista JSON `[{front, back, tags?, source?}]` o CSV (`front,back,tags,source`) y evita duplicados; exportar devuelve las tarjetas del mazo con su programación completa, para llevarlas a otra máquina.
-- **Sugerir tarjetas de lo que oíste, no solo de lo que leíste**: un panel «Sugerir/Suggest» (y la herramienta `cards_suggest`) redacta tarjetas con un modelo local a partir de texto pegado o de una sesión/rango de fechas de Scribe's Hoard — un hecho por tarjeta, con `source` rellenado — como propuesta que revisas, editas y marcas antes de guardar nada. Ver [Sugerir tarjetas](#sugerir-tarjetas-desde-texto-o-una-sesión-de-scribes-hoard).
+En este repositorio no hay contenido de ninguna asignatura. Las asignaturas llegan como **paquetes con contraseña** (`.examcoach.enc`) desde el marketplace o desde un fichero; sus preguntas, sus PDFs y tu progreso se quedan en `data/` y `resources/` en tu PC, ambas ignoradas por git.
 
-## Requisitos
+## Todo lo que hacía Exam Coach
 
-- Windows 10/11 (también Linux/macOS), Python 3.11 o superior (3.13 va bien), Node 22 solo para construir el cliente.
-- El `sqlite3` de Python debe tener FTS5. Si falta, la aplicación avisa al arrancar.
+Asignaturas, temas y cuatro tipos de pregunta (test, desarrollo, completar, práctico) con Markdown y LaTeX; sesiones de práctica (aleatoria, falladas, por tema, inteligente SM-2, examen cronometrado); flashcards; modo lectura; modo escucha (PDF a voz con Piper en el navegador); visor y herramientas PDF; conceptos clave; exámenes a medida; extracción de preguntas con IA; evaluación continua y entregables; marketplace de asignaturas con paquetes cifrados; packs de contribución; sincronización por Gist; importar/exportar Anki; estadísticas. El mapa completo está en [FEATURES.md](FEATURES.md).
 
-## Instalar y arrancar (Windows)
+Lo que cambia: la app la sirve el servidor local (base `/`), la extracción con IA puede usar tu modelo local (proveedor «Hypatia») y aparece una página **Cuaderno** en cada asignatura.
+
+## Arrancar (Windows)
 
 ```bat
-git clone <este repositorio> hypatia-hoard
-cd hypatia-hoard
 python -m venv venv
 venv\Scripts\pip install -r requirements.txt
 npm install
@@ -32,52 +27,66 @@ npm run build
 venv\Scripts\python -m hypatia
 ```
 
-Abre http://127.0.0.1:5187, entra en **Mazos** para crear uno, luego en **Tarjetas** para añadir fichas (o deja que lo haga el asistente), y en **Repasar** para estudiar.
+Abre http://127.0.0.1:5187. Hace falta Python 3.11+ con FTS5 en SQLite (las versiones oficiales lo traen) y Node 22 solo para compilar la app. El servidor solo escucha en 127.0.0.1 y rechaza hosts ajenos y peticiones de otros sitios.
 
-- `python scripts/launch.py` arranca en un puerto libre y abre el navegador.
-- `python scripts/dev.py` lanza uvicorn con recarga y el servidor de Vite.
+## Asignaturas (paquetes con contraseña)
 
-## Configuración (variables de entorno)
-
-| Variable | Por defecto | Significado |
-| --- | --- | --- |
-| `HYPATIA_PORT` / `PORT` | `5187` | Puerto preferido; `PORT_STRICT=1` lo fija, si no se usa el primero libre. |
-| `HYPATIA_DATA_DIR` | `<repo>/data` | Base de datos, `mcp-token`. |
-| `HYPATIA_ALLOWED_HOSTS` | | Nombres de host adicionales aceptados detrás de un túnel. |
-| `SCRIBE_URL` | (`data/url` del hermano, si no `http://127.0.0.1:5185`) | Dónde está Scribe's Hoard, para la fuente `scribe` de `cards_suggest`. |
-| `SCRIBE_TOKEN` | (`data/mcp-token` del hermano) | Token de la API de agente de Scribe's Hoard. |
-| `SCRIBE_DIR` / `SCRIBE_DATA_DIR` | (una carpeta hermana llamada «Scribe's Hoard») | Forzar dónde está Scribe's Hoard (o su carpeta `data/`). |
-
-### Acceso desde el móvil (a través de un túnel)
-
-El servidor escucha en 127.0.0.1 y solo responde a peticiones cuyo `Host` sea `localhost`, `127.0.0.1` o `[::1]`. Para entrar desde el móvil, indicad los nombres de host adicionales en `HYPATIA_ALLOWED_HOSTS`, separados por comas, exactos o `*.sufijo`: `HYPATIA_ALLOWED_HOSTS=mi-pc.example,*.ts.net`. Una vez abierta a través del túnel, el navegador ofrece instalarla (PWA).
-
-## Conectar el asistente (MCP)
-
-`mcp_server.py` es un puente stdio: pide la lista de herramientas a la aplicación en marcha y reenvía cada llamada a `POST /api/agent/call` con el token de `data/mcp-token`. Nunca abre la base de datos. Faustus detecta la aplicación por `/api/health` y rellena la conexión con `faustus-plugin.json`.
-
-Herramientas: `decks_list`, `deck_create`, `cards_add`, `cards_due`, `card_review`, `cards_search`, `card_update`, `card_delete`, `cards_stats`, `cards_export`, `cards_suggest` y `cards_suggest_accept`. Las instrucciones obligan al asistente a añadir tarjetas solo desde material real, con una fuente en cada una; cuando el usuario pide tarjetas de lo hablado/de la reunión/de una transcripción, a llamar `cards_suggest`, mostrar las propuestas y guardar solo las que el usuario acepte; al examinar, a mostrar solo el frente, esperar la respuesta real y calificar con `card_review` (con el frente mostrado, que decide la tarjeta aunque el id venga mal; un «no me acuerdo», en blanco o sobre otro tema es «otra vez»); a no revelar nunca el reverso antes de tiempo ni calificar sin una respuesta real del usuario.
-
-## Sugerir tarjetas desde texto o una sesión de Scribe's Hoard
-
-Además de escribir tarjetas a mano de lo que *lees*, el panel **Sugerir/Suggest** en **Tarjetas** (y la herramienta `cards_suggest` del asistente) redacta tarjetas de lo que *oyes*: pega un pasaje, o señala una sesión de Scribe's Hoard (por id, o un rango desde/hasta que abarque varias sesiones). El redactado corre sobre un modelo local a través de [Hoard Link](https://github.com/Luissalet/HoardLink) (empaquetado en `hypatia/hoard_link/`, ver su `VENDORED.txt`) — la misma resolución de servidor compartido que usan los demás complementos de Faustus, así que reutiliza el servidor `llm` que ya esté cargado en vez de cargar una segunda copia de un modelo. No se guarda nada automáticamente: el redactado devuelve `drafts` (frente/reverso/fuente) para que tú (o el asistente) los revises, edites y marques, y solo `cards_suggest_accept` / `POST /api/suggest/accept` (o un `cards_add` normal) las escribe en un mazo.
-
-Si no hay ningún modelo disponible (o responde algo que no es el JSON esperado), `cards_suggest` nunca falla en silencio: devuelve `drafts: []`, el `material` reunido (el texto pegado, o la transcripción) y una `note` explicando por qué, para que el asistente redacte las tarjetas él mismo a partir de `material`.
-
-La fuente `scribe` de `cards_suggest` habla con Scribe's Hoard exactamente como los complementos de Faustus hablan entre sí: `GET /api/agent/tools` / `POST /api/agent/call` en el puerto de Scribe, autenticado con el token *de Scribe* (leído de su `data/mcp-token` hermano, o `SCRIBE_TOKEN`/`SCRIBE_URL` arriba). Hypatia's Hoard nunca abre la base de datos de Scribe ni le escribe nada.
-
-## Pruebas
+- Desde la app: **Marketplace**, instalar y escribir la contraseña del paquete. La app la guarda, la siguiente sincronización manda la asignatura al servidor y al abrir el Cuaderno se suben sus PDFs.
+- Desde un fichero, directo al servidor (también copia los PDFs del paquete a `resources/<asignatura>/` para el cuaderno):
 
 ```bat
-venv\Scripts\python -m pytest -q
+venv\Scripts\python -m hypatia import-package "C:\ruta\vision-artificial.examcoach.enc" --password "..."
+venv\Scripts\python -m hypatia import-package "C:\ruta\vision-artificial.examcoach.enc" --passwords-file "C:\ruta\passwords.json"
 ```
 
-## Límites (v1)
+`--passwords-file` es un JSON `{"<id del paquete>": "<contraseña>"}`; también vale `HYPATIA_PACKAGE_PASSWORD`. Un `.examcoach.zip` sin cifrar no necesita contraseña.
 
-- No hay tarjetas cloze (de huecos), solo frente/reverso.
-- La búsqueda es solo por palabras (FTS5); no hay búsqueda semántica.
-- No hay sincronización entre dispositivos: los datos viven en el ordenador donde corre la aplicación.
+- Desde otra instalación de Exam Coach: en la app, **Ajustes → Sincronización (Gist)** y descargar; o `python -m hypatia import-backup examcoach-backup.json`.
+
+## Faustus
+
+`faustus-plugin.json` es el manifiesto (`id: hypatia`, `HYPATIA_DIR` = esta carpeta). El puente MCP (`python mcp_server.py`) nunca abre la base de datos: reenvía cada llamada a `POST /api/agent/call` con el token de `data/mcp-token` y arranca el servidor si no responde nadie.
+
+Herramientas de estudio: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`.
+Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_list`, `tutor_turn`.
+Alias heredados de Hypatia 1 (tarjetas): `cards_add`, `decks_list`.
+
+## Cómo se sincronizan la app y el servidor
+
+El servidor guarda cada tabla de la app como registros JSON con una revisión global y marcas de borrado. En cada ciclo la app sube su copia completa y los borrados pendientes, baja lo que cambió desde su última revisión, lo fusiona con el mismo código que usa el sync de Gist y aplica los borrados del servidor. `hypatia/merge.py` es un port de `mergeBackup` (asignaturas por nombre, temas por asignatura y título, preguntas por hash de contenido, se conservan notas, destacadas y fechas de examen locales, y se combinan las estadísticas SM-2); un test ejecuta el TypeScript con node para demostrar que `hypatia/hashing.py` da los mismos hashes.
+
+## Configuración
+
+| Variable | Por defecto | Qué es |
+|---|---|---|
+| `HYPATIA_DATA_DIR` | `data/` | Base de datos, token, `backend.json`, subidas, salidas del estudio, logs |
+| `HYPATIA_RESOURCES_DIR` | `resources/` | PDFs por asignatura (`resources/<slug>/Temas/…`: los de `import-package` y cada PDF que adjuntas a un tema en la app), servidos en `/resources/` e indexados por el cuaderno |
+| `HYPATIA_PORT` / `PORT`, `PORT_STRICT=1` | `5187` | Puerto; en modo estricto falla en vez de moverse |
+| `HYPATIA_ALLOWED_HOSTS` | | Hosts extra (un túnel al móvil) |
+| `HYPATIA_LLM_TIMEOUT_S` | `900` | Lo máximo que puede tardar una llamada al modelo |
+| `HYPATIA_LLM_THINKING` | `0` | `1` deja pensar a los modelos de razonamiento antes de responder (más lento) |
+| `HYPATIA_PROSPERO_URL` | `Prospero's Hoard/data/url` hermano, si no `http://127.0.0.1:8815` | Estudio de voz para el podcast |
+| `SCRIBE_URL`, `SCRIBE_TOKEN` | Scribe's Hoard hermano | Preguntas a partir de clases grabadas |
+| Hoard Link (`data/backend.json`, `HOARD_*`) | | Resolución de modelos; `backend.json` admite también `{"podcast": {"engine": "piper", "voices": ["es_ES-davefx-medium", "es_ES-sharvard-medium"]}}` |
+
+## Desde Hypatia 1 (tarjetas)
+
+```bat
+venv\Scripts\python -m hypatia migrate-hypatia "data\legacy-v1\hypatia-hoard.db"
+```
+
+Cada mazo antiguo pasa a ser una asignatura y cada tarjeta una pregunta de desarrollo en el tema «Tarjetas», con su estado SM-2. Se puede ejecutar dos veces sin duplicar.
+
+## Tests
+
+```bat
+venv\Scripts\pip install pytest reportlab
+venv\Scripts\python -m pytest -q tests
+npx tsc --noEmit
+```
+
+Ningún test sale a la red ni toca otra app de la familia.
 
 ## Licencia
 
-MIT — Luissalet.
+MIT, Luis María Salete Cuartero.

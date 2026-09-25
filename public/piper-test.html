@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Piper TTS Diagnostic</title>
+  <style>
+    body { font-family: monospace; padding: 16px; background: #1a1a2e; color: #eee; font-size: 13px; }
+    .log { white-space: pre-wrap; line-height: 1.6; max-height: 70vh; overflow-y: auto; }
+    .ok { color: #4ade80; }
+    .err { color: #f87171; }
+    .warn { color: #fbbf24; }
+    .info { color: #60a5fa; }
+    #progress { width: 100%; height: 16px; background: #333; margin: 8px 0; border-radius: 4px; overflow: hidden; }
+    #progress-bar { height: 100%; background: #3b82f6; width: 0; transition: width 0.3s; }
+    button { background: #3b82f6; color: white; border: none; padding: 10px 16px; cursor: pointer; margin: 4px; font-size: 13px; border-radius: 6px; }
+    button:disabled { opacity: 0.5; }
+    h2 { font-size: 16px; margin: 0 0 12px 0; }
+  </style>
+</head>
+<body>
+  <h2>Piper TTS Diagnostic</h2>
+  <div id="progress"><div id="progress-bar"></div></div>
+  <div>
+    <button id="btn-test" onclick="runTest()">Run Full Test</button>
+    <button id="btn-play" onclick="playAudio()" disabled>Play Audio</button>
+    <button id="btn-clear" onclick="clearCaches()">Clear All Caches</button>
+  </div>
+  <br>
+  <div id="log" class="log"></div>
+
+  <script>
+    const HF_BASE = 'https://huggingface.co/diffusionstudio/piper-voices/resolve/main';
+    const VOICE = 'es_ES-carlfm-x_low';
+    const VOICE_PATH = 'es/es_ES/carlfm/x_low/es_ES-carlfm-x_low.onnx';
+
+    const IDB_NAME = 'piper-tts-cache';
+    const IDB_STORE = 'models';
+
+    const logEl = document.getElementById('log');
+    const progressBar = document.getElementById('progress-bar');
+    let audioBlob = null;
+
+    function log(msg, cls) {
+      const line = document.createElement('div');
+      if (cls) line.className = cls;
+      line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function openIDB() {
+      return new Promise(function(resolve, reject) {
+        var req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = function() {
+          if (!req.result.objectStoreNames.contains(IDB_STORE)) {
+            req.result.createObjectStore(IDB_STORE);
+          }
+        };
+        req.onsuccess = function() { resolve(req.result); };
+        req.onerror = function() { reject(req.error); };
+      });
+    }
+
+    function idbGet(key) {
+      return openIDB().then(function(db) {
+        return new Promise(function(resolve) {
+          var tx = db.transaction(IDB_STORE, 'readonly');
+          var req = tx.objectStore(IDB_STORE).get(key);
+          req.onsuccess = function() { resolve(req.result || null); };
+          req.onerror = function() { resolve(null); };
+        });
+      }).catch(function() { return null; });
+    }
+
+    function idbPut(key, blob) {
+      return openIDB().then(function(db) {
+        return new Promise(function(resolve, reject) {
+          var tx = db.transaction(IDB_STORE, 'readwrite');
+          var req = tx.objectStore(IDB_STORE).put(blob, key);
+          req.onsuccess = function() { resolve(); };
+          req.onerror = function() { reject(req.error); };
+        });
+      });
+    }
+
+    window.playAudio = function() {
+      if (!audioBlob) return;
+      var url = URL.createObjectURL(audioBlob);
+      var audio = new Audio(url);
+      audio.play().then(function() { log('Playing audio...', 'ok'); }).catch(function(e) { log('Play error: ' + e.message, 'err'); });
+    };
+
+    window.clearCaches = async function() {
+      try {
+        var db = await openIDB();
+        var tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).clear();
+        log('IndexedDB cache cleared', 'ok');
+      } catch(e) { log('IDB clear error: ' + e.message, 'err'); }
+    };
+
+    window.runTest = async function() {
+      document.getElementById('btn-test').disabled = true;
+      logEl.innerHTML = '';
+      log('=== Piper TTS Diagnostic ===', 'info');
+      log('URL: ' + location.href);
+      log('Protocol: ' + location.protocol);
+      log('UA: ' + navigator.userAgent.substring(0, 100));
+
+      // 1. OPFS
+      log('', '');
+      log('--- 1. OPFS Test ---', 'info');
+      var opfsOk = false;
+      try {
+        var root = await navigator.storage.getDirectory();
+        await root.getDirectoryHandle('piper-diag-test', { create: true });
+        await root.removeEntry('piper-diag-test', { recursive: true });
+        log('OPFS: AVAILABLE', 'ok');
+        opfsOk = true;
+      } catch(e) { log('OPFS: BLOCKED — ' + e.message, 'err'); }
+
+      // 2. IndexedDB
+      log('', '');
+      log('--- 2. IndexedDB Test ---', 'info');
+      var idbOk = false;
+      try {
+        await openIDB();
+        var testBlob = new Blob(['test'], { type: 'text/plain' });
+        await idbPut('__diag_test__', testBlob);
+        var readBack = await idbGet('__diag_test__');
+        if (readBack && readBack.size === 4) {
+          log('IndexedDB: WORKS (write + read verified)', 'ok');
+          idbOk = true;
+        } else {
+          log('IndexedDB: READ FAILED', 'err');
+        }
+      } catch(e) { log('IndexedDB: ERROR — ' + e.message, 'err'); }
+
+      // 3. Storage quota
+      log('', '');
+      log('--- 3. Storage Quota ---', 'info');
+      try {
+        var est = await navigator.storage.estimate();
+        log('Used: ' + ((est.usage||0)/1024/1024).toFixed(1) + 'MB / ' + ((est.quota||0)/1024/1024).toFixed(0) + 'MB', 'ok');
+      } catch(e) { log('Quota check failed: ' + e.message, 'warn'); }
+
+      // 4. Check existing cache
+      log('', '');
+      log('--- 4. Check Existing Cache ---', 'info');
+      var onnxFile = VOICE + '.onnx';
+      var jsonFile = VOICE + '.onnx.json';
+
+      var onnxCached = await idbGet(onnxFile);
+      var jsonCached = await idbGet(jsonFile);
+      if (onnxCached) log('IDB: ' + onnxFile + ' = ' + (onnxCached.size/1024/1024).toFixed(1) + 'MB', 'ok');
+      else log('IDB: ' + onnxFile + ' = NOT CACHED', 'warn');
+      if (jsonCached) log('IDB: ' + jsonFile + ' = ' + (jsonCached.size/1024).toFixed(1) + 'KB', 'ok');
+      else log('IDB: ' + jsonFile + ' = NOT CACHED', 'warn');
+
+      // 5. Download
+      log('', '');
+      log('--- 5. Model Download ---', 'info');
+      if (onnxCached && jsonCached) {
+        log('Model already cached in IndexedDB, skipping download', 'ok');
+      } else {
+        var onnxUrl = HF_BASE + '/' + VOICE_PATH;
+        var jsonUrl = onnxUrl + '.json';
+
+        for (var attempt = 1; attempt <= 3; attempt++) {
+          try {
+            log('Attempt ' + attempt + '/3: Fetching ' + onnxFile + '...');
+            var res = await fetch(onnxUrl);
+            log('HTTP: ' + res.status + ' ' + res.statusText, res.ok ? 'ok' : 'err');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+
+            var contentLength = +(res.headers.get('Content-Length') || 0);
+            log('Size: ' + (contentLength/1024/1024).toFixed(1) + 'MB');
+
+            var reader = res.body.getReader();
+            var received = 0;
+            var chunks = [];
+            var startTime = Date.now();
+
+            while (true) {
+              var chunk = await reader.read();
+              if (chunk.done) break;
+              chunks.push(chunk.value);
+              received += chunk.value.length;
+              var pct = contentLength > 0 ? (received / contentLength * 100) : 0;
+              progressBar.style.width = pct + '%';
+            }
+
+            var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            if (contentLength > 0 && received < contentLength) {
+              throw new Error('Incomplete: ' + received + '/' + contentLength + ' bytes');
+            }
+
+            onnxCached = new Blob(chunks);
+            log('Download OK: ' + (onnxCached.size/1024/1024).toFixed(1) + 'MB in ' + elapsed + 's', 'ok');
+
+            if (idbOk) {
+              await idbPut(onnxFile, onnxCached);
+              log('Cached in IndexedDB', 'ok');
+            }
+
+            // Config JSON
+            log('Fetching config JSON...');
+            var jsonRes = await fetch(jsonUrl);
+            if (jsonRes.ok) {
+              jsonCached = await jsonRes.blob();
+              log('Config: ' + (jsonCached.size/1024).toFixed(1) + 'KB', 'ok');
+              if (idbOk) await idbPut(jsonFile, jsonCached);
+            } else {
+              log('Config HTTP ' + jsonRes.status, 'err');
+            }
+
+            break;
+          } catch(e) {
+            log('Attempt ' + attempt + ' failed: ' + e.message, 'err');
+            if (attempt < 3) {
+              var delay = Math.pow(2, attempt-1) * 1000;
+              log('Retrying in ' + (delay/1000) + 's...', 'warn');
+              await new Promise(function(r) { setTimeout(r, delay); });
+            }
+          }
+        }
+      }
+
+      // Summary
+      log('', '');
+      log('=== SUMMARY ===', 'info');
+      log('OPFS:      ' + (opfsOk ? 'OK' : 'BLOCKED'), opfsOk ? 'ok' : 'warn');
+      log('IndexedDB: ' + (idbOk ? 'OK' : 'BROKEN'), idbOk ? 'ok' : 'err');
+      log('Model DL:  ' + (onnxCached ? 'OK (' + (onnxCached.size/1024/1024).toFixed(1) + 'MB)' : 'FAILED'), onnxCached ? 'ok' : 'err');
+      log('Config DL: ' + (jsonCached ? 'OK' : 'FAILED'), jsonCached ? 'ok' : 'err');
+
+      if (idbOk && onnxCached && jsonCached) {
+        log('', '');
+        log('All prerequisites PASSED. Deploy and test the app.', 'ok');
+      } else if (!idbOk) {
+        log('', '');
+        log('CRITICAL: IndexedDB broken. TTS caching will not work.', 'err');
+      } else {
+        log('', '');
+        log('Model download failed. Check network.', 'err');
+      }
+
+      document.getElementById('btn-test').disabled = false;
+      progressBar.style.width = '100%';
+    };
+  </script>
+</body>
+</html>

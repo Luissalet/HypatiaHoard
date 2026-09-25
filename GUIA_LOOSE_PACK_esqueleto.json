@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "kind": "contribution",
+  "packId": "00000000-0000-4000-8000-000000000001",
+  "createdBy": "Luis",
+  "exportedAt": "2026-07-11T12:00:00.000Z",
+  "targets": [],
+  "questions": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "type": "TEST",
+      "prompt": "¿Qué función de activación produce salidas en el rango (0, 1)?",
+      "origin": "alumno",
+      "difficulty": 2,
+      "options": [
+        { "id": "a", "text": "ReLU" },
+        { "id": "b", "text": "Sigmoide" },
+        { "id": "c", "text": "Tanh" },
+        { "id": "d", "text": "Softplus" }
+      ],
+      "correctOptionIds": ["b"],
+      "explanation": "La sigmoide $\\sigma(x)=\\frac{1}{1+e^{-x}}$ mapea cualquier real al intervalo $(0,1)$.",
+      "tags": ["activacion", "sigmoide"]
+    },
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "type": "DESARROLLO",
+      "prompt": "Explica qué es el descenso de gradiente y el papel del *learning rate*.",
+      "origin": "alumno",
+      "difficulty": 3,
+      "modelAnswer": "El descenso de gradiente actualiza los pesos en dirección opuesta al gradiente de la función de pérdida: $\\theta \\leftarrow \\theta - \\eta \\nabla J(\\theta)$. El *learning rate* $\\eta$ controla el tamaño del paso...",
+      "keywords": ["gradiente", "learning rate", "pérdida", "convergencia"],
+      "tags": ["optimizacion"]
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "type": "COMPLETAR",
+      "prompt": "Completa sobre regularización:",
+      "origin": "alumno",
+      "difficulty": 2,
+      "clozeText": "La regularización {{L2}} penaliza la suma de los cuadrados de los pesos y también se conoce como {{weight decay}}.",
+      "blanks": [
+        { "id": "b1", "accepted": ["L2", "l2", "Ridge"] },
+        { "id": "b2", "accepted": ["weight decay", "decaimiento de pesos"] }
+      ],
+      "tags": ["regularizacion"]
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "type": "PRACTICO",
+      "prompt": "Una capa densa recibe 4 entradas y tiene 3 neuronas con sesgo. ¿Cuántos parámetros entrenables tiene?",
+      "origin": "alumno",
+      "difficulty": 2,
+      "modelAnswer": "$4 \\times 3 + 3 = 15$ parámetros (pesos + sesgos).",
+      "numericAnswer": "15",
+      "keywords": ["parametros", "capa densa"],
+      "tags": ["conteo-parametros"]
+    }
+  ]
+}

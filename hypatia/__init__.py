@@ -1,3 +1,3 @@
-"""Hypatia's Hoard — the user's own flashcards, spaced repetition on their PC."""
+"""Hypatia's Hoard — Exam Coach's local server: question bank sync, study tools, notebook."""
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"

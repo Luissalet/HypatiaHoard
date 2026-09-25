@@ -1,4 +1,4 @@
-"""Stdio MCP bridge for Hypatia's Hoard.
+"""Stdio MCP bridge for Hypatia's Hoard (Exam Coach's local server).
 
 It never opens the database: every tool call is proxied to the running app
 (`POST /api/agent/call`) with the Bearer token from `<DATA_DIR>/mcp-token`.
@@ -31,7 +31,7 @@ TOKEN_FILE = Path(
     os.environ.get("HYPATIA_TOKEN_FILE")
     or Path(os.environ.get("HYPATIA_DATA_DIR") or ROOT / "data") / "mcp-token"
 )
-NOT_RUNNING = "Open Hypatia's Hoard (python -m hypatia) so the assistant can reach your flashcards."
+NOT_RUNNING = "Open Hypatia's Hoard (python -m hypatia in the Exam Coach folder) so the assistant can reach your study bank."
 
 
 def _healthy() -> bool:
@@ -102,7 +102,7 @@ class HypatiaBridge(FastMCP):
 
     async def _call(self, name: str, arguments: dict[str, Any], retry: bool) -> Sequence[TextContent]:
         try:
-            async with httpx.AsyncClient(timeout=90, trust_env=False) as client:
+            async with httpx.AsyncClient(timeout=180, trust_env=False) as client:
                 response = await client.post(
                     f"{BASE_URL}/api/agent/call",
                     json={"name": name, "arguments": arguments or {}},

@@ -1,32 +1,25 @@
-# Hypatia's Hoard
+# Hypatia's Hoard — Exam Coach 2, with Faustus
 
-Your own flashcards, scheduled on your PC with the classic SM-2 spaced-repetition algorithm. The app is the scheduler and the review UI; an assistant reaches the same cards through MCP, so it can fill them from what you just read or said, and quiz you in chat — showing only the front, waiting for your real answer, then grading it against the back.
+[Español](README.es.md)
 
-Everything stays on the machine: SQLite for cards, decks and the review log, no accounts, no network.
+Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
-Part of the Hoard family (see `faustus-plugin.json`).
+- **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
+- **Assistant control**: 28 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, and add or suggest questions from your own material.
+- **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
+- **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard. With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
 
-## What it does
+No course content lives in this repository. Subjects arrive as **password-protected packages** (`.examcoach.enc`) from the marketplace or from a file; their questions, PDFs and your progress stay in `data/` and `resources/` on your PC, both ignored by git.
 
-- **Decks** = named groups of cards, with a `new_per_day` limit each. A default deck "General" always exists; creating a deck by an existing name (accents/case ignored) returns it unchanged.
-- **Cards** = front (question, markdown) / back (answer, markdown) / tags / source. Adding a card with a front that already exists in the deck (normalised: lower-case, accents stripped, collapsed whitespace) updates its back/tags/source instead of duplicating it.
-- **Scheduling**: SM-2 — grades again/hard/good/easy; ease starts at 2.5 (floor 1.3); new cards graduate through "learning" (1 day, then 6 days) into "review" (interval × ease); a lapse from review moves a card to "lapsed" and it relearns from there; every review is logged (grade, interval before/after, ease after, elapsed time). Intervals are capped at 365 days.
-- **Due queue**: lapsed/learning cards first, then review cards by due date, then new cards by creation order, capped by each deck's `new_per_day`. The browser review UI never receives the back before you reveal it; the assistant's `cards_due` tool does receive it, because it is the one grading your spoken answer.
-- **Stats**: per deck or total — counts by state, due now, reviewed today, 30-day retention (good+easy over non-new reviews), a streak of consecutive days with at least one review, and a 7-day forecast.
-- **Search**: FTS5 over front/back/tags/source, diacritics-insensitive, prefix match, filterable by deck/tag/state.
-- **Import/export**: a deck accepts a JSON list `[{front, back, tags?, source?}]` or CSV (`front,back,tags,source`) and dedupes on import; export returns the deck's cards with their full scheduling state, so it can move between machines.
-- **Suggest cards from what you heard, not only what you read**: a "Sugerir/Suggest" panel (and the `cards_suggest` tool) drafts cards with a local model from pasted text or a Scribe's Hoard session/time range — one fact per card, a filled `source` — as a proposal you review, edit and tick before anything is saved. See [Suggesting cards](#suggesting-cards-from-text-or-a-scribes-hoard-session).
+## Everything Exam Coach did
 
-## Requirements
+Subjects, topics and four question types (test, open answer, fill-in, practical) with Markdown and LaTeX; practice sessions (random, failed, by topic, smart SM-2, timed exam); flashcards; read mode; listen mode (PDF to speech with Piper voices in the browser); PDF viewer and PDF tools; key concepts; curated exams; AI extraction of questions from documents; continuous-evaluation grades and deliverables; the subject marketplace with encrypted packages; contribution packs; Gist sync between devices; Anki import/export; statistics. See [FEATURES.md](FEATURES.md) for the full map.
 
-- Windows 10/11 (also runs on Linux/macOS), Python 3.11+ (3.13 fine), Node 22 only to build the client.
-- Python's `sqlite3` must have FTS5 (the official Windows builds do). The app fails loudly at startup otherwise.
+What changes: the app is served by the local server (base `/`), its AI extraction can use your local model (provider "Hypatia"), and a **Cuaderno** (notebook) page appears in each subject.
 
-## Install and run (Windows)
+## Run (Windows)
 
 ```bat
-git clone <this repo> hypatia-hoard
-cd hypatia-hoard
 python -m venv venv
 venv\Scripts\pip install -r requirements.txt
 npm install
@@ -34,79 +27,66 @@ npm run build
 venv\Scripts\python -m hypatia
 ```
 
-Open http://127.0.0.1:5187, go to **Mazos** to create a deck, then **Tarjetas** to add cards (or let the assistant add them), and **Repasar** to study.
+Open http://127.0.0.1:5187. Python 3.11+ with FTS5 in SQLite (the official builds have it), Node 22 only to build the app. The server listens on 127.0.0.1 only; a request guard rejects foreign hosts and cross-site requests.
 
-- `python scripts/launch.py` starts the app on a free port and opens the browser.
-- `python scripts/dev.py` runs uvicorn `--reload` + the Vite dev server (proxying `/api`).
+## Subjects (password-protected packages)
 
-## Configuration (environment)
+- From the app: **Marketplace**, install, type the package password. The app stores it, the next sync sends the subject to the server, and opening the Cuaderno uploads its PDFs for the notebook.
+- From a file, straight into the server (it also copies the package's PDFs to `resources/<subject>/` for the notebook):
+
+```bat
+venv\Scripts\python -m hypatia import-package "C:\path\vision-artificial.examcoach.enc" --password "..."
+venv\Scripts\python -m hypatia import-package "C:\path\vision-artificial.examcoach.enc" --passwords-file "C:\path\passwords.json"
+```
+
+`--passwords-file` is a JSON object `{"<package id>": "<password>"}`; `HYPATIA_PACKAGE_PASSWORD` also works. An unencrypted `.examcoach.zip` needs no password.
+
+- From another Exam Coach install: in the app, **Ajustes → Sincronización (Gist)** and pull; or `python -m hypatia import-backup examcoach-backup.json`.
+
+## Faustus
+
+`faustus-plugin.json` is the manifest (`id: hypatia`, `HYPATIA_DIR` = this folder). The MCP bridge (`python mcp_server.py`) never opens the database: it proxies every call to `POST /api/agent/call` with the token in `data/mcp-token`, and starts the server when nothing answers.
+
+Study tools: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`.
+Notebook tools: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_list`, `tutor_turn`.
+Aliases kept from Hypatia 1 (flashcards): `cards_add`, `decks_list`.
+
+## How the app and the server stay in sync
+
+The server stores every app table as JSON records with a global revision and tombstones for deletions. Each cycle the app pushes its full backup plus queued deletions, pulls what changed since its last revision, merges it with the same code the Gist sync uses, and applies the server's deletions. `hypatia/merge.py` is a port of `mergeBackup` (subjects by name, topics by subject and title, questions by content hash, local notes/starred/exam dates kept, SM-2 stats merged), and `hypatia/hashing.py` is proven identical to the TypeScript by a test that runs it under node.
+
+## Configuration
 
 | Variable | Default | Meaning |
-| --- | --- | --- |
-| `HYPATIA_PORT` / `PORT` | `5187` | Preferred port; `PORT_STRICT=1` pins it, otherwise the first free port from there. |
-| `HYPATIA_DATA_DIR` | `<repo>/data` | Database (`hypatia-hoard.db`), `mcp-token`. |
-| `HYPATIA_ALLOWED_HOSTS` | | Extra host names accepted behind a tunnel (see below). |
-| `SCRIBE_URL` | (sibling's `data/url`, else `http://127.0.0.1:5185`) | Where Scribe's Hoard is, for `cards_suggest`'s `scribe` source. |
-| `SCRIBE_TOKEN` | (sibling's `data/mcp-token`) | Bearer token for Scribe's Hoard's agent API. |
-| `SCRIBE_DIR` / `SCRIBE_DATA_DIR` | (a sibling folder named `Scribe's Hoard`) | Override where Scribe's Hoard (or its `data/` folder) is found. |
+|---|---|---|
+| `HYPATIA_DATA_DIR` | `data/` | Database, token, `backend.json`, uploads, studio output, logs |
+| `HYPATIA_RESOURCES_DIR` | `resources/` | Per-subject PDFs (`resources/<slug>/Temas/…`: from `import-package`, and every PDF you attach to a topic in the app) served at `/resources/` and indexed by the notebook |
+| `HYPATIA_PORT` / `PORT`, `PORT_STRICT=1` | `5187` | Port; strict fails instead of moving |
+| `HYPATIA_ALLOWED_HOSTS` | | Extra host names (a tunnel to your phone) |
+| `HYPATIA_LLM_TIMEOUT_S` | `900` | Longest a model call may take |
+| `HYPATIA_LLM_THINKING` | `0` | `1` lets reasoning models think before answering (slower) |
+| `HYPATIA_PROSPERO_URL` | sibling `Prospero's Hoard/data/url`, else `http://127.0.0.1:8815` | Voice studio for the podcast |
+| `SCRIBE_URL`, `SCRIBE_TOKEN` | sibling Scribe's Hoard | Questions from recorded classes |
+| Hoard Link (`data/backend.json`, `HOARD_*`) | | Model resolution; `backend.json` also takes `{"podcast": {"engine": "piper", "voices": ["es_ES-davefx-medium", "es_ES-sharvard-medium"]}}` |
 
-### Access from your phone (behind a tunnel)
+## From Hypatia 1 (flashcards)
 
-The server binds 127.0.0.1 and only answers requests whose `Host` is `localhost`, `127.0.0.1` or `[::1]`. To reach it from your phone through a tunnel that fronts the app, list the extra host names in `HYPATIA_ALLOWED_HOSTS`, comma-separated, exact names or `*.suffix`: `HYPATIA_ALLOWED_HOSTS=my-pc.example,*.ts.net`. Port and letter case are ignored, and the `Origin` of API calls must resolve to one of those hosts too (any scheme or port). Cross-site *fetches* are still refused; opening the app from another page (a link, a bookmarklet, the share sheet) is a normal navigation and works.
+```bat
+venv\Scripts\python -m hypatia migrate-hypatia "data\legacy-v1\hypatia-hoard.db"
+```
 
-Once opened through the tunnel, the browser offers to install it (PWA).
-
-## API
-
-All JSON; errors are `{ "error": "..." }`.
-
-- `GET /api/health` → `{ service: "hypatia-hoard", version, dataDirConfigured }`; `GET /api/status`
-- `GET/POST /api/decks`, `GET/PATCH/DELETE /api/decks/{id}` (delete moves cards to General unless `?with_cards=1`)
-- `POST /api/decks/{id}/import` (JSON list or CSV text), `GET /api/decks/{id}/export`
-- `GET /api/cards?deck&tag&state&q&due&limit&offset`, `POST /api/cards` (one card or a JSON list), `GET/PATCH/DELETE /api/cards/{id}`, `POST /api/cards/{id}/suspend` / `unsuspend`
-- `GET /api/review/queue?deck&limit` (front only, never the back), `POST /api/review/{card_id}` `{grade, elapsed_ms?}`
-- `GET /api/stats?deck`
-- `GET /api/search?q&deck&tag&state&limit`
-- `POST /api/suggest` `{source, deck, max_cards?, language?}` → drafts (or `material` when no model backend is available), `GET /api/suggest/scribe/sessions?q&kind&since&until&limit` (proxies Scribe's Hoard, never fails: `{reachable: false, reason}` when it isn't running), `POST /api/suggest/accept` `{deck, drafts}` (same effect as `POST /api/cards`)
-- `GET /api/agent/tools` (catalog + instructions), `POST /api/agent/call` (Bearer token from `data/mcp-token`)
-
-## Suggesting cards from text or a Scribe's Hoard session
-
-Besides writing cards by hand from what you *read*, the **Sugerir/Suggest** panel in **Tarjetas** (and the assistant's `cards_suggest` tool) drafts cards from what you *heard*, too: paste a passage, or point at a Scribe's Hoard session (by id, or a since/until range across several sessions). Drafting itself runs on a local model through [Hoard Link](https://github.com/Luissalet/HoardLink) (vendored at `hypatia/hoard_link/`, see its `VENDORED.txt`) — the same shared-backend resolution Faustus's other plugins use, so it reuses whatever `llm` server is already loaded instead of loading a second copy of a model. Nothing is saved automatically: drafting returns `drafts` (front/back/source) for you (or the assistant) to review, edit and tick, and only `cards_suggest_accept` / `POST /api/suggest/accept` (or a plain `cards_add`) writes them to a deck.
-
-If no model backend can be resolved (or it replies with something that isn't the expected JSON), `cards_suggest` never fails silently: it comes back with `drafts: []`, the gathered `material` (the pasted text, or the rendered transcript), and a `note` explaining why, so the assistant can draft the cards itself from `material` instead.
-
-`cards_suggest`'s `scribe` source talks to Scribe's Hoard exactly the way Faustus's plugins talk to each other: `GET /api/agent/tools` / `POST /api/agent/call` on Scribe's own port, authenticated with *Scribe's* token (read from its sibling `data/mcp-token`, or `SCRIBE_TOKEN`/`SCRIBE_URL` above). Hypatia's Hoard never opens Scribe's database and never writes to it.
-
-## MCP tools
-
-`mcp_server.py` is a stdio bridge: it fetches the tool list from the running app and proxies every call to `POST /api/agent/call` with the token from `<DATA_DIR>/mcp-token`. It never opens the database. Env: `HYPATIA_URL`, `HYPATIA_TOKEN_FILE` (or `HYPATIA_TOKEN`).
-
-| Tool | What it does |
-| --- | --- |
-| `decks_list` | Decks with counts and how many are due now. |
-| `deck_create` | Create a deck (write, idempotent by name). |
-| `cards_add` | Add up to 100 cards to a deck, creating it if needed (write, idempotent per normalised front). |
-| `cards_due` | The due queue with front AND back, for the assistant to quiz the user in chat. |
-| `card_review` | Grade one card the user just answered (write): again/hard/good/easy — a blank or "I don't remember" is again. Takes the front that was shown (and optionally the id): the front decides which card is graded, so a wrong id never lands a grade on another card; a front that matches no card is refused. |
-| `cards_search` | Full-text search over the user's cards. |
-| `card_update` | Edit a card's fields (write). |
-| `card_delete` | Delete a card (write, destructive). |
-| `cards_stats` | Study statistics. |
-| `cards_export` | Export a deck's cards as JSON. |
-| `cards_suggest` | Draft flashcards (proposal, nothing saved) from pasted text or a Scribe's Hoard transcript. |
-| `cards_suggest_accept` | Save the drafts the user accepted (write, same effect as `cards_add`). |
-
-The shipped instructions tell the assistant: add cards only from material the user actually has, one fact per card with a source; when quizzing, show only the front, wait for the real answer, then grade with `card_review` and say what the back said; never reveal the back first, never grade without a real answer, never touch the database directly.
+Each old deck becomes a subject, each card an open-answer question in the topic "Tarjetas" with its SM-2 state. Safe to run twice.
 
 ## Tests
 
 ```bat
-venv\Scripts\python -m pytest -q
+venv\Scripts\pip install pytest reportlab
+venv\Scripts\python -m pytest -q tests
+npx tsc --noEmit
 ```
 
-Covers the SM-2 scheduler (every grade path, caps, lapses, ease floor), store dedupe and normalisation, FTS search with accents, stats (retention, streak across midnight, forecast) with a fully injectable clock, import (JSON + CSV), the HTTP API, agent tools through `/api/agent/call`, the request guard, the PWA endpoints, `cards_suggest`/`cards_suggest_accept` (prompt building, JSON parsing, a fake Hoard Link, a fake Scribe's Hoard ASGI app, the fallback-to-`material` path, tool schema and the `/api/suggest*` HTTP API), and a subprocess end-to-end test through the MCP stdio bridge.
+No test reaches the network or a sibling app.
 
 ## License
 
-MIT — Luissalet.
+MIT, Luis María Salete Cuartero.
