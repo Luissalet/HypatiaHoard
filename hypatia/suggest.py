@@ -140,7 +140,7 @@ def suggest(services, source: dict[str, Any], subject: dict, topic: dict | None,
                 "show them, and save only the accepted ones with questions_suggest_accept.")
     try:
         result = ai.chat(services, backend.build_suggest_messages(material, n, types, language),
-                         max_tokens=backend.SUGGEST_MAX_TOKENS, temperature=0.3)
+                         max_tokens=backend.SUGGEST_MAX_TOKENS, temperature=0.3, effort="high")
     except (ai.Unavailable, ai.BackendError) as error:
         return {**base, "drafts": [], "material": material, "model": None,
                 "note": f"No language model could draft questions ({error}). {fallback}"}

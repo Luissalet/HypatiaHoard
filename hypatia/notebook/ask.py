@@ -54,7 +54,7 @@ def ask(services: Any, subject_ref: str, question: str, *, topic: Optional[str] 
         f"Pasajes de las fuentes:\n\n{retrieval.format_passages(passages)}\n\n"
         f"Pregunta: {question}\n\nResponde citando los pasajes con [n].")})
     try:
-        reply = llm.chat(services, messages, max_tokens=2048, temperature=0.2)
+        reply = llm.chat(services, messages, max_tokens=2048, temperature=0.2, effort="medium")
     except llm.NoModel as exc:
         if chat:
             chats.add_message(services, chat["id"], "user", question)

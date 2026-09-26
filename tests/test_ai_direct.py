@@ -98,3 +98,45 @@ def test_other_backends_go_through_link():
     link = _Link(SimpleNamespace(resolved=True, provider="llamacpp", api="openai", url="http://x", model="m",
                                  details={"resident": False}))
     assert _run(ai.link_chat(link, [{"role": "user", "content": "x"}])).text == "via link"
+
+
+def test_a_call_that_asks_to_think_gets_its_level_and_room(monkeypatch):
+    """Quality work (a study guide) asks for `max`: the direct call turns
+    thinking on with the budget llama-server honours and room for it."""
+    monkeypatch.delenv("HYPATIA_LLM_EFFORT", raising=False)
+    server = HTTPServer(("127.0.0.1", 0), _Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/v1/chat/completions"
+        link = _Link(SimpleNamespace(resolved=True, provider="llamacpp", api="openai", url=url, model="big",
+                                     details={"resident": True}))
+        result = _run(ai.link_chat(link, [{"role": "user", "content": "guia"}], max_tokens=4000, effort="max"))
+        _path, body = _Handler.seen[-1]
+        assert body["chat_template_kwargs"] == {"enable_thinking": True}
+        assert body["thinking_budget_tokens"] == 16384 and body["max_tokens"] == 4000 + 16384
+        assert result.effort == "max"
+    finally:
+        server.shutdown()
+
+
+def test_owner_knob_forces_one_level(monkeypatch):
+    monkeypatch.setenv("HYPATIA_LLM_EFFORT", "off")
+    assert ai.llm_effort("max") == "off"
+    monkeypatch.delenv("HYPATIA_LLM_EFFORT")
+    assert ai.llm_effort("high") == "high"
+    assert ai.llm_effort(None) == "off"
+
+
+def test_non_direct_calls_pass_the_level_to_link(monkeypatch):
+    monkeypatch.delenv("HYPATIA_LLM_EFFORT", raising=False)
+    seen = {}
+
+    class _L(_Link):
+        async def chat(self, messages, **kwargs):
+            seen.update(kwargs)
+            return SimpleNamespace(text="ok", model="m")
+
+    link = _L(SimpleNamespace(resolved=True, provider="faustus", api="openai", url="http://x/v1", model="m",
+                              details={"resident": False}))
+    _run(ai.link_chat(link, [{"role": "user", "content": "x"}], effort="medium"))
+    assert seen["effort"] == "medium"

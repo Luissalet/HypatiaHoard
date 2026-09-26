@@ -110,7 +110,7 @@ def _grade_free_text(services, question: dict, answer: str) -> dict:
         return {**fallback, "verdict": "wrong", "score": 0, "feedback": "Respuesta en blanco.", "suggestedGrade": "again"}
     try:
         result = ai.chat(services, backend.build_grade_messages(question, answer), max_tokens=backend.GRADE_MAX_TOKENS,
-                         temperature=0.1, response_format={"type": "json_object"})
+                         temperature=0.1, response_format={"type": "json_object"}, effort="medium")
     except (ai.Unavailable, ai.BackendError) as error:
         return {**fallback, "note": f"No model could grade this ({error}). Compare the answer with `modelAnswer` "
                                     "yourself (matched keywords are a hint only) and pick the grade."}

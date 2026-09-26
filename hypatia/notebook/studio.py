@@ -274,20 +274,20 @@ class _Ctx:
         self.notes: list[str] = []
 
     def chat(self, system: str, user: str, *, max_tokens: int = 3000, json_mode: bool = False,
-             temperature: float = 0.3) -> str:
+             temperature: float = 0.3, effort: Optional[str] = "off") -> str:
         self.check()
         reply = llm.chat(self.services, [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                         max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
+                         max_tokens=max_tokens, temperature=temperature, json_mode=json_mode, effort=effort)
         self.model = reply.model or self.model
         self.check()
         return reply.text
 
-    def chat_json(self, system: str, user: str, *, max_tokens: int = 4000) -> Any:
-        text = self.chat(system, user, max_tokens=max_tokens, json_mode=True)
+    def chat_json(self, system: str, user: str, *, max_tokens: int = 4000, effort: Optional[str] = "off") -> Any:
+        text = self.chat(system, user, max_tokens=max_tokens, json_mode=True, effort=effort)
         data = llm.parse_json(text)
         if data is None:
             text = self.chat(system + "\n\nIMPORTANTE: responde únicamente con JSON válido, sin texto alrededor.",
-                             user, max_tokens=max_tokens, json_mode=True, temperature=0.1)
+                             user, max_tokens=max_tokens, json_mode=True, temperature=0.1, effort=effort)
             data = llm.parse_json(text)
         if data is None:
             raise ValueError("El modelo no devolvió JSON válido")
@@ -363,12 +363,12 @@ def _generate(services: Any, item: dict[str, Any], check: Callable[[], None]) ->
     out: dict[str, Any] = {}
 
     if kind in ("study_guide", "briefing", "timeline"):
-        md = ctx.chat(_COMMON + "\n\n" + COMPOSE[kind], user, max_tokens=4000)
+        md = ctx.chat(_COMMON + "\n\n" + COMPOSE[kind], user, max_tokens=4000, effort="max")
         content, cites = retrieval.apply_citations(md, passages)
         title, content = _title_from_markdown(content)
         out.update(content=content, citations=cites, title=title)
     elif kind in ("faq", "glossary"):
-        data = ctx.chat_json(_COMMON + "\n\n" + COMPOSE[kind], user, max_tokens=4000)
+        data = ctx.chat_json(_COMMON + "\n\n" + COMPOSE[kind], user, max_tokens=4000, effort="high")
         items_raw = data.get("items") if isinstance(data, dict) else data
         if not isinstance(items_raw, list):
             items_raw = []

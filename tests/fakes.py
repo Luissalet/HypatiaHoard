@@ -61,10 +61,12 @@ class FakeLink:
         if capability not in self.capabilities:
             raise Unavailable(capability, ["fake: not available"])
 
-    async def chat(self, messages, images=None, max_tokens=None, temperature=None, capability="llm", response_format=None):
+    async def chat(self, messages, images=None, max_tokens=None, temperature=None, capability="llm", response_format=None,
+                   effort=None):
         self._need(capability)
         self.calls.append({"kind": "chat", "messages": messages, "capability": capability, "max_tokens": max_tokens,
-                           "temperature": temperature, "response_format": response_format, "images": images})
+                           "temperature": temperature, "response_format": response_format, "images": images,
+                           "effort": effort})
         text = self.chat_handler(messages, capability=capability, response_format=response_format)
         return ChatResult(text=text, model=self.model, provider="fake", usage=Usage(1, 2, 3), elapsed_ms=1.0)
 

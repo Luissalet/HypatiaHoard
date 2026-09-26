@@ -64,7 +64,8 @@ The server stores every app table as JSON records with a global revision and tom
 | `HYPATIA_PORT` / `PORT`, `PORT_STRICT=1` | `5187` | Port; strict fails instead of moving |
 | `HYPATIA_ALLOWED_HOSTS` | | Extra host names (a tunnel to your phone) |
 | `HYPATIA_LLM_TIMEOUT_S` | `900` | Longest a model call may take |
-| `HYPATIA_LLM_THINKING` | `0` | `1` lets reasoning models think before answering (slower) |
+| `HYPATIA_LLM_THINKING` | `0` | `1` lets every call think at `high` unless the call asks for its own level (slower) |
+| `HYPATIA_LLM_EFFORT` | unset | `off`/`low`/`medium`/`high`/`max` forces one reasoning level on every call. Unset, each task picks its own: grading and notebook answers `medium`, question drafting `high`, study guides and briefings `max`, bulk note-taking `off` |
 | `HYPATIA_PROSPERO_URL` | sibling `Prospero's Hoard/data/url`, else `http://127.0.0.1:8815` | Voice studio for the podcast |
 | `SCRIBE_URL`, `SCRIBE_TOKEN` | sibling Scribe's Hoard | Questions from recorded classes |
 | Hoard Link (`data/backend.json`, `HOARD_*`) | | Model resolution; `backend.json` also takes `{"podcast": {"engine": "piper", "voices": ["es_ES-davefx-medium", "es_ES-sharvard-medium"]}}` |

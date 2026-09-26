@@ -57,13 +57,13 @@ def _wrap(capability: str, exc: BaseException) -> NoModel:
 
 
 def chat(services: Any, messages: list[dict[str, Any]], *, max_tokens: int = 2048,
-         temperature: float = 0.3, json_mode: bool = False) -> Reply:
-    kwargs: dict[str, Any] = {"max_tokens": max_tokens, "temperature": temperature}
+         temperature: float = 0.3, json_mode: bool = False, effort: Optional[str] = None) -> Reply:
+    kwargs: dict[str, Any] = {"max_tokens": max_tokens, "temperature": temperature, "effort": effort}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
     async def run() -> Any:
-        from ..ai import link_chat  # long timeout + thinking off for a resident llama.cpp
+        from ..ai import link_chat  # long timeout + the call's reasoning level for a resident llama.cpp
 
         async with services.link() as link:
             return await link_chat(link, messages, **kwargs)

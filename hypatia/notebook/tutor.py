@@ -118,7 +118,7 @@ def turn(services: Any, subject_ref: str, message: str, *, topic: Optional[str] 
             messages.append({"role": m["role"], "content": m["content"][:1500]})
     messages.append({"role": "user", "content": user_block})
     try:
-        reply = llm.chat(services, messages, max_tokens=1500, temperature=0.4, json_mode=True)
+        reply = llm.chat(services, messages, max_tokens=1500, temperature=0.4, json_mode=True, effort="low")
     except llm.NoModel as exc:
         chats.add_message(services, chat["id"], "user", message)
         return {**base, "reply": None, "passages": [retrieval.public_passage(p) for p in passages], "weak": weak,
@@ -152,7 +152,7 @@ def turn(services: Any, subject_ref: str, message: str, *, topic: Optional[str] 
                 {"role": "user", "content": f"Punto: {new_point or message}\n\nPasajes:\n\n"
                                             f"{retrieval.format_passages(passages)}\n\n"
                                             f"Última respuesta del estudiante: {message}"},
-            ], max_tokens=1200, temperature=0.3)
+            ], max_tokens=1200, temperature=0.3, effort="medium")
             text = explain.text
             model = explain.model or model
             explained = True
