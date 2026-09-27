@@ -67,7 +67,7 @@ El servidor guarda cada tabla de la app como registros JSON con una revisión gl
 | `HYPATIA_LLM_THINKING` | `0` | `1` deja pensar a `high` cada llamada que no pida su propio nivel (más lento) |
 | `HYPATIA_LLM_EFFORT` | sin fijar | `off`/`low`/`medium`/`high`/`max` impone un nivel de razonamiento a todas las llamadas. Sin fijar, cada tarea elige el suyo: corregir y responder en el cuaderno `medium`, redactar preguntas `high`, guías de estudio y briefings `max`, tomar notas en bloque `off` |
 | `HYPATIA_PROSPERO_URL` | `Prospero's Hoard/data/url` hermano, si no `http://127.0.0.1:8815` | Estudio de voz para el podcast |
-| `SCRIBE_URL`, `SCRIBE_TOKEN` | Scribe's Hoard hermano | Preguntas a partir de clases grabadas |
+| `SCRIBE_URL`, `SCRIBE_TOKEN` | Audio de Funes en `http://127.0.0.1:8813/audio`; sobrescrituras opcionales de URL/token | Preguntas a partir de clases grabadas |
 | Hoard Link (`data/backend.json`, `HOARD_*`) | | Resolución de modelos; `backend.json` admite también `{"podcast": {"engine": "piper", "voices": ["es_ES-davefx-medium", "es_ES-sharvard-medium"]}}` |
 
 ## Desde Hypatia 1 (tarjetas)
