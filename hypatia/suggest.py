@@ -1,5 +1,5 @@
 """`questions_suggest`: draft exam questions (ExtractedQuestion shape, see
-src/services/aiEngine.ts) from pasted text, a Scribe's Hoard transcript or the
+src/services/aiEngine.ts) from pasted text, a Funes audio transcript or the
 subject's indexed notebook sources, with a local model. Nothing is saved here:
 `questions_suggest_accept` persists the drafts the user accepted.
 """
@@ -33,9 +33,9 @@ def _from_scribe(client: ScribeClient, session_id: str | None, since: str | None
             transcript, meta = client.full_transcript(session_id, max_total_chars=MAX_MATERIAL_CHARS)
             if not transcript.strip():
                 raise SuggestInputError(f"Session {session_id} has no transcribed speech yet.")
-            return transcript, f"Scribe: {meta.get('title') or session_id}", len(transcript) >= MAX_MATERIAL_CHARS
+            return transcript, f"Funes audio: {meta.get('title') or session_id}", len(transcript) >= MAX_MATERIAL_CHARS
         if not (since or until):
-            raise SuggestInputError("A Scribe source needs session_id, or since/until.")
+            raise SuggestInputError("A Funes audio source needs session_id, or since/until.")
         rows = client.sessions(from_=since, to=until, limit=MAX_SCRIBE_SESSIONS).get("sessions") or []
         pieces, titles, used, truncated = [], [], 0, False
         for row in rows:
@@ -52,8 +52,8 @@ def _from_scribe(client: ScribeClient, session_id: str | None, since: str | None
     except ScribeUnavailable as error:
         raise SuggestInputError(str(error)) from error
     if not pieces:
-        raise SuggestInputError("No Scribe session in that range has transcribed speech.")
-    return "\n\n".join(pieces), "Scribe: " + ", ".join(titles), truncated
+        raise SuggestInputError("No Funes audio session in that range has transcribed speech.")
+    return "\n\n".join(pieces), "Funes audio: " + ", ".join(titles), truncated
 
 
 def _from_sources(services, subject: dict, topic: dict | None, query: str | None) -> tuple[str, str, bool]:
