@@ -5,7 +5,7 @@
 Hypatia's Hoard es la segunda versión de [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), pensada para correr en tu PC y para que la maneje un asistente. Exam Coach se queda como estaba: una PWA pública que usaron alumnos. Hypatia lo incluye entero y añade:
 
 - **Un servidor local** (Python, `hypatia/`) que sirve la app en `http://127.0.0.1:5187`, guarda tus datos de estudio en SQLite y los sincroniza con el IndexedDB de la app.
-- **Control por asistente**: 28 herramientas MCP para que Faustus (o cualquier cliente MCP) te examine con repaso espaciado, monte simulacros sobre tus temas flojos, corrija respuestas abiertas y añada o proponga preguntas a partir de tu propio material.
+- **Control por asistente**: 30 herramientas MCP para que Faustus (o cualquier cliente MCP) te examine con repaso espaciado, monte simulacros sobre tus temas flojos, corrija respuestas abiertas, haga cálculos exactos y añada o proponga preguntas a partir de tu propio material.
 - **Un cuaderno sobre tus fuentes**: respuestas con citas de tus PDFs, guía de estudio, resumen ejecutivo, FAQ, glosario, cronología, mapa mental, resumen en audio a dos voces y tutor socrático.
 - **Solo modelos locales**, a través de Hoard Link (copiado en `hypatia/hoard_link/`), el mismo backend compartido que usa el resto de la familia Hoard. El podcast habla con la voz de Prospero's Hoard. Sin ningún modelo en marcha, cada función de IA devuelve igualmente el material para que el asistente haga el trabajo, y la app desactiva los botones que necesitan un modelo.
 
@@ -48,6 +48,7 @@ venv\Scripts\python -m hypatia import-package "C:\ruta\vision-artificial.examcoa
 `faustus-plugin.json` es el manifiesto (`id: hypatia`, `HYPATIA_DIR` = esta carpeta). El puente MCP (`python mcp_server.py`) nunca abre la base de datos: reenvía cada llamada a `POST /api/agent/call` con el token de `data/mcp-token` y arranca el servidor si no responde nadie.
 
 Herramientas de estudio: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`.
+Matemáticas exactas: `math_compute` evalúa operaciones, resuelve ecuaciones polinómicas de grado hasta 4 y deriva fórmulas localmente. Las potencias se escriben con `**`. Devuelve resultado exacto, aproximado (si es numérico) y LaTeX sin leer ni cambiar datos de estudio.
 Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` pasa una FAQ terminada al banco de práctica y omite duplicados si se repite.
 Alias heredados de Hypatia 1 (tarjetas): `cards_add`, `decks_list`.
 

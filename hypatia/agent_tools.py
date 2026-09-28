@@ -9,6 +9,7 @@ from typing import Any, Literal, Union
 from pydantic import BaseModel, Field
 
 from . import bank, grading, study, suggest
+from .math_tool import compute as compute_math
 from .services import Services
 from .tooling import Tool, ann
 
@@ -22,6 +23,7 @@ Quizzing: call cards_due (or exam_mock for a mock exam), show ONLY the prompt (a
 Never reveal the answer before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent questions, grades or sources.
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
 Notebook: cite passages with [n] exactly as the tools number them, never cite a source you were not given, and prefer notebook_search (cheap, passages with citations) when you can compose the answer yourself; use notebook_ask/studio_generate when the user wants the app to generate it.
+For exact arithmetic, polynomial equations or derivatives, use math_compute and report its result; it does not read or change the study bank.
 Never read the data folder or the database directly; use these tools only."""
 
 QType = Literal["TEST", "DESARROLLO", "COMPLETAR", "PRACTICO"]
@@ -30,6 +32,12 @@ Grade = Union[int, str]
 
 class Empty(BaseModel):
     pass
+
+
+class MathComputeArgs(BaseModel):
+    operation: Literal["evaluate", "solve", "differentiate"]
+    expression: str = Field(..., min_length=1, max_length=200, description="Arithmetic expression or equation; use ** for powers, e.g. x**2-2=0.")
+    variable: Literal["x", "y", "t"] = "x"
 
 
 class SubjectArg(BaseModel):
@@ -255,6 +263,10 @@ def _dump(items: list[BaseModel]) -> list[dict]:
     return [i.model_dump(exclude_none=True) for i in items]
 
 
+def run_math_compute(_: Services, args: MathComputeArgs) -> dict:
+    return compute_math(args.operation, args.expression, args.variable)
+
+
 # ---------- study tools ----------
 
 def run_subjects_list(services: Services, _: Empty) -> dict:
@@ -415,6 +427,10 @@ def run_decks_list(services: Services, _: Empty) -> dict:
 SYN = "\nSinónimos: "
 
 STUDY_TOOLS: list[Tool] = [
+    Tool("math_compute", "Calculate exact arithmetic, solve a polynomial equation or differentiate a formula. Keywords: matemáticas."
+         "\nUses local symbolic calculation; no study data is read or changed. Syntax: ** for powers, one variable x/y/t, "
+         "sqrt/sin/cos/exp/log. Solving supports polynomial degree up to 4. Returns exact and LaTeX forms."
+         + SYN + "calcular, resolver ecuación, derivar, comprobar cuenta, matemáticas.", MathComputeArgs, ann(True), run_math_compute),
     Tool("subjects_list", "List the user's subjects with question counts, due today, exam date. Keywords: asignaturas, materias."
          "\nEvery subject of the exam-prep bank (same data as the Exam Coach PWA): questions, topics, due today, never seen, examDate."
          + SYN + "asignaturas, materias, qué estudio, listar asignaturas, mis asignaturas.", Empty, ann(True), run_subjects_list),

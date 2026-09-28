@@ -5,7 +5,7 @@
 Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
 - **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
-- **Assistant control**: 28 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, and add or suggest questions from your own material.
+- **Assistant control**: 30 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, and add or suggest questions from your own material.
 - **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
 - **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard. With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
 
@@ -48,6 +48,7 @@ venv\Scripts\python -m hypatia import-package "C:\path\vision-artificial.examcoa
 `faustus-plugin.json` is the manifest (`id: hypatia`, `HYPATIA_DIR` = this folder). The MCP bridge (`python mcp_server.py`) never opens the database: it proxies every call to `POST /api/agent/call` with the token in `data/mcp-token`, and starts the server when nothing answers.
 
 Study tools: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`.
+Exact math: `math_compute` evaluates arithmetic, solves polynomial equations up to degree 4 and differentiates formulas locally. Use `**` for powers. It returns exact, approximate (when numeric) and LaTeX forms without reading or changing study data.
 Notebook tools: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` promotes a completed FAQ to the practice bank and skips duplicates on repeated calls.
 Aliases kept from Hypatia 1 (flashcards): `cards_add`, `decks_list`.
 

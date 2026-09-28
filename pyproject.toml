@@ -17,6 +17,7 @@ dependencies = [
   "mcp>=1.10,<2",
   "pypdf>=4",
   "cryptography>=42",  # AES-GCM for password-protected subject packages
+  "sympy>=1.14,<2",
 ]
 
 [project.optional-dependencies]
