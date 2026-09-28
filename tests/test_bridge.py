@@ -42,7 +42,10 @@ def test_bridge_lists_the_app_catalog(monkeypatch, client):
     server = bridge.HypatiaBridge(data["tools"], data["instructions"])
     tools = asyncio.run(server.list_tools())
     names = {t.name for t in tools}
-    assert {"cards_due", "card_review", "exam_mock", "cards_add", "decks_list"} <= names
+    assert {"cards_due", "card_review", "exam_mock", "cards_add", "decks_list", "studio_to_questions"} <= names
     due = next(t for t in tools if t.name == "cards_due")
     assert due.annotations.readOnlyHint is True and "Sinónimos" in due.description
+    promote = next(t for t in tools if t.name == "studio_to_questions")
+    assert promote.annotations.idempotentHint is True
+    assert promote.annotations.readOnlyHint is False
     assert "127.0.0.1:5187" in data["instructions"]

@@ -8,7 +8,7 @@ from hypatia.notebook import NOTEBOOK_TOOLS, chats, tutor
 from hypatia.tooling import Tool
 
 EXPECTED_TOOLS = {"notebook_sources", "source_add", "notebook_search", "notebook_ask", "studio_generate",
-                  "studio_get", "studio_list", "tutor_turn"}
+                  "studio_get", "studio_to_questions", "studio_list", "tutor_turn"}
 
 
 def _questions(svc):
@@ -114,6 +114,25 @@ def test_tools_end_to_end_with_model(svc, resources, fake, tmp_path):
     assert turn["reply"] and turn["chatId"]
     bad = _call(svc, "source_add", subject="sub1", path=str(tmp_path / "no-existe"), wait_s=0)
     assert bad["errors"] and bad["sources"] == []
+
+
+def test_studio_faq_promotion_is_idempotent_and_updates_question_bank(indexed):
+    faq = _call(indexed, "studio_generate", subject="sub1", kind="faq", wait_s=20)["item"]
+    assert faq["status"] == "done"
+    first = _call(indexed, "studio_to_questions", id=faq["id"])
+    assert first["itemId"] == faq["id"] and first["added"] == 2 and first["skipped"] == 0
+    questions = indexed.store.list("question", "sub1")
+    assert len(questions) == 2
+    assert all(q["type"] == "DESARROLLO" and q["origin"] == "alumno" for q in questions)
+    second = _call(indexed, "studio_to_questions", id=faq["id"])
+    assert second["added"] == 0 and second["skipped"] == 2
+    assert len(indexed.store.list("question", "sub1")) == 2
+
+    glossary = _call(indexed, "studio_generate", subject="sub1", kind="glossary", wait_s=20)["item"]
+    import pytest
+    with pytest.raises(ValueError, match="preguntas frecuentes"):
+        _call(indexed, "studio_to_questions", id=glossary["id"])
+    assert len(indexed.store.list("question", "sub1")) == 2
 
 
 def test_tools_degrade_without_model(indexed, fake):

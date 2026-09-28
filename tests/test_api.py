@@ -77,6 +77,29 @@ def test_agent_call_needs_token(client):
     assert client.get("/api/agent/tools").json()["tools"]
 
 
+def test_agent_promotes_studio_faq_and_persists_questions(client):
+    import json
+
+    svc = client.services
+    now = svc.now_iso()
+    svc.store.put("subject", {"id": "faq-sub", "name": "Redes", "createdAt": now, "updatedAt": now})
+    with svc.db.tx() as conn:
+        conn.execute(
+            "INSERT INTO studio_items(id, subject_id, kind, title, scope, status, data, created_at) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            ("st-faq", "faq-sub", "faq", "FAQ redes", "{}", "done",
+             json.dumps([{"q": "¿Qué es una red?", "a": "Nodos conectados [1]"}]), now),
+        )
+    body = {"name": "studio_to_questions", "arguments": {"id": "st-faq"}}
+    headers = {"Authorization": f"Bearer {svc.token}"}
+    first = client.post("/api/agent/call", json=body, headers=headers)
+    second = client.post("/api/agent/call", json=body, headers=headers)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["added"] == 1 and second.json()["skipped"] == 1
+    saved = svc.store.list("question", "faq-sub")
+    assert len(saved) == 1 and saved[0]["modelAnswer"] == "Nodos conectados"
+
+
 def test_token_file_persists(client):
     path = client.services.config.token_path
     assert path.read_text().strip() == client.services.token and len(client.services.token) == 64

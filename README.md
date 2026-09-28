@@ -48,7 +48,7 @@ venv\Scripts\python -m hypatia import-package "C:\path\vision-artificial.examcoa
 `faustus-plugin.json` is the manifest (`id: hypatia`, `HYPATIA_DIR` = this folder). The MCP bridge (`python mcp_server.py`) never opens the database: it proxies every call to `POST /api/agent/call` with the token in `data/mcp-token`, and starts the server when nothing answers.
 
 Study tools: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`.
-Notebook tools: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_list`, `tutor_turn`.
+Notebook tools: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` promotes a completed FAQ to the practice bank and skips duplicates on repeated calls.
 Aliases kept from Hypatia 1 (flashcards): `cards_add`, `decks_list`.
 
 ## How the app and the server stay in sync

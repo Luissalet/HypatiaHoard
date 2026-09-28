@@ -48,7 +48,7 @@ venv\Scripts\python -m hypatia import-package "C:\ruta\vision-artificial.examcoa
 `faustus-plugin.json` es el manifiesto (`id: hypatia`, `HYPATIA_DIR` = esta carpeta). El puente MCP (`python mcp_server.py`) nunca abre la base de datos: reenvía cada llamada a `POST /api/agent/call` con el token de `data/mcp-token` y arranca el servidor si no responde nadie.
 
 Herramientas de estudio: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`.
-Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_list`, `tutor_turn`.
+Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` pasa una FAQ terminada al banco de práctica y omite duplicados si se repite.
 Alias heredados de Hypatia 1 (tarjetas): `cards_add`, `decks_list`.
 
 ## Cómo se sincronizan la app y el servidor

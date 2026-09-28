@@ -144,6 +144,11 @@ def run_studio_get(services: Any, args: StudioGetArgs) -> dict[str, Any]:
     return {"item": item}
 
 
+def run_studio_to_questions(services: Any, args: StudioGetArgs) -> dict[str, Any]:
+    """Promote one completed FAQ using the same conversion as the app."""
+    return {"itemId": args.id, **studio.to_questions(services, args.id)}
+
+
 def run_studio_list(services: Any, args: StudioListArgs) -> dict[str, Any]:
     subject = services.resolve_subject(args.subject)
     return {"items": studio.list_items(services, subject["id"], args.kind)}
@@ -207,6 +212,15 @@ NOTEBOOK_TOOLS: list[Tool] = [
         "for podcasts.\n"
         "Sinónimos: ver guía, resultado del estudio, estado del trabajo, abrir mapa mental, escuchar pódcast.",
         StudioGetArgs, ann(True), run_studio_get,
+    ),
+    Tool(
+        "studio_to_questions",
+        "Turn a finished studio FAQ into practice questions (write; convertir FAQ en preguntas).\n"
+        "Use the id from studio_get/studio_list. Creates development questions in the subject bank with source "
+        "citations and skips duplicates; repeating the call reports skipped questions, not new copies. Only a "
+        "completed FAQ can be converted.\n"
+        "Sinónimos: pasar preguntas frecuentes al banco, convertir FAQ en ejercicios, practicar esta FAQ.",
+        StudioGetArgs, ann(False, False, True), run_studio_to_questions,
     ),
     Tool(
         "studio_list",
