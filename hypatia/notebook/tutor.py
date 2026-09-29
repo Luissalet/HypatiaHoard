@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from . import chats, llm, retrieval
+from . import chats, lesson, llm, retrieval
 
 MAX_FAILS = 3
 
@@ -88,7 +88,7 @@ def turn(services: Any, subject_ref: str, message: str, *, topic: Optional[str] 
             topic_obj = services.resolve_topic(sid, chat["topic_id"])
         except LookupError:
             topic_obj = None
-    state = dict(chat.get("state") or {})
+    state = lesson.normalize_state(dict(chat.get("state") or {}))
     point = state.get("point")
     attempts = int(state.get("attempts") or 0)
     past = chats.history(services, chat["id"], 10)
@@ -122,7 +122,7 @@ def turn(services: Any, subject_ref: str, message: str, *, topic: Optional[str] 
     except llm.NoModel as exc:
         chats.add_message(services, chat["id"], "user", message)
         return {**base, "reply": None, "passages": [retrieval.public_passage(p) for p in passages], "weak": weak,
-                "state": {"point": point, "attempts": attempts},
+                "state": state, "lesson": chats.get_chat(services, chat["id"])["lesson"],
                 "note": exc.note() + " Haz tú de tutor socrático: una pregunta cada vez, sin dar la respuesta "
                         f"de entrada; tras {MAX_FAILS} fallos en el mismo punto, explícalo citando [n]."}
     data = llm.parse_json(reply.text)
@@ -163,12 +163,12 @@ def turn(services: Any, subject_ref: str, message: str, *, topic: Optional[str] 
         new_point = None if assessment != "none" else new_point
 
     text, citations = retrieval.apply_citations(text, passages)
-    state = {"point": new_point, "attempts": attempts}
+    state = lesson.normalize_state({"point": new_point, "attempts": attempts})
     chats.add_message(services, chat["id"], "user", message)
     chats.add_message(services, chat["id"], "assistant", text, citations,
                       {"model": model, "assessment": assessment, "explained": explained}, state=state)
     out = {**base, "reply": text, "citations": citations, "model": model, "assessment": assessment,
-           "explained": explained, "state": state}
+           "explained": explained, "state": state, "lesson": chats.get_chat(services, chat["id"])["lesson"]}
     if found["note"]:
         out["note"] = found["note"]
     return out

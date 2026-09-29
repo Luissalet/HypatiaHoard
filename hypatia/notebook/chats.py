@@ -7,6 +7,7 @@ import uuid
 from typing import Any, Optional
 
 from .schema import row, rows
+from . import lesson
 
 
 def _loads(v: Optional[str], default: Any) -> Any:
@@ -83,6 +84,8 @@ def get_chat(services: Any, chat_id: str) -> Optional[dict[str, Any]]:
          "meta": _loads(m["meta"], {}), "createdAt": m["created_at"]}
         for m in rows(services, "SELECT * FROM chat_messages WHERE chat_id=? ORDER BY id", (chat_id,))
     ]
+    if c["mode"] == "tutor":
+        out["lesson"] = lesson.project(chat_id, _loads(c.get("state"), {}), out["messages"])
     return out
 
 

@@ -59,11 +59,65 @@ def test_tutor_correct_resets_attempts(indexed, fake):
     assert b["state"]["attempts"] == 0
 
 
+def test_lesson_reopens_with_stable_actions_and_source_references(indexed, fake):
+    fake.tutor_assessments = ["none", "wrong", "wrong", "wrong"]
+    first = tutor.turn(indexed, "sub1", "Empecemos")
+    cid = first["chatId"]
+    for _ in range(3):
+        last = tutor.turn(indexed, "sub1", "No sé", chat_id=cid)
+    # Close the database connection, then reopen using only persisted records.
+    import sqlite3
+
+    path = indexed.db.conn.execute("PRAGMA database_list").fetchone()[2]
+    indexed.db.conn.close()
+    indexed.db.conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+    indexed.db.conn.row_factory = sqlite3.Row
+    calls = len(fake.calls)
+    reopened = chats.get_chat(indexed, cid)
+    assert reopened["lesson"] == last["lesson"]
+    assert len(fake.calls) == calls
+    actions = reopened["lesson"]["actions"]
+    assert actions[:len(first["lesson"]["actions"])] == first["lesson"]["actions"]
+    assert {a["kind"] for a in actions} == {"preguntar", "responder", "corregir", "explicar"}
+    ids = {a["id"] for a in actions}
+    messages = {m["id"]: m for m in reopened["messages"]}
+    for action in actions:
+        assert action.get("targetId", action["id"]) in ids
+        assert set(action["citationNumbers"]) <= {c["n"] for c in messages[action["messageId"]]["citations"]}
+    assert reopened["lesson"]["state"]["lessonVersion"] == 1
+
+
+def test_lesson_upgrades_legacy_state_and_rejects_future_before_inference(indexed, fake):
+    import pytest
+
+    chat = chats.get_or_create(indexed, None, "sub1", "tutor", "Antigua")
+    chats.add_message(indexed, chat["id"], "assistant", "¿Qué sabes?", state={"point": "perceptrón", "attempts": 2})
+    reopened = chats.get_chat(indexed, chat["id"])
+    assert reopened["lesson"]["state"] == {"lessonVersion": 1, "point": "perceptrón", "attempts": 2}
+    fake.tutor_assessments = ["wrong"]
+    assert tutor.turn(indexed, "sub1", "No sé", chat_id=chat["id"])["explained"]
+    chats.add_message(indexed, chat["id"], "user", "Futuro", state={"lessonVersion": 2})
+    calls = len(fake.calls)
+    with pytest.raises(ValueError, match="Versión"):
+        tutor.turn(indexed, "sub1", "Continuar", chat_id=chat["id"])
+    assert len(fake.calls) == calls
+
+
+def test_lesson_rejects_broken_citation_on_reopen(indexed):
+    import pytest
+
+    chat = chats.get_or_create(indexed, None, "sub1", "tutor", "Inválida")
+    chats.add_message(indexed, chat["id"], "assistant", "Texto [1]", citations=[{"n": 1}])
+    with pytest.raises(ValueError, match="Referencia"):
+        chats.get_chat(indexed, chat["id"])
+
+
 def test_tutor_without_model(indexed, fake):
     _questions(indexed)
     fake.caps["llm"] = False
     out = tutor.turn(indexed, "sub1", "Empecemos", topic="t1")
     assert out["reply"] is None and out["passages"] and out["weak"][0]["id"] == "q-bad" and out["note"]
+    assert out["lesson"]["actions"][0]["kind"] == "responder"
 
 
 def test_tool_catalog_shape():
