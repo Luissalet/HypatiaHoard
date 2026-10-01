@@ -1,3 +1,8 @@
+// Palette points at the shared Hoard tokens (src/hoard-theme.css); the alpha
+// placeholder keeps Tailwind opacity modifiers (bg-ink-900/50) working.
+const tok = (name) => `color-mix(in srgb, var(--hoard-${name}) calc(<alpha-value> * 100%), transparent)`;
+const mix = (a, b, pct) => `color-mix(in srgb, color-mix(in srgb, var(--hoard-${a}) ${100 - pct}%, var(--hoard-${b}) ${pct}%) calc(<alpha-value> * 100%), transparent)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -7,35 +12,35 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Playfair Display"', 'Georgia', 'serif'],
-        body: ['"DM Sans"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        display: ['var(--hoard-font-serif)'],
+        body: ['var(--hoard-font-sans)'],
+        mono: ['var(--hoard-font-mono)'],
       },
       colors: {
         ink: {
-          50:  '#f5f4f0',
-          100: '#e8e5dc',
-          200: '#cdc8b8',
-          300: '#aea79a',
-          400: '#8e8577',
-          500: '#6e6458',
-          600: '#524a3d',
-          700: '#3a3328',
-          800: '#24201a',
-          900: '#141210',
-          950: '#0a0907',
+          50:  mix('text', 'accent-ink', 0),
+          100: tok('text'),
+          200: mix('text', 'text-muted', 50),
+          300: tok('text-muted'),
+          400: tok('text-dim'),
+          500: mix('text-dim', 'border-hover', 50),
+          600: tok('border-hover'),
+          700: tok('border'),
+          800: tok('elevated'),
+          900: tok('surface'),
+          950: tok('deep'),
         },
         amber: {
-          50:  '#fffbeb',
-          100: '#fef3c7',
-          200: '#fde68a',
-          300: '#fcd34d',
-          400: '#fbbf24',
-          500: '#f59e0b',
-          600: '#d97706',
-          700: '#b45309',
-          800: '#92400e',
-          900: '#78350f',
+          50:  mix('accent', 'text', 85),
+          100: mix('accent', 'text', 70),
+          200: mix('accent', 'text', 50),
+          300: mix('accent', 'text', 30),
+          400: tok('accent-strong'),
+          500: tok('accent'),
+          600: tok('accent-dim'),
+          700: mix('accent-dim', 'deep', 35),
+          800: mix('accent-dim', 'deep', 60),
+          900: mix('accent-dim', 'deep', 80),
         },
         sage: {
           400: '#86a884',

@@ -1,3 +1,4 @@
+@import "./hoard-theme.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -30,10 +31,10 @@
 
 @layer utilities {
   .bg-ink-750 {
-    background-color: #2e2a22;
+    background-color: var(--hoard-hover);
   }
   .bg-ink-850 {
-    background-color: #1c1a14;
+    background-color: color-mix(in srgb, var(--hoard-surface) 60%, var(--hoard-elevated));
   }
   .line-clamp-2 {
     display: -webkit-box;
@@ -126,11 +127,11 @@
    bg-ink-950 containers are made transparent so the gradient shows through.
    ─────────────────────────────────────────────────────────────────────────── */
 [data-theme="dark"] body {
-  background: linear-gradient(145deg, rgb(0, 0, 0) 0%, rgb(17, 0, 24) 55%, rgb(29, 0, 0) 100%) fixed;
-  color: #e8e5dc;
+  background: var(--hoard-deep);
+  color: var(--hoard-text);
 }
 [data-theme="dark"] .bg-ink-950 { background-color: transparent !important; }
-[data-theme="dark"] .bg-ink-950\/50 { background-color: rgba(8, 9, 20, 0.22) !important; }
+[data-theme="dark"] .bg-ink-950\/50 { background-color: rgba(var(--hoard-accent-rgb), 0.03) !important; }
 
 /* ─── Light mode: fix "light-tint" text colors ──────────────────────────────
    blue/orange/amber -300/-400 are near-white on dark bg → invisible on white.
@@ -170,3 +171,13 @@
 /* Badge hover states */
 [data-theme="light"] .hover\:bg-blue-500\/30:hover   { background-color: rgba(29, 78, 216, 0.15) !important; }
 [data-theme="light"] .hover\:bg-orange-500\/30:hover { background-color: rgba(194, 65, 12, 0.15) !important; }
+
+/* ─── Hoard family chrome (dark) ───────────────────────────────────────────── */
+[data-theme="dark"] body { font-family: var(--hoard-font-sans); }
+[data-theme="dark"] header.border-b { min-height: var(--hoard-header-h); display: flex; flex-direction: column; justify-content: center; background: var(--hoard-surface); border-color: var(--hoard-border); backdrop-filter: none; }
+[data-theme="dark"] header.border-b span.font-display { font-weight: 700; color: var(--hoard-accent); }
+[data-theme="dark"] header.border-b div.rounded-lg.bg-amber-500 { width: 32px; height: 32px; border-radius: 8px; }
+[data-theme="dark"] h1.font-display, [data-theme="dark"] h2.font-display { font-weight: 700; }
+[data-theme="dark"] button, [data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea { border-radius: var(--hoard-radius); }
+[data-theme="dark"] .rounded-xl.border { border-radius: var(--hoard-radius-lg); }
+[data-theme="dark"] .bg-amber-500 .text-ink-900, [data-theme="dark"] .bg-amber-500.text-ink-900, [data-theme="dark"] .bg-amber-500.text-ink-950 { color: var(--hoard-accent-ink); }
