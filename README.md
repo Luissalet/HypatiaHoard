@@ -52,7 +52,12 @@ Study tools: `subjects_list`, `topics_list`, `questions_search`, `question_get`,
 Exact math: `math_compute` evaluates arithmetic, solves polynomial equations up to degree 4 and differentiates formulas locally. Use `**` for powers. It returns exact, approximate (when numeric) and LaTeX forms without reading or changing study data.
 Teacher tools: see [Teacher role](#teacher-role-profesor).
 Notebook tools: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` promotes a completed FAQ to the practice bank and skips duplicates on repeated calls.
-Aliases kept from Hypatia 1 (flashcards): `cards_add`, `decks_list`.
+Aliases kept from Hypatia 1 (flashcards): `cards_add`, `decks_list`. `cards_add` takes `{deck, cards: [{front, back, tags, source, source_ref}]}`; `source_ref` (for example `hoard://links/highlight/<id>`, sent by Links Hoard for a highlight) is stored with the card as `sourceRef`, is not part of the card's content hash (the same card from another place is still the same card; a duplicate that had no reference takes it), travels through sync and shows as an *Origen* chip in the question editor.
+
+### In the family
+
+- **Agenda.** `GET /api/family/agenda` (bearer token of this app; `?from=&to=&sphere=`) answers the family agenda contract: each subject's exam date (`exam`, high priority within a week), the date in the header of a teacher exam when it is a real date (`exam`), pending deliverables with their due date and time (`deadline`, or `exam` for tests), and, for today, one all-day `cards` item "N tarjetas para repasar hoy" when cards are due. Only subject names, exam titles and counts leave the app, never a student's name or answers. The manifest says `"x-family": {"agenda": true}`.
+- **Job events.** Teacher jobs (`exam_generate`, `grading_run`) post the canonical job events on the family bus: `hypatia.job.queued`, `started`, `progress` (at most every 3 seconds, with `eta_s` once there is progress), `done`, `failed` (`no_model`, `no_sources` and errors, with the reason in `error`) and `cancelled`, each with `{job_id, title, kind: "teacher", progress 0..1, gpu: false, eta_s, url, error}` (the url opens the exam or the batch). They replace `hypatia.teacher_job.*`, which the hub maps onto these, so the old names are no longer sent.
 
 ## Teacher role (Profesor)
 
@@ -105,7 +110,7 @@ venv\Scripts\python -m pytest -q tests
 npx tsc --noEmit
 ```
 
-No test reaches the network or a sibling app. Some tests run the TypeScript with node (needs `npm install`): hashing and teacher-core parity, the Dexie 8→9 migration and the export guard (with `fake-indexeddb`).
+No test reaches the network or a sibling app (`tests/test_family.py` covers `source_ref`, the job events and the agenda with a recorded event list and the TestClient). Some tests run the TypeScript with node (needs `npm install`): hashing and teacher-core parity, the Dexie 8→9 migration and the export guard (with `fake-indexeddb`).
 
 ## License
 

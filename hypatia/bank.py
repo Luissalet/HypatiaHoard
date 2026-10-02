@@ -129,8 +129,18 @@ def find_duplicate(services, subject_id: str, content_hash: str) -> dict | None:
     return None
 
 
-def add_question(services, subject: dict, topic: dict, data: dict[str, Any], origin: str | None = None) -> tuple[dict, bool]:
-    """questionRepo.create with dedupe by contentHash within the subject. Returns (question, existing)."""
+def clean_source_ref(value: Any) -> str:
+    """A reference to where a card came from (e.g. hoard://links/highlight/<id>): one short line, or ''."""
+    return " ".join(str(value or "").split())[:500]
+
+
+def add_question(services, subject: dict, topic: dict, data: dict[str, Any], origin: str | None = None,
+                 source_ref: str | None = None) -> tuple[dict, bool]:
+    """questionRepo.create with dedupe by contentHash within the subject. Returns (question, existing).
+
+    `source_ref` is kept beside the content as `sourceRef` (not part of the content hash, so the same card from
+    another place is still the same card); a duplicate that has none yet picks it up."""
+    ref = clean_source_ref(source_ref)
     q = clean_question_input(data)
     if origin and "origin" not in q:
         q["origin"] = origin
@@ -138,10 +148,15 @@ def add_question(services, subject: dict, topic: dict, data: dict[str, Any], ori
     content_hash = compute_content_hash(q)
     existing = find_duplicate(services, subject["id"], content_hash)
     if existing:
+        if ref and not existing.get("sourceRef"):
+            existing = {**existing, "sourceRef": ref, "updatedAt": services.now_iso()}
+            services.store.put("question", existing)
         return existing, True
     now = services.now_iso()
     question = {**q, "subjectId": subject["id"], "topicId": topic["id"], "id": new_id(), "contentHash": content_hash,
                 "stats": {"seen": 0, "correct": 0, "wrong": 0}, "createdAt": now, "updatedAt": now}
+    if ref:
+        question["sourceRef"] = ref
     creator = alias(services)
     if creator:
         question["createdBy"] = creator
@@ -232,6 +247,8 @@ def brief(question: dict, with_answer: bool = True, topics: dict[str, str] | Non
                 out[key] = question[key]
     if question.get("tags"):
         out["tags"] = question["tags"]
+    if question.get("sourceRef"):
+        out["sourceRef"] = question["sourceRef"]
     if question.get("starred"):
         out["starred"] = True
     out["stats"] = {k: stats.get(k) for k in ("seen", "correct", "wrong", "lastResult", "nextReviewAt") if stats.get(k) is not None}

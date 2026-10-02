@@ -13,9 +13,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
 from .api import ROUTERS
+from .agenda import agenda_items
 from .config import Config
 from .guard import install_guard
-from .hoard_link import family
+from .hoard_link import family, fam_agenda
 from .resources import index_for
 from .services import Services
 from .teacher import start as start_teacher
@@ -85,6 +86,12 @@ def create_app(config: Config | None = None, services: Services | None = None) -
 
     for router in ROUTERS:
         app.include_router(router)
+    # The family agenda: exams, deliverables and "N tarjetas para repasar hoy" (needs the app's own bearer token).
+    def agenda_provider(date_from, date_to, sphere):
+        svc = getattr(app.state, "services", None)
+        return agenda_items(svc, date_from, date_to, sphere) if svc is not None else []
+
+    fam_agenda.install_fastapi(app, agenda_provider)
     if notebook_router is not None:
         app.include_router(notebook_router)
 

@@ -217,6 +217,7 @@ class CardIn(BaseModel):
     back: str = Field(..., min_length=1, max_length=16000)
     tags: list[str] = Field(default_factory=list, max_length=30)
     source: str = Field("", max_length=1000)
+    source_ref: str = Field("", max_length=500, description="Where the card came from, e.g. hoard://links/highlight/<id>; kept with the card.")
 
 
 class CardsAddArgs(BaseModel):
@@ -416,8 +417,8 @@ def run_cards_add(services: Services, args: CardsAddArgs) -> dict:
             data["tags"] = card.tags
         if card.source.strip():
             data["explanation"] = f"Fuente: {card.source.strip()}"
-        q, existing = bank.add_question(services, subject, topic, data)
-        out.append({"id": q["id"], "existing": existing})
+        q, existing = bank.add_question(services, subject, topic, data, source_ref=card.source_ref)
+        out.append({"id": q["id"], "existing": existing, **({"source_ref": q["sourceRef"]} if q.get("sourceRef") else {})})
     return {"deck": subject["name"], "subjectCreated": created, "cards": out, "count": len(out)}
 
 
@@ -504,8 +505,8 @@ STUDY_TOOLS: list[Tool] = [
 
 COMPAT_TOOLS: list[Tool] = [
     Tool("cards_add", "Alias of questions_add (Hypatia compatibility): add flashcards as DESARROLLO questions (write)."
-         "\n{deck, cards:[{front, back, tags, source}]}: deck = subject (created if missing), topic 'Tarjetas', front = prompt, "
-         "back = modelAnswer." + SYN + "añadir tarjeta, crear tarjeta, flashcard, memorizar esto.", CardsAddArgs,
+         "\n{deck, cards:[{front, back, tags, source, source_ref}]}: deck = subject (created if missing), topic 'Tarjetas', "
+         "front = prompt, back = modelAnswer; source_ref (e.g. hoard://links/highlight/<id>) is stored with the card." + SYN + "añadir tarjeta, crear tarjeta, flashcard, memorizar esto.", CardsAddArgs,
          ann(False, False, True), run_cards_add),
     Tool("decks_list", "Alias of subjects_list (Hypatia compatibility): subjects as decks with counts and due now."
          "\nSame data as subjects_list." + SYN + "mazos, barajas, listar mazos.", Empty, ann(True), run_decks_list),

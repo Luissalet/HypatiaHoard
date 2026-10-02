@@ -52,7 +52,12 @@ Herramientas de estudio: `subjects_list`, `topics_list`, `questions_search`, `qu
 Matemáticas exactas: `math_compute` evalúa operaciones, resuelve ecuaciones polinómicas de grado hasta 4 y deriva fórmulas localmente. Las potencias se escriben con `**`. Devuelve resultado exacto, aproximado (si es numérico) y LaTeX sin leer ni cambiar datos de estudio.
 Profesor: ver [Rol Profesor](#rol-profesor).
 Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` pasa una FAQ terminada al banco de práctica y omite duplicados si se repite.
-Alias heredados de Hypatia 1 (tarjetas): `cards_add`, `decks_list`.
+Alias heredados de Hypatia 1 (tarjetas): `cards_add`, `decks_list`. `cards_add` recibe `{deck, cards: [{front, back, tags, source, source_ref}]}`; `source_ref` (por ejemplo `hoard://links/highlight/<id>`, que envía Links Hoard por un subrayado) se guarda con la tarjeta como `sourceRef`, no forma parte del hash de contenido (la misma tarjeta de otro sitio sigue siendo la misma; un duplicado que no tenía referencia la toma), viaja por la sincronización y se ve como una etiqueta *Origen* en el editor de preguntas.
+
+### En la familia
+
+- **Agenda.** `GET /api/family/agenda` (con el token de esta aplicación; `?from=&to=&sphere=`) responde al contrato de la agenda de la familia: la fecha de examen de cada asignatura (`exam`, prioridad alta en la última semana), la fecha de la cabecera de un examen de profesor cuando es una fecha de verdad (`exam`), las entregas pendientes con su día y hora (`deadline`, o `exam` si son pruebas) y, para hoy, un elemento `cards` de todo el día «N tarjetas para repasar hoy» cuando hay tarjetas que tocan. Solo salen nombres de asignaturas, títulos de examen y recuentos, nunca el nombre ni las respuestas de un alumno. El manifiesto dice `"x-family": {"agenda": true}`.
+- **Eventos de trabajo.** Los trabajos de profesor (`exam_generate`, `grading_run`) publican en el bus los eventos de trabajo canónicos: `hypatia.job.queued`, `started`, `progress` (como mucho cada 3 segundos, con `eta_s` en cuanto hay avance), `done`, `failed` (`no_model`, `no_sources` y errores, con el motivo en `error`) y `cancelled`, cada uno con `{job_id, title, kind: "teacher", progress 0..1, gpu: false, eta_s, url, error}` (la url abre el examen o la tanda). Sustituyen a `hypatia.teacher_job.*`, que el hub traduce a estos, así que los nombres antiguos ya no se envían.
 
 ## Rol Profesor
 
@@ -105,7 +110,7 @@ venv\Scripts\python -m pytest -q tests
 npx tsc --noEmit
 ```
 
-Ningún test sale a la red ni toca otra app de la familia. Algunos ejecutan el TypeScript con node (necesitan `npm install`): paridad de hashes y del núcleo de profesor, la migración Dexie 8→9 y el filtro de exportaciones (con `fake-indexeddb`).
+Ningún test sale a la red ni toca otra app de la familia (`tests/test_family.py` cubre `source_ref`, los eventos de trabajo y la agenda). Algunos ejecutan el TypeScript con node (necesitan `npm install`): paridad de hashes y del núcleo de profesor, la migración Dexie 8→9 y el filtro de exportaciones (con `fake-indexeddb`).
 
 ## Licencia
 

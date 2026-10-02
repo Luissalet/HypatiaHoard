@@ -14,10 +14,12 @@ import time
 import uuid
 from typing import Any, Callable, Optional
 
+from .. import familyevents
 from .store import teacher_store
 
 ACTIVE = ("queued", "running")
 FINAL = ("done", "no_model", "no_sources", "error", "cancelled")
+FAILURE_TEXT = {"no_model": "No local model was available.", "no_sources": "There was nothing to work from."}
 
 
 class Stopped(Exception):
@@ -97,6 +99,7 @@ def create(services: Any, kind: str, params: dict[str, Any], *, submit: bool = T
                       json.dumps({"done": 0, "total": 0}), services.now_iso()))
     if submit:
         _submit(services, job_id)
+    familyevents.job_event(services, "queued", {"id": job_id, "kind": kind}, params)
     return get(services, job_id)
 
 
@@ -124,10 +127,13 @@ def requeue(services: Any) -> list[str]:
 class Context:
     """What a handler gets: progress reporting and the stop check."""
 
-    def __init__(self, services: Any, job_id: str, stop: Optional[threading.Event]):
+    def __init__(self, services: Any, job_id: str, stop: Optional[threading.Event], kind: str = "", params: Optional[dict] = None):
         self.services = services
         self.job_id = job_id
         self.stop = stop
+        self.kind = kind
+        self.params = params or {}
+        self.started: Optional[float] = None
 
     def check(self) -> None:
         if self.stop is not None and self.stop.is_set():
@@ -135,6 +141,12 @@ class Context:
 
     def progress(self, done: int, total: int, label: str = "") -> None:
         _update(self.services, self.job_id, progress={"done": done, "total": total, "label": label})
+        if self.started is None:
+            self.started = time.monotonic()
+        fraction = (done / total) if total else 0.0
+        eta = int((time.monotonic() - self.started) * (total - done) / done) if done and total and done < total else None
+        familyevents.job_event(self.services, "progress", {"id": self.job_id, "kind": self.kind}, self.params,
+                               progress=fraction, eta_s=eta)
         self.check()
 
 
@@ -146,27 +158,32 @@ def run(services: Any, job_id: str, stop: Optional[threading.Event] = None) -> O
     if row["kind"] not in HANDLERS:
         _load_handlers()
     fn = HANDLERS.get(row["kind"])
+    params = _loads(row.get("params"), {})
     _update(services, job_id, status="running", started_at=services.now_iso(), error=None)
-    ctx = Context(services, job_id, stop)
+    familyevents.job_event(services, "started", row, params)
+    ctx = Context(services, job_id, stop, row["kind"], params)
+    ctx.started = time.monotonic()
     try:
         if fn is None:
             raise ValueError(f"Unknown job kind {row['kind']!r}.")
-        status, result, note = fn(services, _loads(row.get("params"), {}), ctx)
+        status, result, note = fn(services, params, ctx)
     except Stopped:
         _update(services, job_id, status="queued")
         return get(services, job_id)
     except Exception as exc:  # noqa: BLE001 - recorded on the job
-        _update(services, job_id, status="error", error=f"{type(exc).__name__}: {exc}"[:1000],
-                finished_at=services.now_iso())
+        message = f"{type(exc).__name__}: {exc}"[:1000]
+        _update(services, job_id, status="error", error=message, finished_at=services.now_iso())
+        familyevents.job_event(services, "failed", row, params, error=message[:300])
         return get(services, job_id)
     _update(services, job_id, status=status, result=result, note=note, finished_at=services.now_iso())
     job = get(services, job_id)
-    try:
-        from ..hoard_link import family
-
-        family.emit(f"hypatia.teacher_job.{status}", {"id": job_id, "kind": row["kind"]})
-    except Exception:  # noqa: BLE001 - the bus is optional
-        pass
+    # done -> done; no_model, no_sources and error -> failed (with the reason); cancelled -> cancelled.
+    if status == "done":
+        familyevents.job_event(services, "done", row, params)
+    elif status == "cancelled":
+        familyevents.job_event(services, "cancelled", row, params)
+    else:
+        familyevents.job_event(services, "failed", row, params, error=(note or FAILURE_TEXT.get(status) or status)[:300])
     return job
 
 

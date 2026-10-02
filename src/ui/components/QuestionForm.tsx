@@ -20,6 +20,29 @@ const ORIGIN_LABELS: Record<QuestionOrigin, string> = {
   alumno: 'Alumno',
 };
 
+// ─── Where a card came from ───────────────────────────────────────────────────
+
+const REF_APPS: Record<string, string> = { links: 'Links Hoard', funes: 'Funes', people: "People's Hoard", kafka: "Kafka's Hoard" };
+
+/** hoard://links/highlight/<id> -> "De Links Hoard · highlight"; an http(s) reference is a real link. */
+export function sourceRefLabel(ref: string): string {
+  const m = /^hoard:\/\/([^/]+)\/([^/]+)/.exec(ref);
+  return m ? `De ${REF_APPS[m[1]] ?? m[1]} · ${m[2] === 'highlight' ? 'subrayado' : m[2]}` : ref;
+}
+
+function SourceRefChip({ sourceRef }: { sourceRef: string }) {
+  const isWeb = /^https?:\/\//i.test(sourceRef);
+  const className = 'inline-flex items-center gap-1 rounded-full border border-ink-700 bg-ink-800 px-2.5 py-0.5 text-xs text-ink-300';
+  return (
+    <div className="flex items-center gap-2" data-testid="source-ref">
+      <span className="text-xs font-medium text-ink-400 uppercase tracking-widest">Origen</span>
+      {isWeb
+        ? <a href={sourceRef} target="_blank" rel="noreferrer" className={className}>{sourceRef}</a>
+        : <span className={className} title={sourceRef}>{sourceRefLabel(sourceRef)}</span>}
+    </div>
+  );
+}
+
 // ─── Expandable Textarea with MD preview + drag & drop images ─────────────────
 
 interface ExpandableTextareaProps {
@@ -419,6 +442,8 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
       notes: notes.trim() || undefined,
       // Starred se preserva del initial, no se edita desde el formulario (se hace inline)
       starred: initial?.starred,
+      // De dónde vino la tarjeta (la pone el servidor); se conserva al editar
+      sourceRef: initial?.sourceRef,
     });
   };
 
@@ -617,6 +642,8 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
         onChange={(e) => setTags(e.target.value)}
         placeholder="ej: busqueda, heuristica, A*"
       />
+
+      {initial?.sourceRef && <SourceRefChip sourceRef={initial.sourceRef} />}
 
       {/* A4: Notas personales — LOCAL, nunca exportadas */}
       <div className="flex flex-col gap-1">

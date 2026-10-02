@@ -362,6 +362,10 @@ Role switch: `ui/components/RoleSwitch.tsx` (Dashboard header, Ajustes → Rol; 
 - **What**: Dexie v9 tables ↔ server `teacher_records` via `/api/teacher/sync/{state,pull,push}` (last write wins by `updatedAt`, deletion rows), started by `hoardSync.startHoardSync` (hoard mode only). Model work runs as jobs on the notebook worker thread (`teacher_jobs`; statuses `done`, `no_model`, `no_sources`, `error`). 18 MCP tools in `hypatia/teacher/tools.py`.
 - **Where**: `data/teacherSync.ts`, `data/teacherSyncCore.ts`, `data/teacherClient.ts`, `hypatia/teacher/store.py`, `jobs.py`, `api/teacher.py`.
 
+### 20.7 In the family (agenda, job events, card origin)
+- **What**: `GET /api/family/agenda` (exam dates, teacher-exam dates, pending deliverables, "N tarjetas para repasar hoy"; manifest `x-family.agenda`); teacher jobs post `hypatia.job.queued|started|progress|done|failed|cancelled` (kind `teacher`) instead of `hypatia.teacher_job.*`; `cards_add` stores `source_ref` as `sourceRef` (shown as an *Origen* chip in `QuestionForm.tsx`).
+- **Where**: `hypatia/agenda.py`, `hypatia/familyevents.py`, `hypatia/teacher/jobs.py`, `hypatia/bank.py#add_question`, `hypatia/agent_tools.py#run_cards_add`, `tests/test_family.py`.
+
 ---
 
 ## Feature → file quick index

@@ -171,6 +171,12 @@ export interface Question {
   contentHash?: string;
 
   /**
+   * De dónde salió la tarjeta (p. ej. hoard://links/highlight/<id> cuando viene de un subrayado
+   * de Links Hoard). Lo pone el servidor al añadir tarjetas; no entra en contentHash.
+   */
+  sourceRef?: string;
+
+  /**
    * Nota personal del usuario. LOCAL — nunca se exporta al banco global,
    * contribution packs, ni se incluye en contentHash.
    */
@@ -625,4 +631,4 @@ export interface SubjectGradingConfig {
   testContinuousPoints: number;
   /** Exam grade (0-10) once taken. */
   examGrade?: number;
-}
+}
