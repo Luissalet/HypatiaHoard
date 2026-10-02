@@ -7,6 +7,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from ..hoard_link import waiting
 from ..tooling import Tool, ann
 from . import ask as ask_mod
 from . import retrieval, sources, studio, tutor, worker
@@ -27,7 +28,7 @@ class SourceAddArgs(BaseModel):
     subject: str = Field(..., min_length=1, max_length=200, description=SUBJECT_DESC)
     path: str = Field(..., min_length=1, max_length=2000,
                       description="Local file or folder (PDF, MD, TXT, DOCX), read in place; folders recursively.")
-    wait_s: int = Field(20, ge=0, le=120, description="Seconds to wait for indexing to finish (0 = return at once).")
+    wait_s: int = Field(20, ge=0, le=150, description="Seconds to wait for indexing to finish (0 = return at once).")
 
 
 class NotebookSearchArgs(BaseModel):
@@ -53,7 +54,7 @@ class StudioGenerateArgs(BaseModel):
     source_ids: Optional[list[str]] = Field(None, max_length=50)
     instructions: Optional[str] = Field(None, max_length=2000, description="Extra guidance (focus, level, length).")
     add_as_source: bool = Field(False, description="Also add the result as a notebook source when done.")
-    wait_s: int = Field(30, ge=0, le=120, description="Seconds to wait for the job (0 = return the job id at once).")
+    wait_s: int = Field(30, ge=0, le=150, description="Seconds to wait for the job (0 = return the job id at once).")
 
 
 class StudioGetArgs(BaseModel):
@@ -83,7 +84,7 @@ def run_notebook_sources(services: Any, args: NotebookSourcesArgs) -> dict[str, 
 
 
 def _wait_sources(services: Any, ids: list[str], wait_s: float) -> None:
-    deadline = time.monotonic() + wait_s
+    deadline = time.monotonic() + waiting.clamp_wait(wait_s)
     while ids and time.monotonic() < deadline:
         found = rows(services, f"SELECT status FROM sources WHERE id IN ({','.join('?' * len(ids))})", ids)
         if all(r["status"] != "pending" for r in found):
@@ -198,7 +199,7 @@ NOTEBOOK_TOOLS: list[Tool] = [
     Tool(
         "studio_generate",
         "Generate study guide, briefing, FAQ, glossary, timeline, mind map or podcast (write; guía, resumen, audio).\n"
-        "Runs a background job over the subject's (or topic's) sources with citations; `wait_s` (≤120) waits for it, "
+        "Runs a background job over the subject's (or topic's) sources with citations; `wait_s` (≤150) waits for it, "
         "else poll studio_get. podcast = two-voice Spanish audio (script kept if no TTS). Without a model returns "
         "`item: null`, `material` and a `note`: write it yourself citing [n].\n"
         "Sinónimos: guía de estudio, documento informativo, preguntas frecuentes, glosario, cronología, mapa mental, "

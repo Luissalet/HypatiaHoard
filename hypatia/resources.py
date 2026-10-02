@@ -9,13 +9,12 @@ in the app lands here, so every device that opens the server can view it."""
 from __future__ import annotations
 
 import json
-import os
 import re
-import tempfile
 from pathlib import Path
 from typing import Any
 
 from .hashing import slugify
+from .hoard_link import atomic
 
 CATEGORIES = ("Temas", "Examenes", "Resumenes", "Practica")
 MAX_BYTES = 200 * 1024 * 1024
@@ -66,18 +65,6 @@ def safe_filename(filename: str) -> str:
     return name
 
 
-def _write_atomic(path: Path, data: bytes) -> None:
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".upload-")
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
-        os.chmod(tmp, 0o644)  # mkstemp makes it owner-only; these are plain files served to the app
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
-
-
 def _list_in_index(folder: Path, pdf: str) -> None:
     """A hand-written Temas/index.json (from a package) must list the new PDF too. No topic
     title: the topic already points at it (Topic.pdfFilename syncs), and a title here would make
@@ -94,7 +81,7 @@ def _list_in_index(folder: Path, pdf: str) -> None:
     if any(item == pdf or (isinstance(item, dict) and item.get("pdf") == pdf) for item in raw):
         return
     raw.append(pdf if raw and all(isinstance(item, str) for item in raw) else {"topicTitle": "", "pdf": pdf})
-    _write_atomic(idx, json.dumps(raw, ensure_ascii=False, indent=2).encode("utf-8"))
+    atomic.write_json_atomic(idx, raw)
 
 
 def save_file(resources_dir: Path, subject_name: str, category: str, filename: str, data: bytes) -> dict[str, Any]:
@@ -113,7 +100,7 @@ def save_file(resources_dir: Path, subject_name: str, category: str, filename: s
     target = (folder / name).resolve()
     if target.parent != folder.resolve():
         raise ValueError("Nombre de archivo no válido")
-    _write_atomic(target, data)
+    atomic.write_bytes_atomic(target, data, mode=0o644)  # plain files served to the app, not owner-only
     if category == "Temas":
         _list_in_index(folder, name)
     return {"slug": slug, "path": f"resources/{slug}/{category}/{name}", "bytes": len(data)}
