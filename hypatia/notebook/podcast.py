@@ -9,6 +9,9 @@ import wave
 from pathlib import Path
 from typing import Any, Optional
 
+from ..hoard_link import atomic
+from ..hoard_link.errors import HoardLinkError
+from ..hoard_link.media.ffmpeg import FFmpeg, FFmpegError
 from . import llm
 
 TURN_SILENCE_MS = 300
@@ -130,39 +133,28 @@ class AudioFormatError(ValueError):
 
 
 def concat_wavs(segments: list[tuple[bytes, bool]], silence_ms: int = TURN_SILENCE_MS) -> bytes:
-    """Concatenate WAV blobs. Each segment is (wav_bytes, starts_new_turn); silence goes
-    before a segment that starts a new turn. All segments must share channels, sample
-    width and rate (no resampling)."""
-    params = None
-    frames: list[bytes] = []
-    for i, (blob, new_turn) in enumerate(segments):
+    """Concatenate WAV blobs with the shared `FFmpeg.concat_wavs`. Each segment is (wav_bytes,
+    starts_new_turn); silence goes before a segment that starts a new turn. The first clip sets the
+    format; a clip in another format is converted with ffmpeg (only then is ffmpeg needed)."""
+    if not segments:
+        raise AudioFormatError("No hay audio que concatenar")
+    clips: list[tuple[bytes, float]] = []
+    for i, (blob, _new_turn) in enumerate(segments):
         try:
-            with wave.open(io.BytesIO(blob), "rb") as w:
-                p = (w.getnchannels(), w.getsampwidth(), w.getframerate())
-                data = w.readframes(w.getnframes())
+            with wave.open(io.BytesIO(blob), "rb"):
+                pass
         except (wave.Error, EOFError) as exc:
             raise AudioFormatError(f"El fragmento {i + 1} de TTS no es un WAV PCM válido: {exc}") from exc
-        if params is None:
-            params = p
-        elif p != params:
-            raise AudioFormatError(
-                "Los fragmentos de TTS tienen formatos distintos "
-                f"(canales/bits/Hz {params[0]}/{params[1] * 8}/{params[2]} frente a {p[0]}/{p[1] * 8}/{p[2]}); "
-                "usa voces del mismo motor/frecuencia en data/backend.json → podcast.voices."
-            )
-        if frames and new_turn and silence_ms > 0:
-            n = int(params[2] * silence_ms / 1000)
-            frames.append(b"\x00" * n * params[0] * params[1])
-        frames.append(data)
-    if params is None:
-        raise AudioFormatError("No hay audio que concatenar")
-    out = io.BytesIO()
-    with wave.open(out, "wb") as w:
-        w.setnchannels(params[0])
-        w.setsampwidth(params[1])
-        w.setframerate(params[2])
-        w.writeframes(b"".join(frames))
-    return out.getvalue()
+        nxt = segments[i + 1][1] if i + 1 < len(segments) else False
+        clips.append((blob, silence_ms / 1000.0 if nxt and silence_ms > 0 else 0.0))
+    try:
+        audio, _duration = FFmpeg().concat_wavs(clips)
+    except (FFmpegError, HoardLinkError) as exc:
+        raise AudioFormatError(
+            "Los fragmentos de TTS tienen formatos distintos y no se han podido unificar "
+            f"({exc}); usa voces del mismo motor/frecuencia en data/backend.json → podcast.voices."
+        ) from exc
+    return audio
 
 
 def synthesize(services: Any, script: dict[str, Any], out_path: Path) -> dict[str, Any]:
@@ -186,7 +178,5 @@ def synthesize(services: Any, script: dict[str, Any], out_path: Path) -> dict[st
     except AudioFormatError as exc:
         return {"error": str(exc)}
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = out_path.with_name(out_path.name + ".part")
-    tmp.write_bytes(audio)
-    tmp.replace(out_path)
+    atomic.write_bytes_atomic(out_path, audio)
     return {"audioPath": str(out_path)}

@@ -104,7 +104,25 @@ def test_podcast_without_tts_keeps_script(indexed, fake):
     assert "tts" in item["note"]
 
 
-def test_podcast_format_mismatch_is_clear_error(indexed, fake):
+def test_podcast_format_mismatch_is_converted_with_ffmpeg(indexed, fake):
+    from shutil import which
+
+    if not which("ffmpeg"):
+        pytest.skip("ffmpeg not available")
+    (indexed.config.data_dir / "backend.json").write_text('{"podcast": {"voices": ["vozA", "vozB"]}}')
+    fake.tts_mismatch = True
+    item = _run(indexed, "podcast")
+    # the shared concat converts a clip in another format to the first one's instead of giving up
+    assert item["status"] == "done" and item["data"]["turns"] and item["audioUrl"]
+
+
+def test_podcast_format_mismatch_without_ffmpeg_is_clear_error(indexed, fake, monkeypatch):
+    from hypatia.hoard_link.media import ffmpeg as shared
+
+    def missing(self, name):
+        raise shared.bins.tool_missing(name)
+
+    monkeypatch.setattr(shared.FFmpeg, "_argv", missing)
     (indexed.config.data_dir / "backend.json").write_text('{"podcast": {"voices": ["vozA", "vozB"]}}')
     fake.tts_mismatch = True
     item = _run(indexed, "podcast")
