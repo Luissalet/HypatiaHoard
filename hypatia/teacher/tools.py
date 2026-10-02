@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from .. import bank
 from ..hashing import slugify
+from ..hoard_link import atomic
 from ..tooling import Tool, ann
 from . import analysis, assess, core, generate, jobs, rubrics
 from .pdf import exam_pdf
@@ -78,7 +79,7 @@ class ExamGenerateArgs(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
     header: Optional[HeaderIn] = None
     cls: Optional[str] = Field(None, alias="class", max_length=200, description=CLASS_DESC)
-    wait_s: int = Field(0, ge=0, le=120, description="Seconds to wait for the generation job.")
+    wait_s: int = Field(0, ge=0, le=150, description="Seconds to wait for the generation job (at most 150).")
 
     model_config = {"populate_by_name": True}
 
@@ -148,7 +149,7 @@ class GradingRunArgs(BaseModel):
     batch: str = Field(..., min_length=1, max_length=200, description=BATCH_DESC)
     students: list[str] = Field(default_factory=list, max_length=200, description="Only these students (names/ids).")
     force: bool = Field(False, description="Grade again even unchanged answers or confirmed students.")
-    wait_s: int = Field(30, ge=0, le=120)
+    wait_s: int = Field(30, ge=0, le=150)
 
 
 class ReviewArgs(BaseModel):
@@ -190,7 +191,7 @@ class ReinforceArgs(BaseModel):
 
 class JobArgs(BaseModel):
     id: str = Field(..., min_length=1, max_length=100)
-    wait_s: int = Field(0, ge=0, le=120)
+    wait_s: int = Field(0, ge=0, le=150)
 
 
 # ---------------------------------------------------------------- helpers
@@ -373,7 +374,7 @@ def run_export_pdf(services: Any, args: ExportPdfArgs) -> dict:
                     with_rubrics=args.with_rubrics)
     name = f"{slugify(exam.get('title') or 'examen')[:60] or 'examen'}-{exam['id'][:8]}.pdf"
     path = _exports_dir(services) / name
-    path.write_bytes(data)
+    atomic.write_bytes_atomic(path, data)
     return {"path": str(path), "url": f"/api/teacher/files/{name}", "bytes": len(data),
             "versions": args.versions or [v["label"] for v in exam.get("versions") or []],
             "note": "Formulas appear as LaTeX source in this PDF; the app's 'Imprimir PDF' renders them."}
@@ -457,7 +458,7 @@ def run_report(services: Any, args: ReportArgs) -> dict:
     if args.save_csv:
         name = f"notas-{slugify(batch.get('title') or 'entrega')[:60]}-{batch['id'][:8]}.csv"
         path = _exports_dir(services) / name
-        path.write_text(out["csv"], encoding="utf-8-sig")
+        atomic.write_text_atomic(path, out["csv"], encoding="utf-8-sig")
         out["path"] = str(path)
         out["url"] = f"/api/teacher/files/{name}"
     return out

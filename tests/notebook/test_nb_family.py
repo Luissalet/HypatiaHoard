@@ -176,3 +176,29 @@ def test_a_source_indexed_under_old_rules_is_rebuilt_by_the_next_rescan(indexed)
         sources.index_source(indexed, sid)
     assert not any(r["text"].startswith("viejo ") for r in rows(indexed, "SELECT text FROM chunks"))
     assert sources.scan_subject(indexed, subject)["pending"] == []
+
+
+# ---------------------------------------------------------------- waiting
+
+def test_waiting_for_a_job_that_is_not_done_says_it_is_still_running(svc):
+    from hypatia.notebook import studio
+
+    with svc.db.tx() as conn:
+        conn.execute("INSERT INTO studio_items(id, subject_id, kind, status) VALUES('it1', 'sub1', 'guide', 'running')")
+    item = studio.wait(svc, "it1", 0)
+    assert item["status"] == "running" and item["still_running"] is True and "waited_s" in item
+    with svc.db.tx() as conn:
+        conn.execute("UPDATE studio_items SET status='done' WHERE id='it1'")
+    done = studio.wait(svc, "it1", 150)
+    assert done["status"] == "done" and "still_running" not in done
+    assert studio.wait(svc, "nope", 1) is None
+
+
+def test_the_tools_wait_up_to_the_family_limit_and_no_more():
+    from pydantic import ValidationError
+
+    from hypatia.notebook.tools import StudioGenerateArgs
+
+    assert StudioGenerateArgs(subject="x", kind="study_guide", wait_s=150).wait_s == 150
+    with pytest.raises(ValidationError):
+        StudioGenerateArgs(subject="x", kind="study_guide", wait_s=151)

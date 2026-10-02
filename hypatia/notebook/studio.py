@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from ..hashing import compute_concept_hash, compute_content_hash
+from ..hoard_link import atomic, waiting
 from . import llm, mindmap, podcast, retrieval
 from .schema import row, rows
 
@@ -213,14 +214,10 @@ def create(services: Any, subject_ref: str, kind: str, *, topic: Optional[str] =
 
 
 def wait(services: Any, item_id: str, wait_s: float) -> Optional[dict[str, Any]]:
-    import time
-
-    deadline = time.monotonic() + max(0.0, min(float(wait_s), 120.0))
-    while True:
-        item = get_item(services, item_id)
-        if not item or item["status"] in ("done", "error") or time.monotonic() >= deadline:
-            return item
-        time.sleep(0.25)
+    """The item once it is done or failed, or as it is when the wait (at most the family's 150 s) runs out: then
+    it carries `still_running` and `waited_s`. None when it does not exist."""
+    item = waiting.wait_for(lambda: get_item(services, item_id), wait_s, done_states=("done", "error"))
+    return None if item.get("state") == "missing" else item
 
 
 # ---------------------------------------------------------------- run
@@ -531,6 +528,6 @@ def add_as_source(services: Any, item_id: str) -> dict[str, Any]:
     from . import sources
 
     target = sources.uploads_dir(services, r["subject_id"]) / f"estudio-{item_id}.md"
-    target.write_text(r["content"], encoding="utf-8")
+    atomic.write_text_atomic(target, r["content"])
     src, _change = sources.register_file(services, r["subject_id"], target, "studio", r.get("title"))
     return sources.public_source(sources.index_source(services, src["id"]))

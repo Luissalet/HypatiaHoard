@@ -15,6 +15,7 @@ import uuid
 from typing import Any, Callable, Optional
 
 from .. import familyevents
+from ..hoard_link import waiting
 from .store import teacher_store
 
 ACTIVE = ("queued", "running")
@@ -188,12 +189,10 @@ def run(services: Any, job_id: str, stop: Optional[threading.Event] = None) -> O
 
 
 def wait(services: Any, job_id: str, wait_s: float) -> Optional[dict]:
-    deadline = time.monotonic() + max(0.0, min(float(wait_s or 0), 120.0))
-    while True:
-        job = get(services, job_id)
-        if not job or job["status"] in FINAL or time.monotonic() >= deadline:
-            return job
-        time.sleep(0.2)
+    """The job once it finishes, or as it is when the wait (at most the family's 150 s) runs out: then it
+    carries `still_running` and `waited_s` so the caller knows to ask again. None when it does not exist."""
+    job = waiting.wait_for(lambda: get(services, job_id), wait_s, poll=0.2, done_states=tuple(FINAL))
+    return None if job.get("state") == "missing" else job
 
 
 def _load_handlers() -> None:
