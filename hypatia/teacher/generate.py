@@ -204,15 +204,15 @@ OPTIONAL: dict[str, list[str]] = {
     "COMPLETAR": ["explanation", "difficulty"],
 }
 EXAMPLES: dict[str, dict] = {  # form only: the content is made up and must not be copied
-    "TEST": {"type": "TEST", "prompt": "Según el pasaje [3], ¿qué hace el componente X del ejemplo?",
+    "TEST": {"type": "TEST", "prompt": "¿Qué hace el componente X del ejemplo?",
              "options": [{"id": "a", "text": "Ordena los datos de entrada"}, {"id": "b", "text": "Comprueba que la entrada sigue las reglas"},
                          {"id": "c", "text": "Traduce el resultado a otro idioma"}, {"id": "d", "text": "Borra los datos repetidos"}],
-             "correct": ["b"], "explanation": "El pasaje [3] dice que X comprueba la entrada.", "difficulty": 2,
+             "correct": ["b"], "explanation": "El material dice que X comprueba la entrada.", "difficulty": 2,
              "cita": [3], "citaRespuesta": [3]},
     "DESARROLLO": {"type": "DESARROLLO", "prompt": "Explica para qué sirve el componente X del ejemplo.",
                    "modelAnswer": "X comprueba que la entrada sigue las reglas y, si no, avisa del error.",
                    "keywords": ["entrada", "reglas", "error"], "difficulty": 3, "cita": [3], "citaRespuesta": [3, 4]},
-    "PRACTICO": {"type": "PRACTICO", "prompt": "Con los datos del pasaje [5], calcula el resultado del ejemplo.",
+    "PRACTICO": {"type": "PRACTICO", "prompt": "Con los datos del ejemplo (2 y 3), calcula el resultado.",
                  "modelAnswer": "Se suman 2 y 3 como indica el método: 5.", "numericAnswer": "5", "cita": [5],
                  "citaRespuesta": [5]},
     "COMPLETAR": {"type": "COMPLETAR", "prompt": "Completa la definición.",
@@ -239,6 +239,8 @@ def gen_system(types: list[str]) -> str:
         "Eres un profesor que redacta preguntas de examen SOLO a partir de los pasajes numerados que se te dan "
         "(material del propio profesor). Cada pregunta evalúa un único concepto que aparece en los pasajes; nunca "
         "inventes nada que no esté en ellos; escribe en español.",
+        "El alumno no ve los pasajes: el enunciado, las opciones, la respuesta y la explicación no los mencionan "
+        "ni citan sus números; las citas van solo en \"cita\" y \"citaRespuesta\".",
         "Responde SOLO con un objeto JSON {\"questions\": [ ... ]}, sin texto alrededor. Cada pregunta es un objeto "
         "con estos campos (exactamente estos nombres):",
     ]
@@ -284,6 +286,48 @@ def _excerpt(value: Any, n: int = 400) -> str:
     except (TypeError, ValueError):
         text = str(value)
     return text if len(text) <= n else text[: n - 1] + "…"
+
+
+_PASSAGE_NUMS = r"\[\s*\d+\s*\](?:\s*(?:,|y|e)\s*\[\s*\d+\s*\])*"
+_PASSAGE_REF = re.compile(r"\b(de los|del|de|en los|en el|al|los|el|las|la)\s+(?:pasajes?|fragmentos?)\s*" + _PASSAGE_NUMS,
+                          re.IGNORECASE)
+_PASSAGE_ARTICLE = {"de los": "del", "del": "del", "de": "del", "en los": "en el", "en el": "en el", "al": "al",
+                    "los": "el", "el": "el", "las": "el", "la": "el"}
+_BARE_REF = re.compile(r"\s*\[\s*(\d+)\s*\]")
+_TEXT_FIELDS = ("prompt", "enunciado", "explanation", "modelAnswer", "clozeText")
+
+
+def unpassage(text: str, numbers: set[int]) -> str:
+    """Student-facing text without the model's passage references: "Según el pasaje [5], ¿…?" ->
+    "Según el material, ¿…?", and a bare " [3]" naming a passage it was given is dropped. The
+    citation itself stays in the draft's `cites`; students never see the numbered passages."""
+    if not isinstance(text, str) or "[" not in text:
+        return text
+
+    def ref(match: "re.Match[str]") -> str:
+        word = match.group(1)
+        out = _PASSAGE_ARTICLE[word.lower()] + " material"
+        return out[0].upper() + out[1:] if word[0].isupper() else out
+
+    text = _PASSAGE_REF.sub(ref, text)
+    def bare(match: "re.Match[str]") -> str:
+        start = match.start()
+        glued = not match.group(0)[0].isspace() and start > 0 and (text[start - 1].isalnum() or text[start - 1] in "])")
+        return "" if int(match.group(1)) in numbers and not glued else match.group(0)  # a[3] is an index, not a citation
+
+    text = _BARE_REF.sub(bare, text)
+    return text
+
+
+def unpassage_fields(raw: dict, numbers: set[int]) -> dict:
+    out = dict(raw)
+    for key in _TEXT_FIELDS:
+        if isinstance(out.get(key), str):
+            out[key] = unpassage(out[key], numbers)
+    if isinstance(out.get("options"), list):
+        out["options"] = [{**o, "text": unpassage(o.get("text"), numbers)} if isinstance(o, dict) else o
+                          for o in out["options"]]
+    return out
 
 
 def read_generated(text: str, budget: dict[str, int], passages: list[dict],
@@ -352,6 +396,7 @@ def read_generated(text: str, budget: dict[str, int], passages: list[dict],
                 drops.append({"reason": f"test inválido: {problem}", "excerpt": _excerpt(item)})
                 continue
             raw = {**raw, **candidate}
+        raw = unpassage_fields(raw, set(valid))
         q = normalize_draft(raw, [qtype])
         if q is None:
             drops.append({"reason": "no tiene la forma de una pregunta", "excerpt": _excerpt(item)})
