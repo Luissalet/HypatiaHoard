@@ -18,6 +18,7 @@ from .guard import install_guard
 from .hoard_link import family
 from .resources import index_for
 from .services import Services
+from .teacher import start as start_teacher
 
 log = logging.getLogger("hypatia")
 
@@ -37,6 +38,10 @@ def start_services(svc: Services) -> None:
             init_schema(svc.db.conn)
     if start_worker is not None:
         start_worker(svc)
+    try:
+        start_teacher(svc)
+    except Exception:  # noqa: BLE001 - the study app works without the teacher role
+        log.exception("teacher role did not start")
 
 
 def stop_services(svc: Services) -> None:

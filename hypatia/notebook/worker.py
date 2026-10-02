@@ -89,6 +89,10 @@ class Worker:
             sources.embed_source(self.services, arg)
         elif op == "studio":
             studio.run(self.services, arg, self.stop_event)
+        elif op == "teacher":  # teacher role jobs (hypatia/teacher/jobs.py) share this one model thread
+            from ..teacher import jobs as teacher_jobs
+
+            teacher_jobs.run(self.services, arg, self.stop_event)
 
     def _rescan(self, subject_id: Optional[str]) -> None:
         from . import sources
