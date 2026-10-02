@@ -358,7 +358,8 @@ def run_drafts_review(services: Any, args: DraftsReviewArgs) -> dict:
     accept = [d["id"] for d in exam.get("drafts") or [] if d.get("status") == "pending"] if args.accept == "all" else args.accept
     res = generate.review_drafts(services, exam["id"], accept, args.reject)
     return {"exam": generate.exam_view(services, res["exam"], False), "added": res["added"],
-            "alreadyInBank": res["existing"], "rejected": res["rejected"]}
+            "alreadyInBank": res["existing"], "rejected": res["rejected"],
+            "invalid": res["invalid"]}  # TEST drafts whose options are broken: rejected, never in the bank
 
 
 def run_export_pdf(services: Any, args: ExportPdfArgs) -> dict:

@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 from .hashing import compute_concept_hash, compute_content_hash, normalize_text, slugify
+from .options import correct_from_item, normalize_options
 
 QUESTION_TYPES = ("TEST", "DESARROLLO", "COMPLETAR", "PRACTICO")
 ORIGINS = ("test", "examen_anterior", "clase", "alumno")
@@ -107,12 +108,14 @@ def clean_question_input(raw: dict[str, Any]) -> dict[str, Any]:
     """Keep the content fields, drop empties, normalize option ids."""
     q = {k: raw[k] for k in CONTENT_FIELDS if raw.get(k) not in (None, "", [])}
     if q.get("type") == "TEST":
-        options = []
-        for i, o in enumerate(q.get("options") or []):
-            if isinstance(o, str):
-                o = {"id": chr(97 + i), "text": o}
-            options.append({"id": str(o.get("id") or chr(97 + i)), "text": str(o.get("text") or "")})
+        # Any shape a model writes (a {label: text} map, "a) text" strings, …): see options.py.
+        options, id_map, flagged = normalize_options(raw.get("options"))
         q["options"] = options
+        correct = correct_from_item(raw, options, id_map, flagged)
+        if correct:
+            q["correctOptionIds"] = correct
+        else:
+            q.pop("correctOptionIds", None)
     if q.get("type") == "COMPLETAR":
         q["blanks"] = [{"id": str(b.get("id") or f"blank{i + 1}"), "accepted": [str(a) for a in (b.get("accepted") or [])]}
                        for i, b in enumerate(q.get("blanks") or [])]
@@ -153,7 +156,8 @@ def update_question(services, question: dict, patch: dict[str, Any]) -> dict:
             continue
         updated[key] = value
     if updated.get("type") == "TEST" or "options" in patch:
-        updated.update({k: v for k, v in clean_question_input(updated).items() if k in ("options", "blanks")})
+        updated.update({k: v for k, v in clean_question_input(updated).items()
+                        if k in ("options", "blanks", "correctOptionIds")})
     validate_question(updated)
     updated["contentHash"] = compute_content_hash(updated)
     updated["updatedAt"] = services.now_iso()

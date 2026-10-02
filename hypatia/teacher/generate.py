@@ -165,13 +165,118 @@ GEN_SYSTEM = (
     "Eres un profesor que redacta preguntas de examen SOLO a partir de los pasajes numerados que se te dan "
     "(material del propio profesor). Reglas: cada pregunta evalúa un único concepto que aparece en los pasajes; "
     "nunca inventes nada que no esté en ellos; escribe en español. "
-    "TEST: 4 opciones con ids 'a','b','c','d' y correctOptionIds. DESARROLLO/PRACTICO: modelAnswer completa y "
-    "keywords (3-6). COMPLETAR: clozeText con huecos '{{blank1}}'... y blanks [{\"id\":\"blank1\",\"accepted\":[...]}]. "
+    "TEST: el enunciado va en \"prompt\" SIN las opciones; \"options\" es una lista de 4 objetos "
+    "{\"id\": \"a\", \"text\": \"texto completo de la opción\"} (ids 'a','b','c','d'; el texto nunca es solo la letra) "
+    "y \"correctOptionIds\" la lista de ids correctos, p. ej. [\"b\"]. "
+    "DESARROLLO/PRACTICO: modelAnswer completa y keywords (3-6). COMPLETAR: clozeText con huecos '{{blank1}}'... y "
+    "blanks [{\"id\":\"blank1\",\"accepted\":[...]}]. "
     "Cada pregunta lleva \"cita\": los números [n] de los pasajes de los que sale el enunciado, y \"citaRespuesta\": "
     "los números de los pasajes que justifican la respuesta correcta. difficulty 1-5. "
-    "Responde SOLO con JSON: un array de objetos {\"type\",\"prompt\",\"options\",\"correctOptionIds\",\"modelAnswer\","
-    "\"keywords\",\"clozeText\",\"blanks\",\"explanation\",\"difficulty\",\"cita\",\"citaRespuesta\"}."
+    "Responde SOLO con JSON: {\"questions\": [{\"type\",\"prompt\",\"options\",\"correctOptionIds\",\"modelAnswer\","
+    "\"keywords\",\"clozeText\",\"blanks\",\"explanation\",\"difficulty\",\"cita\",\"citaRespuesta\"}]}."
 )
+
+_STR_LIST = {"type": "array", "items": {"type": "string"}}
+_INT_LIST = {"type": "array", "items": {"type": "integer"}}
+GEN_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"questions": {"type": "array", "items": {
+        "type": "object",
+        "properties": {
+            "type": {"type": "string", "enum": list(QTYPES)},
+            "prompt": {"type": "string"},
+            "options": {"type": "array", "items": {"type": "object", "properties": {
+                "id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}},
+            "correctOptionIds": _STR_LIST,
+            "modelAnswer": {"type": "string"},
+            "keywords": _STR_LIST,
+            "clozeText": {"type": "string"},
+            "blanks": {"type": "array", "items": {"type": "object", "properties": {
+                "id": {"type": "string"}, "accepted": _STR_LIST}, "required": ["id", "accepted"]}},
+            "explanation": {"type": "string"},
+            "difficulty": {"type": "integer"},
+            "cita": _INT_LIST,
+            "citaRespuesta": _INT_LIST,
+        },
+        "required": ["type", "prompt", "cita"],
+    }}},
+    "required": ["questions"],
+}
+
+_OPTION_ALIASES = ("options", "opciones", "choices", "alternativas", "answers", "respuestas")
+DROP_SAMPLES = 3
+
+
+def _excerpt(value: Any, n: int = 400) -> str:
+    import json as _json
+
+    try:
+        text = _json.dumps(value, ensure_ascii=False)
+    except (TypeError, ValueError):
+        text = str(value)
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def read_generated(text: str, budget: dict[str, int], passages: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Model reply -> (accepted items [{question, cites, answerCites}], drops [{reason, excerpt}]).
+    TEST options are read in any shape (hypatia/options.py) and every TEST draft must pass
+    options.invalid_test_reason: when the options are missing it tries the "a) …" lines of the stem,
+    and otherwise the draft is dropped with its reason (a broken draft is never shown)."""
+    from . import llm
+    from ..options import correct_from_item, normalize_options, options_from_prompt, invalid_test_reason
+
+    data = llm.parse_json(text)
+    if isinstance(data, dict):
+        data = data.get("questions") or data.get("preguntas") or data.get("items") or (
+            [data] if data.get("prompt") else [])
+    if not isinstance(data, list):
+        return [], [{"reason": "la respuesta no es JSON", "excerpt": (text or "")[:400]}]
+    valid = {p["n"]: p for p in passages}
+    left = dict(budget)
+    accepted, drops = [], []
+    for item in data:
+        if not isinstance(item, dict):
+            drops.append({"reason": "no es una pregunta", "excerpt": _excerpt(item)})
+            continue
+        qtype = str(item.get("type") or item.get("tipo") or "").upper()
+        if qtype not in left:
+            drops.append({"reason": "tipo no pedido", "excerpt": _excerpt(item)})
+            continue
+        if left[qtype] <= 0:
+            drops.append({"reason": "sobra (ya hay las pedidas de su tipo)", "excerpt": _excerpt(item)})
+            continue
+        raw = {**item, "type": qtype}
+        if not raw.get("prompt") and raw.get("enunciado"):
+            raw["prompt"] = raw["enunciado"]
+        if qtype == "TEST":
+            raw_options = next((raw[k] for k in _OPTION_ALIASES if raw.get(k) not in (None, "", [], {})), None)
+            options, id_map, flagged = normalize_options(raw_options)
+            candidate = {"options": options, "correctOptionIds": correct_from_item(raw, options, id_map, flagged)}
+            problem = invalid_test_reason(candidate)
+            if problem:  # repair: options written inside the stem
+                inline = options_from_prompt(str(raw.get("prompt") or ""))
+                if inline:
+                    stem, opts = inline
+                    _, inline_map, _ = normalize_options(opts)
+                    repaired = {"options": opts, "correctOptionIds": correct_from_item(raw, opts, inline_map, [])}
+                    if not invalid_test_reason(repaired):
+                        raw["prompt"], candidate, problem = stem, repaired, None
+            if problem:
+                drops.append({"reason": f"test inválido: {problem}", "excerpt": _excerpt(item)})
+                continue
+            raw = {**raw, **candidate}
+        q = normalize_draft(raw, [qtype])
+        if q is None:
+            drops.append({"reason": "no tiene la forma de una pregunta", "excerpt": _excerpt(item)})
+            continue
+        cites = _cites(item.get("cita") or item.get("cite") or item.get("citas"), valid)
+        if not cites:
+            drops.append({"reason": "sin cita a un pasaje válido", "excerpt": _excerpt(item)})
+            continue
+        left[qtype] -= 1
+        accepted.append({"question": q, "cites": cites,
+                         "answerCites": _cites(item.get("citaRespuesta") or item.get("answerCite"), valid)})
+    return accepted, drops
 
 
 def _pick_passages(passages: list[dict], limit: int = MATERIAL_CHARS) -> list[dict]:
@@ -247,7 +352,7 @@ def run_generation(services: Any, params: dict, ctx: jobs.Context) -> tuple[str,
         text = "\n\n".join(retrieval.format_passages(p, 600) for _, _, p, _ in materials)[:30_000]
         return "no_model", {"examId": exam["id"], "generated": 0, "material": text}, (
             f"No hay modelo local ({reason}). No se ha generado nada; redacta las preguntas a partir de `material`.")
-    drafts, dropped, model, notes = [], 0, None, []
+    drafts, drops, model, notes = [], [], None, []
     for step, (topic_id, want, passages, scope_note) in enumerate(materials):
         ctx.progress(step, len(materials), "Redactando preguntas")
         if scope_note:
@@ -258,40 +363,35 @@ def run_generation(services: Any, params: dict, ctx: jobs.Context) -> tuple[str,
                   + "\nPasajes:\n\n" + retrieval.format_passages(passages))
         try:
             reply = llm.chat(services, [{"role": "system", "content": GEN_SYSTEM}, {"role": "user", "content": prompt}],
-                             max_tokens=GEN_MAX_TOKENS, temperature=0.3, json_mode=False, effort="high")
+                             max_tokens=GEN_MAX_TOKENS, temperature=0.3, effort="high", schema=GEN_SCHEMA,
+                             schema_name="preguntas")
         except llm.NoModel as exc:
             return "no_model", {"examId": exam["id"], "generated": len(drafts)}, exc.note()
         model = reply.model or model
-        data = llm.parse_json(reply.text)
-        if isinstance(data, dict):
-            data = data.get("questions") or data.get("preguntas") or []
-        valid = {p["n"]: p for p in passages}
-        budget = dict(want)
-        for item in data if isinstance(data, list) else []:
-            if not isinstance(item, dict):
-                dropped += 1
-                continue
-            q = normalize_draft(item, [t for t, n in budget.items() if n > 0])
-            cites = _cites(item.get("cita") or item.get("cite") or item.get("citas"), valid)
-            if q is None or not cites:
-                dropped += 1
-                continue
-            budget[q["type"]] -= 1
+        llm.log.debug("exam_generate reply (%s, format %s): %s", reply.model, reply.format, reply.text[:4000])
+        accepted, dropped_here = read_generated(reply.text, want, passages)
+        drops += dropped_here
+        for a in accepted:
+            q = a["question"]
             drafts.append({"id": new_id(), "type": q["type"], "question": q, "topicId": topic_id,
                            "points": _points_for(exam.get("spec") or {}, q["type"]),
-                           "citations": cites,
-                           "answerCitations": _cites(item.get("citaRespuesta") or item.get("answerCite"), valid),
+                           "citations": a["cites"], "answerCitations": a["answerCites"],
                            "status": "pending", "model": reply.model, "createdAt": services.now_iso()})
     ctx.progress(len(materials), len(materials), "Hecho")
     exam = store.get("teacherExam", params["examId"]) or exam
     exam = store.put("teacherExam", {**exam, "drafts": (exam.get("drafts") or []) + drafts,
                                      "notes": (exam.get("notes") or []) + notes})
+    reasons: dict[str, int] = {}
+    for d in drops:
+        reasons[d["reason"]] = reasons.get(d["reason"], 0) + 1
     note = None
-    if dropped:
-        note = f"{dropped} propuestas descartadas por no citar un pasaje válido o no tener la forma de pregunta."
+    if drops:
+        llm.log.info("exam_generate dropped %d drafts: %s", len(drops), reasons)
+        note = f"{len(drops)} propuestas descartadas: " + "; ".join(f"{n} {r}" for r, n in reasons.items()) + "."
     if not drafts:
-        note = (note + " " if note else "") + "El modelo no produjo ninguna pregunta citada."
-    return "done", {"examId": exam["id"], "generated": len(drafts), "dropped": dropped, "model": model}, note
+        note = (note + " " if note else "") + "El modelo no produjo ninguna pregunta válida y citada."
+    return "done", {"examId": exam["id"], "generated": len(drafts), "dropped": len(drops), "dropReasons": reasons,
+                    "dropSamples": drops[:DROP_SAMPLES], "model": model}, note
 
 
 # ---------------------------------------------------------------- drafts -> bank
@@ -319,12 +419,18 @@ def review_drafts(services: Any, exam_id: str, accept: list[str], reject: list[s
     unknown = (accept_set | reject_set) - {d["id"] for d in exam.get("drafts") or []}
     if unknown:
         raise LookupError("Unknown draft ids: " + ", ".join(sorted(unknown)))
-    added, existing = [], []
+    from ..options import invalid_test_reason
+
+    added, existing, invalid = [], [], []
     items = list(exam.get("items") or [])
     drafts = []
     for d in exam.get("drafts") or []:
         d = dict(d)
-        if d["id"] in accept_set and d.get("status") == "pending":
+        problem = invalid_test_reason(d["question"]) if d.get("type") == "TEST" else None
+        if d["id"] in accept_set and d.get("status") == "pending" and problem:
+            d.update(status="rejected", rejectedReason=f"test inválido: {problem}")  # never into the bank
+            invalid.append(d["id"])
+        elif d["id"] in accept_set and d.get("status") == "pending":
             topic = None
             if d.get("topicId"):
                 topic = services.store.get("topic", d["topicId"])
@@ -344,7 +450,7 @@ def review_drafts(services: Any, exam_id: str, accept: list[str], reject: list[s
         drafts.append(d)
     exam = refresh(services, {**exam, "items": items, "drafts": drafts})
     exam = store.put("teacherExam", exam)
-    return {"exam": exam, "added": added, "existing": existing, "rejected": sorted(reject_set)}
+    return {"exam": exam, "added": added, "existing": existing, "rejected": sorted(reject_set), "invalid": invalid}
 
 
 def exam_view(services: Any, exam: dict, with_answers: bool = True) -> dict:
@@ -370,9 +476,18 @@ def exam_view(services: Any, exam: dict, with_answers: bool = True) -> dict:
     out["versions"] = [{"label": v["label"], "questionOrder": v["questionOrder"]} for v in exam.get("versions") or []]
     if with_answers:
         out["answerKeys"] = {v["label"]: core.answer_key(exam, questions, v["label"]) for v in exam.get("versions") or []}
-    out["drafts"] = [{k: d.get(k) for k in ("id", "type", "status", "topicId", "points", "citations",
-                                             "answerCitations", "questionId")} | {"prompt": d["question"].get("prompt")}
-                     for d in exam.get("drafts") or []]
+    from ..options import invalid_test_reason
+
+    out["drafts"] = []
+    for d in exam.get("drafts") or []:
+        row = {k: d.get(k) for k in ("id", "type", "status", "topicId", "points", "citations", "answerCitations",
+                                     "questionId", "rejectedReason")}
+        row["prompt"] = d["question"].get("prompt")
+        if d.get("type") == "TEST":
+            row["options"] = d["question"].get("options")
+            row["correctOptionIds"] = d["question"].get("correctOptionIds")
+            row["problem"] = invalid_test_reason(d["question"])
+        out["drafts"].append(row)
     return out
 
 
