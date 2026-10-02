@@ -296,6 +296,8 @@ export function startHoardSync(): void {
   installHooks();
   setStatus({ connected: true, rev: getLastRev() });
   void syncNow();
+  // Rol Profesor: su propia sincronización (los datos de alumnos no van en la copia completa).
+  void import('./teacherSync').then((m) => m.startTeacherSync()).catch(() => { /* la app sigue sin ella */ });
 
   const visible = () => document.visibilityState === 'visible';
 

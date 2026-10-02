@@ -4,6 +4,7 @@ import { db, getSettings, saveSettings } from './db';
 import { keyConceptRepo } from './repos';
 import { slugify } from '@/domain/normalize';
 import type { KeyConcept, KeyConceptsPack, KeyConceptExport } from '@/domain/models';
+import { guardPublicExport } from './studentPrivacy';
 
 // ─── Zod Schemas ──────────────────────────────────────────────────────────────
 
@@ -184,7 +185,7 @@ export async function importKeyConceptsPack(
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export async function exportKeyConceptsPack(
+async function exportKeyConceptsPackUnguarded(
   subjectId: string,
 ): Promise<KeyConceptsPack> {
   const subject = await db.subjects.get(subjectId);
@@ -256,4 +257,9 @@ async function computeConceptHashForImport(
   const buf = await crypto.subtle.digest('SHA-256', data);
   const arr = Array.from(new Uint8Array(buf));
   return 'sha256:' + arr.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** conceptos clave: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportKeyConceptsPack(subjectId: string): Promise<KeyConceptsPack> {
+  return guardPublicExport(await exportKeyConceptsPackUnguarded(subjectId), 'conceptos clave');
 }

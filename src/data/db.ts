@@ -14,6 +14,17 @@ import type {
   Exam,
   InstalledPackage,
 } from '@/domain/models';
+import type {
+  TeacherClass,
+  TeacherStudent,
+  TeacherExam,
+  Rubric,
+  GradingBatch,
+  Submission,
+  GradingProposal,
+  TeacherSettings,
+} from '@/domain/teacher';
+import { DEFAULT_SCALE } from '@/domain/teacherCore';
 
 /** Registro para guardar un FileSystemDirectoryHandle en IndexedDB. */
 export interface FsaHandleRecord {
@@ -47,6 +58,15 @@ export class StudyDB extends Dexie {
   fsaHandles!: Table<FsaHandleRecord, string>;
   /** Paquetes instalados desde el marketplace */
   installedPackages!: Table<InstalledPackage, string>;
+  // Rol Profesor (v9). DATOS LOCALES: nunca se exportan (ver data/studentPrivacy.ts).
+  teacherClasses!: Table<TeacherClass, string>;
+  teacherStudents!: Table<TeacherStudent, string>;
+  teacherExams!: Table<TeacherExam, string>;
+  rubrics!: Table<Rubric, string>;
+  gradingBatches!: Table<GradingBatch, string>;
+  submissions!: Table<Submission, string>;
+  gradingProposals!: Table<GradingProposal, string>;
+  teacherSettings!: Table<TeacherSettings, string>;
 
   constructor() {
     super('StudyAppDB');
@@ -196,6 +216,43 @@ export class StudyDB extends Dexie {
       fsaHandles: 'key',
       installedPackages: 'id, subjectId, installedAt',
     });
+
+    // v9: rol Profesor — clases, alumnos, exámenes generados, rúbricas, entregas y
+    // propuestas de corrección. Datos locales (ni Gist, ni banco global, ni packs).
+    // Migración: crea la escala de notas por defecto (0-10, Suspenso…Sobresaliente).
+    this.version(9)
+      .stores({
+        subjects: 'id, name, examDate, createdAt',
+        topics: 'id, subjectId, order, createdAt',
+        questions:
+          'id, subjectId, topicId, type, difficulty, contentHash, createdAt',
+        sessions: 'id, subjectId, mode, createdAt',
+        pdfResources: 'id, subjectId, createdAt',
+        pdfAnchors: 'id, subjectId, pdfId',
+        settings: 'id',
+        questionImages: 'id, filename, createdAt',
+        deliverables: 'id, subjectId, type, dueDate, status, createdAt',
+        gradingConfigs: 'id',
+        keyConcepts: 'id, subjectId, category, order, contentHash, createdAt',
+        exams: 'id, subjectId, createdAt',
+        fsaHandles: 'key',
+        installedPackages: 'id, subjectId, installedAt',
+        teacherClasses: 'id, name, updatedAt',
+        teacherStudents: 'id, classId, updatedAt',
+        teacherExams: 'id, subjectId, classId, updatedAt',
+        rubrics: 'id, examId, questionId, updatedAt',
+        gradingBatches: 'id, examId, classId, updatedAt',
+        submissions: 'id, batchId, studentId, updatedAt',
+        gradingProposals: 'id, batchId, submissionId, updatedAt',
+        teacherSettings: 'id',
+      })
+      .upgrade(async (tx) => {
+        const table = tx.table('teacherSettings');
+        if (await table.get('default')) return;
+        // Fecha fija: la escala por defecto nunca gana a una que ya exista en el servidor.
+        const epoch = new Date(0).toISOString();
+        await table.put({ id: 'default', scale: DEFAULT_SCALE, createdAt: epoch, updatedAt: epoch });
+      });
   }
 }
 

@@ -11,6 +11,7 @@
 import { db } from './db';
 import { questionRepo, topicRepo } from './repos';
 import { slugify } from '@/domain/normalize';
+import { guardPublicExport } from './studentPrivacy';
 
 export interface CompactQuestion {
   /** Tipo: T=TEST, D=DESARROLLO, C=COMPLETAR, P=PRACTICO */
@@ -38,7 +39,7 @@ export interface CompactSubjectExport {
  * Exporta las preguntas de una asignatura en formato ultra-compacto
  * para que ChatGPT pueda verificar el banco sin procesar miles de líneas.
  */
-export async function exportCompactSubject(subjectId: string): Promise<CompactSubjectExport> {
+async function exportCompactSubjectUnguarded(subjectId: string): Promise<CompactSubjectExport> {
   const subject = await db.subjects.get(subjectId);
   if (!subject) {
     throw new Error('Asignatura no encontrada');
@@ -87,4 +88,9 @@ export async function exportAllCompactSubjects(): Promise<CompactSubjectExport[]
   }
 
   return exports;
+}
+
+/** exportación compacta: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportCompactSubject(subjectId: string): Promise<CompactSubjectExport> {
+  return guardPublicExport(await exportCompactSubjectUnguarded(subjectId), 'exportación compacta');
 }

@@ -6,6 +6,7 @@ import { slugify } from '@/domain/normalize';
 import { computeContentHash } from '@/domain/hashing';
 import { buildImageMap, importImages, extractImageFilenames } from './questionImageStorage';
 import type { ContributionPack, Subject, Topic, Question,ImportHistoryEntry } from '@/domain/models';
+import { guardPublicExport } from './studentPrivacy';
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -357,7 +358,7 @@ export async function importContributionPack(raw: unknown, topicMappings?: Topic
 
 // ─── Export contribution pack ──────────────────────────────────────────────────
 
-export async function exportContributionPack(
+async function exportContributionPackUnguarded(
   alias: string,
   subjectId: string,
   topicId?: string
@@ -450,7 +451,7 @@ export async function exportContributionPack(
 /**
  * C2: Export a contribution pack from specific question IDs (selective export).
  */
-export async function exportContributionPackByIds(
+async function exportContributionPackByIdsUnguarded(
   alias: string,
   questionIds: string[],
 ): Promise<ContributionPack> {
@@ -664,4 +665,14 @@ export async function previewContributionPack(raw: unknown, targetSubjectId?: st
     alreadyImported,
     rawPack: raw,
   };
+}
+
+/** contribution pack: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportContributionPack(alias: string, subjectId: string, topicId?: string): Promise<ContributionPack> {
+  return guardPublicExport(await exportContributionPackUnguarded(alias, subjectId, topicId), 'contribution pack');
+}
+
+/** contribution pack: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportContributionPackByIds(alias: string, questionIds: string[]): Promise<ContributionPack> {
+  return guardPublicExport(await exportContributionPackByIdsUnguarded(alias, questionIds), 'contribution pack');
 }

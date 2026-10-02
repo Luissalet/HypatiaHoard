@@ -4,6 +4,7 @@ import { db, getSettings, saveSettings } from './db';
 import { subjectRepo, topicRepo, questionRepo } from './repos';
 import { computeContentHash } from '@/domain/hashing';
 import type { BankExport, ExamExport, Subject, Topic, Question, PdfAnchor, KeyConcept, Exam } from '@/domain/models';
+import { guardPublicExport } from './studentPrivacy';
 
 // ─── Zod schemas for validation ───────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ const BankExportSchema = z.object({
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 /** Exporta el banco completo tal cual (backup personal, incluye examDate y stats). */
-export async function exportBank(subjectIds?: string[]): Promise<BankExport> {
+async function exportBankUnguarded(subjectIds?: string[]): Promise<BankExport> {
   let subjects: Subject[];
   let topics: Topic[];
   let questions: Question[];
@@ -156,7 +157,7 @@ export async function exportBank(subjectIds?: string[]): Promise<BankExport> {
  *  - examDate eliminado de todas las asignaturas (es dato personal de cada usuario)
  *  - stats reseteadas a 0 (cada usuario empieza desde cero)
  */
-export async function exportGlobalBank(subjectIds?: string[]): Promise<BankExport> {
+async function exportGlobalBankUnguarded(subjectIds?: string[]): Promise<BankExport> {
   const bank = await exportBank(subjectIds);
 
   return {
@@ -298,7 +299,7 @@ const ExamExportSchema = z.object({
  * Exporta los exámenes indicados junto con las preguntas que referencian.
  * Produce un archivo autónomo que puede importarse en otro banco.
  */
-export async function exportExams(examIds: string[]): Promise<ExamExport> {
+async function exportExamsUnguarded(examIds: string[]): Promise<ExamExport> {
   const exams = (await db.exams.where('id').anyOf(examIds).toArray()) as Exam[];
 
   // Recopilar IDs únicos de preguntas referenciadas
@@ -560,4 +561,19 @@ export async function removeDuplicateQuestions(): Promise<RemoveDuplicatesResult
   }
 
   return { removed: toDelete.length, checked };
+}
+
+/** banco: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportBank(subjectIds?: string[]): Promise<BankExport> {
+  return guardPublicExport(await exportBankUnguarded(subjectIds), 'banco');
+}
+
+/** banco global: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportGlobalBank(subjectIds?: string[]): Promise<BankExport> {
+  return guardPublicExport(await exportGlobalBankUnguarded(subjectIds), 'banco global');
+}
+
+/** exámenes: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportExams(examIds: string[]): Promise<ExamExport> {
+  return guardPublicExport(await exportExamsUnguarded(examIds), 'exámenes');
 }

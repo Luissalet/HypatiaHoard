@@ -24,6 +24,7 @@ import type {
   Exam,
   PdfAnchor,
 } from '@/domain/models';
+import { guardPublicExport } from './studentPrivacy';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -438,10 +439,10 @@ export async function exportPackage(subjectId: string): Promise<Blob> {
     pdfAnchors,
   };
 
-  // Build ZIP
+  // Build ZIP (never with student data: guardPublicExport throws if any slipped in)
   const zip = new JSZip();
-  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-  zip.file('bank.json', JSON.stringify(bank, null, 2));
+  zip.file('manifest.json', JSON.stringify(guardPublicExport(manifest, 'paquete'), null, 2));
+  zip.file('bank.json', JSON.stringify(guardPublicExport(bank, 'paquete'), null, 2));
 
   // Add resources
   for (const res of resources) {

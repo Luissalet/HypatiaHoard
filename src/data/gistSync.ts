@@ -38,6 +38,7 @@ import type {
   QuestionImageRecord,
   InstalledPackage,
 } from '@/domain/models';
+import { guardPublicExport } from './studentPrivacy';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ function getDeviceId(): string {
 
 // ─── Export full backup ──────────────────────────────────────────────────────
 
-export async function exportFullBackup(): Promise<FullBackup> {
+async function exportFullBackupUnguarded(): Promise<FullBackup> {
   const [
     subjects, topics, questions, sessions, pdfAnchors,
     keyConcepts, exams, deliverables, gradingConfigs,
@@ -1349,4 +1350,9 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const arr = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
   return arr.buffer as ArrayBuffer;
+}
+
+/** copia de sincronización: pasa por guardPublicExport (sin datos de alumnos). */
+export async function exportFullBackup(): Promise<FullBackup> {
+  return guardPublicExport(await exportFullBackupUnguarded(), 'copia de sincronización');
 }
