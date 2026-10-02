@@ -102,7 +102,23 @@ def test_agent_promotes_studio_faq_and_persists_questions(client):
 
 def test_token_file_persists(client):
     path = client.services.config.token_path
-    assert path.read_text().strip() == client.services.token and len(client.services.token) == 64
+    assert path.read_text().strip() == client.services.token and len(client.services.token) >= 32
+
+
+def test_token_survives_a_restart_and_a_token_from_an_older_build_is_kept(tmp_path, clock):
+    from hoardtest import make_services
+
+    first = make_services(tmp_path, clock)
+    token = first.token
+    first.stop()
+    second = make_services(tmp_path, clock)
+    assert second.token == token
+    second.stop()
+    old = tmp_path / "data" / "mcp-token"
+    old.write_text("ab" * 32, encoding="utf-8")  # the 64 hex characters the first versions wrote
+    third = make_services(tmp_path, clock)
+    assert third.token == "ab" * 32
+    third.stop()
 
 
 def test_spa_and_resources(client):

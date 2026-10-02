@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import secrets
 import time
 from typing import Any
 
@@ -11,7 +10,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from ..agent_tools import AGENT_INSTRUCTIONS, call_tool, tool_catalog
 from .deps import services
-from ..hoard_link import family
+from ..hoard_link import family, tokens
 
 router = APIRouter(prefix="/api/agent")
 
@@ -30,9 +29,7 @@ def tools():
 @router.post("/call")
 def call(request: Request, body: CallBody):
     svc = services(request)
-    header = request.headers.get("authorization", "")
-    given = header[7:].strip() if header.startswith("Bearer ") else ""
-    if not given or not secrets.compare_digest(given, svc.token):
+    if not tokens.check_bearer(request.headers.get("authorization"), svc.token):
         raise HTTPException(401, "Invalid MCP token.")
     t0 = time.monotonic()
     outcome = {"ok": False, "error": ""}

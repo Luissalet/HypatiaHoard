@@ -1,11 +1,15 @@
-"""Request guard: host allow-list, Origin rule and Fetch Metadata rules."""
+"""Request guard: the shared guard in front of the app (host allow-list, Origin rule, Fetch Metadata, websockets).
+
+The rules themselves are tested in the commons; here is what Hypatia relies on: which hosts its settings let in,
+the 403 envelope the PWA reads, and that a websocket is guarded too."""
 
 import pytest
 from hoardtest import make_config
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
-from hypatia.guard import check_request, host_of, install_guard, is_allowed_host, parse_allowed_hosts
+from hypatia.hoard_link.guard import install_guard, parse_allowed_hosts
 from hypatia.main import create_app
 
 NAV = {"sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "document"}
@@ -13,54 +17,9 @@ CORS = {"sec-fetch-site": "cross-site", "sec-fetch-mode": "cors", "sec-fetch-des
 IFRAME = {"sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate", "sec-fetch-dest": "iframe"}
 
 
-def test_host_of_strips_scheme_path_port_and_case():
-    assert host_of("LocalHost:5187") == "localhost"
-    assert host_of("https://My-PC.ts.net:8443/x") == "my-pc.ts.net"
-    assert host_of("[::1]:5187") == "[::1]"
-    assert host_of("") == "" and host_of(None) == ""
-
-
-def test_parse_allowed_hosts():
-    assert parse_allowed_hosts(" pc.example , *.TS.net,, pc2.example:8443") == ("pc.example", "*.ts.net", "pc2.example")
-    assert parse_allowed_hosts(None) == () and parse_allowed_hosts("*.") == ()
-
-
-def test_is_allowed_host_exact_wildcard_unknown():
-    allowed = parse_allowed_hosts("pc.example,*.ts.net")
-    for host in ("localhost", "127.0.0.1", "[::1]", "pc.example", "my-pc.ts.net", "a.b.ts.net"):
-        assert is_allowed_host(host, allowed), host
-    for host in ("ts.net", "evil.example", "pc.example.evil", "", None):
-        assert not is_allowed_host(host, allowed), host
-    assert not is_allowed_host("my-pc.ts.net", ())
-
-
-def test_check_request_fetch_metadata_rules():
-    local = {"host": "localhost:5187"}
-    assert check_request("GET", local) is None  # curl / MCP bridge: no Sec-Fetch headers
-    assert check_request("POST", {"host": "127.0.0.1:5187"}) is None
-    assert check_request("GET", {**local, **NAV}) is None  # top-level navigation from another site
-    assert check_request("GET", {**local, "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors"}) is None
-    assert check_request("GET", {**local, **CORS})  # cross-site fetch
-    assert check_request("GET", {**local, **IFRAME})
-    assert check_request("GET", {**local, **NAV, "sec-fetch-dest": "embed"})
-    assert check_request("POST", {**local, **NAV})  # form post from another site
-    assert check_request("POST", {**local, "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate"})
-    assert check_request("GET", {"host": "evil.example"})
-
-
-def test_check_request_origin_by_host_not_exact_string():
-    allowed = parse_allowed_hosts("*.ts.net")
-    headers = lambda origin: {"host": "my-pc.ts.net", "origin": origin}  # noqa: E731
-    assert check_request("GET", headers("https://my-pc.ts.net:8443"), allowed) is None
-    assert check_request("GET", headers("http://localhost:5187"), allowed) is None
-    assert check_request("GET", headers("http://localhost:5173"), allowed) is None  # vite dev
-    assert check_request("GET", headers("https://evil.example"), allowed)
-    assert check_request("GET", {"host": "localhost", "origin": "http://my-pc.ts.net"})  # not in the list
-
-
 def test_middleware_navigation_reaches_root_but_not_embeds_or_fetches():
     app = FastAPI()
-    install_guard(app, parse_allowed_hosts("*.ts.net"))
+    install_guard(app, port_getter=lambda: 5187, allowed_hosts=parse_allowed_hosts("*.ts.net"), allowed_env="")
 
     @app.get("/")
     def home():
@@ -72,6 +31,32 @@ def test_middleware_navigation_reaches_root_but_not_embeds_or_fetches():
         assert client.get("/", headers=IFRAME).status_code == 403
         assert client.get("/", headers=CORS).status_code == 403
         assert client.get("/", headers={**NAV, "host": "other.example"}).status_code == 403
+        rejected = client.get("/", headers=CORS)
+        assert rejected.json() == {"error": "Cross-site requests are not allowed."}
+
+
+def test_websockets_are_guarded_too():
+    app = FastAPI()
+    install_guard(app, port_getter=lambda: 5187, allowed_env="")
+
+    @app.websocket("/ws")
+    async def ws(socket: WebSocket):
+        await socket.accept()
+        await socket.send_text("hola")
+
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        with client.websocket_connect("/ws", headers={"host": "localhost"}) as ok:
+            assert ok.receive_text() == "hola"
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws", headers={"host": "evil.example"}):
+                pass
+
+
+def test_allowed_hosts_setting_is_parsed_once_into_the_config(monkeypatch):
+    from hypatia.config import Config
+
+    monkeypatch.setenv("HYPATIA_ALLOWED_HOSTS", " pc.example , *.TS.net,, ")
+    assert Config.from_env().allowed_hosts == ("pc.example", "*.ts.net")
 
 
 @pytest.fixture

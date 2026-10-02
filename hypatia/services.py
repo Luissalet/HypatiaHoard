@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import secrets
 import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine
@@ -13,6 +12,7 @@ from typing import Any, Callable, Coroutine
 from .backend import load_link_config
 from .config import Config
 from .db import Database
+from .hoard_link import tokens
 from .hashing import normalize_text, slugify
 from .store import RecordStore
 
@@ -23,23 +23,6 @@ def js_iso(moment: datetime) -> str:
     """`Date.prototype.toISOString()`: 'YYYY-MM-DDTHH:MM:SS.mmmZ' in UTC."""
     moment = moment.astimezone(timezone.utc)
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
-
-
-def read_or_create_token(config: Config) -> str:
-    """The MCP bearer token (data/mcp-token): kept across restarts, created 0600 if missing."""
-    config.data_dir.mkdir(parents=True, exist_ok=True)
-    path = config.token_path
-    if path.is_file():
-        token = path.read_text(encoding="utf-8").strip()
-        if len(token) >= 32:
-            return token
-    token = secrets.token_hex(32)
-    path.write_text(token, encoding="utf-8")
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
-    return token
 
 
 _TOPIC_NUMBER = re.compile(r"^(?:tema|topic|t)?\s*#?\s*(\d+)$", re.IGNORECASE)
@@ -53,7 +36,7 @@ class Services:
         self.config = config
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         config.data_dir.mkdir(parents=True, exist_ok=True)
-        self.token = read_or_create_token(config)
+        self.token = tokens.read_or_create_token(config.token_path)
         self.db = Database(config.db_path)
         self.store = RecordStore(self.db, self.now_iso)
         self.started_at = self.now_iso()

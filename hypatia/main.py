@@ -15,8 +15,8 @@ from . import __version__
 from .api import ROUTERS
 from .agenda import agenda_items
 from .config import Config
-from .guard import install_guard
 from .hoard_link import family, fam_agenda
+from .hoard_link.guard import install_guard
 from .resources import index_for
 from .services import Services
 from .teacher import start as start_teacher
@@ -73,7 +73,8 @@ def create_app(config: Config | None = None, services: Services | None = None) -
     # Hoard Link 0.4: this app on the family bus (agent.call events, the hoard_link block in /api/health).
     family.configure("hypatia", str(config.data_dir), token_file=str(config.token_path))
 
-    install_guard(app, config.allowed_hosts)
+    # The shared guard (HTTP and websockets): local Host names plus HYPATIA_ALLOWED_HOSTS, parsed once into the config.
+    install_guard(app, port_getter=lambda: config.port, allowed_hosts=config.allowed_hosts, allowed_env="")
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_: Request, exc: StarletteHTTPException):
