@@ -471,12 +471,13 @@ def analyze(exam: dict, questions: dict[str, dict], topics: dict[str, str], subm
                 decision = r.get("decision") or {}
                 for c in decision.get("criteria") or []:
                     if c.get("points") is not None and c.get("maxPoints") and c["points"] < c["maxPoints"] / 2:
-                        key = str(c.get("criterionId"))
+                        key = f"{decision.get('rubricId') or ''}::{c.get('criterionId')}"
                         acc["_criteria"][key] = acc["_criteria"].get(key, 0) + 1
+    # Criterion ids repeat across rubrics (c1, c2…): names are looked up in the decision's own rubric.
     rubric_names: dict[str, str] = {}
-    for rub in rubrics.values():
+    for rid, rub in rubrics.items():
         for c in rub.get("criteria") or []:
-            rubric_names.setdefault(str(c.get("id")), c.get("name"))
+            rubric_names[f"{rid}::{c.get('id')}"] = c.get("name")
     items_out = []
     for qid in base_order:
         acc = per_item[qid]
@@ -488,7 +489,7 @@ def analyze(exam: dict, questions: dict[str, dict], topics: dict[str, str], subm
                                for oid, n in sorted(acc["_wrong"].items(), key=lambda kv: (-kv[1], kv[0]))]
         out["commonWrong"] = [{"answer": a, "count": n}
                               for a, n in sorted(acc["_blank"].items(), key=lambda kv: (-kv[1], kv[0]))[:3]]
-        out["weakCriteria"] = [{"criterionId": c, "name": rubric_names.get(c), "count": n}
+        out["weakCriteria"] = [{"criterionId": c.split("::", 1)[1], "name": rubric_names.get(c), "count": n}
                                for c, n in sorted(acc["_criteria"].items(), key=lambda kv: (-kv[1], kv[0]))]
         items_out.append(out)
     topic_acc: dict[str, list[float]] = {}

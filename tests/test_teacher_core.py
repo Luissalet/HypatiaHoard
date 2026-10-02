@@ -157,7 +157,7 @@ def test_analysis_and_distribution():
     def sub(name, q1, q2, q4_points, confirmed=True):
         return {"id": name, "version": "A", "confirmed": confirmed,
                 "answers": {"q1": {"letters": q1}, "q2": {"letters": q2}, "q3": {"text": "sol; luna"}},
-                "decisions": {"q4": {"points": q4_points, "criteria": [
+                "decisions": {"q4": {"points": q4_points, "rubricId": "r1", "criteria": [
                     {"criterionId": "c1", "points": q4_points / 2, "maxPoints": 1.2}]}}}
     subs = [sub("s1", "b", "ac", 2), sub("s2", "a", "b", 0.2), sub("s3", "a", "a", 0.4), sub("s4", "b", "ac", 2, False)]
     out = core.analyze(e, QUESTIONS, {"t1": "Tema Uno", "t2": "Tema Dos"}, subs, {"r1": RUBRIC})
@@ -166,6 +166,10 @@ def test_analysis_and_distribution():
     assert items["q1"]["success"] == 0.33 and items["q1"]["wrongOptions"] == [{"optionId": "a", "text": "Verde", "count": 2}]
     assert items["q2"]["wrongOptions"][0]["count"] == 1
     assert items["q4"]["weakCriteria"] == [{"criterionId": "c1", "name": "Contenido", "count": 2}]
+    # Another rubric also has a "c1": names come from the decision's own rubric.
+    other = {"id": "r0", "criteria": [{"id": "c1", "name": "Otro criterio", "weight": 1, "levels": []}]}
+    again = core.analyze(e, QUESTIONS, {}, subs, {"r0": other, "r1": RUBRIC})
+    assert {i["questionId"]: i for i in again["items"]}["q4"]["weakCriteria"][0]["name"] == "Contenido"
     assert out["worstTopic"]["topic"] == "Tema Dos"
     dist = out["distribution"]
     assert dist["count"] == 3 and sum(b["count"] for b in dist["bands"]) == 3 and sum(dist["histogram"]) == 3

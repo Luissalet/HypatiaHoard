@@ -540,13 +540,16 @@ export function analyze(
         }
       } else {
         for (const c of r.decision?.criteria ?? []) {
-          if (c.points !== null && c.points !== undefined && c.maxPoints && c.points < c.maxPoints / 2) bump(a.criteria, String(c.criterionId));
+          if (c.points !== null && c.points !== undefined && c.maxPoints && c.points < c.maxPoints / 2) {
+            bump(a.criteria, `${r.decision?.rubricId || ''}::${c.criterionId}`);
+          }
         }
       }
     }
   }
+  // Los ids de criterio se repiten entre rúbricas (c1, c2…): el nombre sale de la rúbrica de la decisión.
   const rubricNames: Record<string, string> = {};
-  for (const rub of Object.values(rubrics)) for (const c of rub.criteria ?? []) if (!(String(c.id) in rubricNames)) rubricNames[String(c.id)] = c.name;
+  for (const [rid, rub] of Object.entries(rubrics)) for (const c of rub.criteria ?? []) rubricNames[`${rid}::${c.id}`] = c.name;
   const items: ItemAnalysis[] = exam.items.map((item, idx) => {
     const q = questions[item.questionId] ?? {};
     const a = acc.get(item.questionId)!;
@@ -558,7 +561,7 @@ export function analyze(
       answered: a.answered, success: a.answered ? round2(a.sum / a.answered) : null,
       wrongOptions: sortedCounts(a.wrong).map(([optionId, count]) => ({ optionId, text: texts[optionId], count })),
       commonWrong: sortedCounts(a.blank).slice(0, 3).map(([answer, count]) => ({ answer, count })),
-      weakCriteria: sortedCounts(a.criteria).map(([criterionId, count]) => ({ criterionId, name: rubricNames[criterionId] ?? null, count })),
+      weakCriteria: sortedCounts(a.criteria).map(([key, count]) => ({ criterionId: key.split('::').slice(1).join('::'), name: rubricNames[key] ?? null, count })),
     };
   });
   const topicAcc = new Map<string, [number, number, number]>();
