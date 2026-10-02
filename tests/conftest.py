@@ -27,7 +27,6 @@ def _no_siblings(monkeypatch):
     tests must never reach them, so point every sibling at a closed port."""
     from hypatia import voice
 
-    monkeypatch.setenv("HYPATIA_PROSPERO_URL", "http://127.0.0.1:1")
     monkeypatch.setenv("SCRIBE_URL", "http://127.0.0.1:1")
     monkeypatch.setenv("HOARD_EVENTS", "0")
     monkeypatch.setenv("HOARD_HUB_URL", "http://127.0.0.1:1")

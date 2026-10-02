@@ -1,65 +1,30 @@
 """Voices for the podcast through Prospero's Hoard, the family's voice studio.
 
-Hoard Link resolves `tts` only from explicit configuration or a running Faustus;
-when neither answers, Hypatia asks Prospero's Hoard (`POST /api/voice/speak`),
-which already has Piper with Spanish voices. Nothing is installed from here:
-if Prospero is not running, the podcast keeps its script and says why.
+Hoard Link resolves `tts` only from explicit configuration or a running Faustus; when neither
+answers, Hypatia asks Prospero's Hoard through the family hub (`fam_media.speak`, the `voice_tts`
+tool), which already has Piper with Spanish voices. Nothing is installed from here: if Prospero
+is not running, the podcast keeps its script and says why.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import threading
-import time
 from pathlib import Path
 from typing import Optional
 
-import httpx
-
-from .config import REPO_ROOT
+from .hoard_link import fam_media
 
 DEFAULT_ENGINE = "piper"
 DEFAULT_VOICES = ("es_ES-davefx-medium", "es_ES-sharvard-medium")
-_TTL_S = 30.0
-_cache: dict[str, tuple[float, bool]] = {}
-_lock = threading.Lock()
 
 
-def prospero_url() -> str:
-    """HYPATIA_PROSPERO_URL, else the sibling app's data/url, else its fixed port."""
-    env = os.environ.get("HYPATIA_PROSPERO_URL", "").strip()
-    if env:
-        return env.rstrip("/")
-    sibling = REPO_ROOT.parent / "Prospero's Hoard" / "data" / "url"
-    try:
-        text = sibling.read_text(encoding="utf-8-sig").strip()
-        if text.startswith("http://127.0.0.1") or text.startswith("http://localhost"):
-            return text.rstrip("/")
-    except OSError:
-        pass
-    return "http://127.0.0.1:8815"
-
-
-def prospero_available(url: Optional[str] = None) -> bool:
-    url = url or prospero_url()
-    with _lock:
-        hit = _cache.get(url)
-        if hit and time.monotonic() - hit[0] < _TTL_S:
-            return hit[1]
-    try:
-        resp = httpx.get(f"{url}/api/health", timeout=2.0, trust_env=False)
-        ok = resp.status_code == 200 and resp.json().get("service") == "prosperos-hoard"
-    except Exception:  # noqa: BLE001 - availability probe
-        ok = False
-    with _lock:
-        _cache[url] = (time.monotonic(), ok)
-    return ok
+def prospero_available() -> bool:
+    """True when the hub is up and Prospero's Hoard is running (cached 30 s by the client)."""
+    return fam_media.available("tts")
 
 
 def reset_cache() -> None:
-    with _lock:
-        _cache.clear()
+    fam_media.forget_availability()
 
 
 def podcast_settings(data_dir: Path) -> tuple[str, tuple[str, str]]:
@@ -81,15 +46,9 @@ class VoiceError(RuntimeError):
     pass
 
 
-def speak(text: str, voice_ref: Optional[str], engine: str = DEFAULT_ENGINE, url: Optional[str] = None,
-          timeout: float = 300.0) -> bytes:
-    """WAV bytes for `text` from Prospero. Raises VoiceError."""
-    url = url or prospero_url()
-    body = {"text": text, "voice": {"engine_id": engine, "voice_ref": voice_ref}}
-    try:
-        resp = httpx.post(f"{url}/api/voice/speak", json=body, timeout=timeout, trust_env=False)
-    except httpx.HTTPError as error:
-        raise VoiceError(f"Prospero's Hoard no responde en {url}: {error}") from error
-    if resp.status_code >= 400 or not resp.headers.get("content-type", "").startswith("audio/"):
-        raise VoiceError(f"Prospero's Hoard rechazó la voz {voice_ref!r}: HTTP {resp.status_code} {resp.text[:200]}")
-    return resp.content
+def speak(text: str, voice_ref: Optional[str], engine: str = DEFAULT_ENGINE, timeout: float = 300.0) -> bytes:
+    """WAV bytes for `text` from Prospero through the hub. Raises VoiceError."""
+    res = fam_media.speak_bytes(text, voice=voice_ref, engine=engine, lang="es", timeout_s=timeout, local_fallback=False)
+    if not res.get("ok"):
+        raise VoiceError(f"Prospero's Hoard rechazó la voz {voice_ref!r}: {res.get('error') or 'sin respuesta'}")
+    return res["data"]

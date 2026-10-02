@@ -137,7 +137,7 @@ def tts_many(services: Any, pieces: list[tuple[str, Optional[str]]]) -> list[byt
     from .. import voice
 
     if not voice.prospero_available():
-        raise NoModel("tts", f"ni Hoard Link resuelve tts ni Prospero's Hoard responde en {voice.prospero_url()}")
+        raise NoModel("tts", "ni Hoard Link resuelve tts ni Prospero's Hoard responde a través del hub")
     engine, (va, vb) = voice.podcast_settings(services.config.data_dir)
     out: list[bytes] = []
     for text, ref in pieces:

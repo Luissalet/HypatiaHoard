@@ -1,11 +1,9 @@
-"""The podcast speaks through Prospero's Hoard when Hoard Link has no tts."""
+"""The podcast speaks through Prospero's Hoard (via the family hub) when Hoard Link has no tts."""
 import io
-import json
-import threading
 import wave
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from hypatia import voice
+from hypatia.hoard_link import fam_media, family
 from hypatia.notebook import llm
 
 
@@ -16,50 +14,53 @@ def _wav() -> bytes:
     return buf.getvalue()
 
 
-class _Prospero(BaseHTTPRequestHandler):
-    calls: list = []
+class FakeHub:
+    """Stands in for ``family.call``: answers the ``voice_tts`` tool of Prospero like the hub would."""
+
     missing = {"es_ES-sharvard-medium"}
 
-    def do_GET(self):  # noqa: N802
-        self._send(200, "application/json", json.dumps({"service": "prosperos-hoard"}).encode())
+    def __init__(self, tmp_path):
+        self.calls: list[dict] = []
+        self.dir = tmp_path
 
-    def do_POST(self):  # noqa: N802
-        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        _Prospero.calls.append(body)
-        if body["voice"]["voice_ref"] in _Prospero.missing:
-            self._send(404, "application/json", b'{"error":"voice not downloaded"}')
-        else:
-            self._send(200, "audio/wav", _wav())
-
-    def _send(self, code, ctype, data):
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-
-    def log_message(self, *args):
-        pass
+    def __call__(self, app, tool, arguments=None, **kwargs):
+        assert app == "prospero" and tool == "voice_tts"
+        args = dict(arguments or {})
+        self.calls.append(args)
+        if args.get("voice") in self.missing:
+            return {"ok": False, "app": app, "tool": tool, "status": 404, "error": "voice not downloaded", "contract": 1}
+        path = self.dir / f"tts-{len(self.calls)}.wav"
+        path.write_bytes(_wav())
+        return {"ok": True, "app": app, "tool": tool, "status": 200, "contract": 1,
+                "result": {"ok": True, "path": str(path), "engine_id": args.get("engine") or "piper", "bytes": path.stat().st_size}}
 
 
 def test_tts_many_falls_back_to_prospero(monkeypatch, tmp_path, clock):
     from hoardtest import make_services
 
-    server = HTTPServer(("127.0.0.1", 0), _Prospero)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    monkeypatch.setenv("HYPATIA_PROSPERO_URL", f"http://127.0.0.1:{server.server_port}")
-    voice.reset_cache()
+    hub = FakeHub(tmp_path)
+    monkeypatch.setattr(family, "call", hub)
+    monkeypatch.setattr(fam_media, "available", lambda *a, **k: True)
     svc = make_services(tmp_path, clock)  # FakeLink without capabilities: no tts in Hoard Link
     try:
         blobs = llm.tts_many(svc, [("Hola", "@A"), ("Qué tal", "@B")])
         assert len(blobs) == 2 and all(b[:4] == b"RIFF" for b in blobs)
-        refs = [c["voice"]["voice_ref"] for c in _Prospero.calls]
+        refs = [c["voice"] for c in hub.calls]
         # host B's default voice is missing in Prospero -> falls back to host A's
         assert refs == ["es_ES-davefx-medium", "es_ES-sharvard-medium", "es_ES-davefx-medium"]
-        assert all(c["voice"]["engine_id"] == "piper" for c in _Prospero.calls)
+        assert all(c["engine"] == "piper" for c in hub.calls)
     finally:
         svc.stop()
-        server.shutdown()
+
+
+def test_speak_reports_the_hubs_refusal(monkeypatch, tmp_path):
+    monkeypatch.setattr(family, "call", FakeHub(tmp_path))
+    try:
+        voice.speak("hola", "es_ES-sharvard-medium")
+    except voice.VoiceError as exc:
+        assert "es_ES-sharvard-medium" in str(exc) and "voice not downloaded" in str(exc)
+    else:
+        raise AssertionError("expected VoiceError")
 
 
 def test_no_prospero_means_no_tts(tmp_path, clock):
