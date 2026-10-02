@@ -140,3 +140,39 @@ def test_non_direct_calls_pass_the_level_to_link(monkeypatch):
                               details={"resident": False}))
     _run(ai.link_chat(link, [{"role": "user", "content": "x"}], effort="medium"))
     assert seen["effort"] == "medium"
+
+
+class _PickyTemplateHandler(_Handler):
+    """A llama.cpp whose chat template raises on the reasoning effort it is given."""
+
+    def do_POST(self):  # noqa: N802
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        _Handler.seen.append((self.path, body))
+        if "reasoning_effort" in body:
+            out = json.dumps({"error": {"code": 500, "message": "\n------------\nWhile executing CallExpression at line 49, "
+                                        "column 28 in source:\n...{{ raise_exception('Unexpected reasoning effort ' + reasoning_effort) }}"}}).encode()
+            self.send_response(500)
+        else:
+            out = json.dumps({"choices": [{"message": {"content": "Pregunta generada"}}]}).encode()
+            self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(out)))
+        self.end_headers()
+        self.wfile.write(out)
+
+
+def test_a_template_that_refuses_the_effort_gets_the_call_again_without_it():
+    _Handler.seen = []
+    server = HTTPServer(("127.0.0.1", 0), _PickyTemplateHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/v1/chat/completions"
+        link = _Link(SimpleNamespace(resolved=True, provider="llamacpp", api="openai", url=url, model="big",
+                                     details={"resident": True}))
+        result = _run(ai.link_chat(link, [{"role": "user", "content": "hola"}], max_tokens=50, effort="high"))
+        assert result.text == "Pregunta generada"
+        first, last = _Handler.seen[0][1], _Handler.seen[-1][1]
+        assert first["reasoning_effort"] == "high"
+        assert "reasoning_effort" not in last and "enable_thinking" not in last.get("chat_template_kwargs", {})
+    finally:
+        server.shutdown()

@@ -94,10 +94,23 @@ async def link_chat(link, messages: list[dict[str, Any]], **kwargs: Any):
     start = time.monotonic()
     timeout = max(llm_timeout_s(), _reasoning.timeout_for(120.0, level))
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=10.0), trust_env=False) as client:
-        try:
-            resp = await client.post(url, json=payload)
-        except httpx.HTTPError as error:
-            raise BackendError(provider, 0, f"{type(error).__name__}: {error}") from error
+        async def post():
+            try:
+                return await client.post(url, json=payload)
+            except httpx.HTTPError as error:
+                raise BackendError(provider, 0, f"{type(error).__name__}: {error}") from error
+
+        resp = await post()
+        # Same recovery as Hoard Link's own chat: a chat template that refuses the
+        # reasoning fields (llama-server answers 500 with the template's
+        # raise_exception, or 400 naming them) gets the nearest effort name it
+        # lists, and failing that the call once more without the reasoning fields.
+        if resp.status_code >= 400 and level is not None and _reasoning.looks_like_reasoning_error(resp.status_code, resp.text):
+            if _reasoning.remap_effort(payload, _reasoning.supported_efforts(resp.text)):
+                resp = await post()
+            if (resp.status_code >= 400 and _reasoning.looks_like_reasoning_error(resp.status_code, resp.text)
+                    and _reasoning.strip(payload)):
+                resp = await post()
     if resp.status_code >= 400:
         raise BackendError(provider, resp.status_code, resp.text[:200])
     try:
