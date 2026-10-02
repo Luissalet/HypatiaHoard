@@ -36,6 +36,11 @@ class Config:
     def token_path(self) -> Path:
         return self.data_dir / "mcp-token"
 
+    @property
+    def url_path(self) -> Path:
+        """data/url: where this instance listens, for the MCP bridge and the other Hoards."""
+        return self.data_dir / "url"
+
     @classmethod
     def from_env(cls) -> "Config":
         raw_dir = _env("HYPATIA_DATA_DIR")

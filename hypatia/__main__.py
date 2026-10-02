@@ -18,6 +18,7 @@ def serve() -> None:
     import uvicorn
 
     from .hoard_link.net import already_running, find_available_port
+    from .hoard_link.tokens import write_url
     from .main import create_app
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -28,6 +29,7 @@ def serve() -> None:
         return
     config.port = config.port if config.port_strict else find_available_port(config.port, span=100)
     app = create_app(config)
+    write_url(config.url_path, f"http://127.0.0.1:{config.port}")
     print(f"Hypatia's Hoard listening on http://127.0.0.1:{config.port}", flush=True)
     uvicorn.run(app, host="127.0.0.1", port=config.port, log_level="warning")
 
