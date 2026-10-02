@@ -17,12 +17,16 @@ from .config import Config
 def serve() -> None:
     import uvicorn
 
+    from .hoard_link.net import already_running, find_available_port
     from .main import create_app
-    from .port import find_available_port
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     config = Config.from_env()
-    config.port = config.port if config.port_strict else find_available_port(config.port)
+    if already_running("hypatia-hoard", config.port):
+        # A second start used to open the database and rewrite the port while the first kept serving.
+        print(f"Hypatia's Hoard is already running on http://127.0.0.1:{config.port}", flush=True)
+        return
+    config.port = config.port if config.port_strict else find_available_port(config.port, span=100)
     app = create_app(config)
     print(f"Hypatia's Hoard listening on http://127.0.0.1:{config.port}", flush=True)
     uvicorn.run(app, host="127.0.0.1", port=config.port, log_level="warning")

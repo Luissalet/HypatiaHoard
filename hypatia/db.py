@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
-import threading
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+
+from .hoard_link import sqlkit
 
 MIN_SQLITE = (3, 35, 0)
 
@@ -34,61 +33,18 @@ def check_sqlite() -> None:
         raise RuntimeError(f"SQLite {sqlite3.sqlite_version} is too old; need {'.'.join(map(str, MIN_SQLITE))}+.")
     probe = sqlite3.connect(":memory:")
     try:
-        probe.execute("CREATE VIRTUAL TABLE t USING fts5(x)")
-    except sqlite3.OperationalError as error:  # pragma: no cover - depends on the build
-        raise RuntimeError("This Python's SQLite has no FTS5 support; Hypatia needs it.") from error
+        has_fts5 = sqlkit.check_fts5(probe)
     finally:
         probe.close()
+    if not has_fts5:  # pragma: no cover - depends on the build
+        raise RuntimeError("This Python's SQLite has no FTS5 support; Hypatia needs it.")
 
 
-class Database:
-    """One connection shared by every thread, guarded by a re-entrant lock.
-
-    Autocommit mode (isolation_level=None): single statements commit on their
-    own; `tx()` groups several into one BEGIN IMMEDIATE ... COMMIT. `tx()` is
-    re-entrant: a nested `tx()` joins the outer transaction.
-    """
+class Database(sqlkit.Database):
+    """The family's shared SQLite wrapper (one connection, one re-entrant lock, WAL, re-entrant `tx()`) with
+    Hypatia's core schema as its first migration (every statement is IF NOT EXISTS, so databases that
+    pre-date the version table simply adopt it)."""
 
     def __init__(self, path: Path | str):
         check_sqlite()
-        if str(path) != ":memory:":
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.path = path
-        self.lock = threading.RLock()
-        self._depth = 0
-        self.conn = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA synchronous=NORMAL")
-        self.conn.execute("PRAGMA foreign_keys=ON")
-        with self.lock:
-            self.conn.executescript(SCHEMA)
-
-    @contextmanager
-    def tx(self) -> Iterator[sqlite3.Connection]:
-        with self.lock:
-            if self._depth:
-                self._depth += 1
-                try:
-                    yield self.conn
-                finally:
-                    self._depth -= 1
-                return
-            self.conn.execute("BEGIN IMMEDIATE")
-            self._depth = 1
-            try:
-                yield self.conn
-            except BaseException:
-                self._depth = 0
-                self.conn.execute("ROLLBACK")
-                raise
-            self._depth = 0
-            self.conn.execute("COMMIT")
-
-    def close(self) -> None:
-        with self.lock:
-            try:
-                self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            except sqlite3.Error:
-                pass
-            self.conn.close()
+        super().__init__(path, migrations=[SCHEMA])
