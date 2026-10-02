@@ -13,18 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Optional
 
-try:  # vendored package; always present in the server
-    from ..hoard_link import BackendError, HoardLinkError, Unavailable
-except Exception:  # pragma: no cover
-    class HoardLinkError(Exception):  # type: ignore[no-redef]
-        pass
-
-    class Unavailable(HoardLinkError):  # type: ignore[no-redef]
-        pass
-
-    class BackendError(HoardLinkError):  # type: ignore[no-redef]
-        pass
-
+from ..hoard_link import Unavailable, fam_embed
 
 NO_LLM_NOTE = (
     "No hay ningún modelo local disponible (llm). Se devuelven los pasajes/material para que el "
@@ -75,9 +64,15 @@ def chat(services: Any, messages: list[dict[str, Any]], *, max_tokens: int = 204
     return Reply(text=(getattr(result, "text", "") or "").strip(), model=getattr(result, "model", None))
 
 
-def embed(services: Any, batches: list[list[str]]) -> tuple[Optional[str], list[list[list[float]]]]:
-    """Embed several batches with one Link: (model, [vectors per batch]). Raises NoModel."""
+# Kinds of failure that mean "Borges's Hoard is not there": only these send an embedding to Hypatia's own Link.
+_NOBODY = frozenset({"hub_down", "app_down", "app_missing", "tool_missing"})
 
+
+def _borges_missing(res: dict[str, Any]) -> bool:
+    return str(res.get("kind") or "") in _NOBODY or "embeddings_disabled" in str(res.get("error") or "")
+
+
+def _link_embed(services: Any, batches: list[list[str]]) -> tuple[Optional[str], list[list[list[float]]]]:
     async def run() -> Any:
         async with services.link() as link:
             res = await link.resolve("embeddings")
@@ -88,10 +83,46 @@ def embed(services: Any, batches: list[list[str]]) -> tuple[Optional[str], list[
                 out.append(list(await link.embed(batch)))
             return getattr(res, "model", None), out
 
+    return services.run_async(run())
+
+
+def embed(services: Any, batches: list[list[str]], *, kind: str = "document") -> tuple[Optional[str], list[list[list[float]]]]:
+    """Embed several batches: (model, [vectors per batch]). Raises NoModel.
+
+    The family's embedder (Borges's Hoard, through the hub) answers first; only when nobody there answers
+    does Hypatia's own Hoard Link embedding backend do it. The two are different models, so the model name
+    returned is the one that really made the vectors and is stored next to them."""
+    flat = [t for batch in batches for t in batch]
+    if not flat:
+        return None, [[] for _ in batches]
     try:
-        return services.run_async(run())
+        got = fam_embed.embed_texts(flat, kind=kind, local_fallback=False)
+    except Exception as exc:  # noqa: BLE001 - the client never raises; belt and braces
+        got = {"ok": False, "kind": "client_error", "error": str(exc)}
+    if got.get("ok"):
+        vectors = got["vectors"]
+        out, at = [], 0
+        for batch in batches:
+            out.append(vectors[at:at + len(batch)])
+            at += len(batch)
+        return got.get("model") or None, out
+    if not _borges_missing(got):
+        raise NoModel("embeddings", str(got.get("error") or "Borges's Hoard no pudo calcular los vectores"))
+    try:
+        return _link_embed(services, batches)
     except Exception as exc:  # noqa: BLE001 - Unavailable, BackendError, transport errors
         raise _wrap("embeddings", exc) from exc
+
+
+def embedding_model(services: Any) -> Optional[str]:
+    """The model the next `embed` call would use (None when nothing embeds). Cheap: no text is embedded."""
+    status = fam_embed.status(timeout_s=5.0)
+    if status.get("ok") and str(status.get("state") or "ready") != "disabled" and status.get("model"):
+        return str(status["model"])
+    if status.get("ok") is False and not _borges_missing(status):
+        return None
+    ok, model, _reason = resolve(services, "embeddings")
+    return model if ok else None
 
 
 def resolve(services: Any, capability: str) -> tuple[bool, Optional[str], str]:

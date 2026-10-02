@@ -110,13 +110,14 @@ def test_installed_package_folder_is_discovered(svc):
     assert counts["new"] == 1
 
 
-def test_split_text_bounds():
-    text = " ".join(f"Frase {i} del texto de prueba." for i in range(400))
-    parts = sources.split_text(text)
-    assert all(len(p) <= sources.CHUNK_CHARS + 5 for p in parts)
-    assert len(parts) > 5
-    assert parts[0][-20:].strip()[-1] == "."  # cut at a sentence end
-    assert sources.split_text("corto") == ["corto"]
+def test_chunks_stay_inside_their_page_and_cut_at_sentence_ends(svc, tmp_path):
+    long_page = " ".join(f"Frase {i} del texto de prueba." for i in range(400))
+    pdf = make_pdf(tmp_path / "largo.pdf", [long_page, "Segunda página corta."])
+    pages, chunks = sources.extract_chunks(pdf, "pdf")
+    assert pages == 2 and len(chunks) > 5
+    assert all(len(c["text"]) <= sources.CHUNK_CHARS + sources.MIN_TAIL for c in chunks)
+    assert {c["page"] for c in chunks} == {1, 2} and chunks[-1]["page"] == 2
+    assert chunks[0]["text"].endswith(".")  # cut at a sentence end
 
 
 def test_embeddings_stored_when_model_available(svc, resources, fake):
@@ -129,10 +130,12 @@ def test_embeddings_stored_when_model_available(svc, resources, fake):
     assert n["n"] == total and n["d"] == 64 and n["m"] == "fake-embeddings"
 
 
-def test_word_per_line_pages_are_joined():
-    from hypatia.notebook.sources import _clean
-
+def test_word_per_line_pages_are_joined(tmp_path):
     stacked = "\n\n".join("Dilatación aumenta contornos y potencia detalles mientras la erosión reduce contornos".split() * 3)
-    assert "\n" not in _clean(stacked)
+    (tmp_path / "apilado.txt").write_text(stacked, encoding="utf-8")
+    _, chunks = sources.extract_chunks(tmp_path / "apilado.txt", "txt")
+    assert len(chunks) == 1 and "\n" not in chunks[0]["text"]
     normal = "\n".join(["Una línea normal con varias palabras."] * 30)
-    assert _clean(normal).count("\n") == 29
+    (tmp_path / "normal.txt").write_text(normal, encoding="utf-8")
+    _, chunks = sources.extract_chunks(tmp_path / "normal.txt", "txt")
+    assert "\n" in chunks[0]["text"]

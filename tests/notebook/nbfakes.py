@@ -349,6 +349,10 @@ def make_docx(path: Path, blocks: list[tuple[str, str]]) -> Path:
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("[Content_Types].xml", "<Types/>")
         zf.writestr("word/document.xml", xml)
+        # Word names its styles in styles.xml ("heading 1"); a style id alone says nothing to the shared reader.
+        defs = "".join(f'<w:style w:type="paragraph" w:styleId="{sid}"><w:name w:val="{re.sub(r"(?i)^heading(\d)", r"heading \1", sid)}"/></w:style>'
+                       for sid in {style for style, _ in blocks if style})
+        zf.writestr("word/styles.xml", f'<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="{ns}">{defs}</w:styles>')
     return path
 
 
