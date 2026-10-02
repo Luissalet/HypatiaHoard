@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 from .hashing import compute_concept_hash, compute_content_hash, normalize_text, slugify
+from .hoard_link.docs import textsearch
 from .options import correct_from_item, normalize_options
 
 QUESTION_TYPES = ("TEST", "DESARROLLO", "COMPLETAR", "PRACTICO")
@@ -194,17 +195,14 @@ def find_by_prompt(services, prompt: str, subject_id: str | None = None) -> list
     return [q for q in services.store.list("question", subject_id) if normalize_text(q.get("prompt") or "") == target]
 
 
-def _fts_query(text: str) -> str:
-    tokens = [t for t in re.split(r"\W+", normalize_text(text)) if t]
-    return " ".join(f'"{t}"*' for t in tokens[:12])
-
-
 def search_questions(services, q: str | None, subject_id: str | None, topic_id: str | None, qtype: str | None,
                      limit: int) -> list[dict]:
     if q and q.strip():
-        query = _fts_query(q)
         ids: list[str] = []
-        if query:
+        # every word as a prefix first; when nothing has all of them, any of them (the shared query ladder's last rung)
+        for query in (textsearch.fts_query(q, mode="prefix"), textsearch.fts_query(q, mode="or")):
+            if not query:
+                continue
             try:
                 with services.db.lock:
                     rows = services.db.conn.execute(
@@ -213,6 +211,8 @@ def search_questions(services, q: str | None, subject_id: str | None, topic_id: 
                 ids = [r["id"] for r in rows]
             except sqlite3.OperationalError:
                 ids = []
+            if ids:
+                break
         candidates = [x for x in (services.store.get("question", i) for i in ids) if x]
     else:
         candidates = services.store.list("question", subject_id)

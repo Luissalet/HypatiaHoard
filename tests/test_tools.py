@@ -81,6 +81,17 @@ def test_subjects_topics_and_search(services, bank):
     assert call(services, "questions_search", subject="redes", type="TEST")["count"] == 1
 
 
+def test_search_ignores_question_words_widens_to_any_word_and_survives_odd_text(services, bank):
+    # the glue words of a question do not have to be in the prompt ...
+    assert call(services, "questions_search", q="¿Qué es el handshake?", subject="redes")["count"] == 1
+    # ... when no question has every word, the ones that have any are returned ...
+    wide = call(services, "questions_search", q="handshake ethernet", subject="redes")
+    assert wide["count"] == 2
+    # ... and text that looks like FTS syntax is only text
+    for odd in ('"handshake', "handshake AND", "tcp OR (", "NEAR(a b)", "handshake*^:-"):
+        call(services, "questions_search", q=odd, subject="redes")
+
+
 def test_resolve_subject_errors_list_names(services, bank):
     with pytest.raises(LookupError, match="Álgebra"):
         call(services, "topics_list", subject="química")
