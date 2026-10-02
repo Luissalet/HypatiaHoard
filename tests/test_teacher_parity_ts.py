@@ -146,7 +146,7 @@ def test_typescript_twin_matches_python():
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         entry = work / "entry.ts"
-        entry.write_text(NODE_SCRIPT % (ROOT / "src" / "domain" / "teacherCore.ts").as_posix(), encoding="utf-8")
+        entry.write_text(NODE_SCRIPT % (ROOT / "src" / "domain" / "teacherCore.ts").as_posix().replace("'", "\\'"), encoding="utf-8")
         (work / "input.json").write_text(json.dumps(inp, ensure_ascii=False), encoding="utf-8")
         bundle = work / "entry.cjs"
         build = ("require('esbuild').buildSync({entryPoints: [process.argv[1]], bundle: true, platform: 'node', "

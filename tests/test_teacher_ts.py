@@ -21,7 +21,7 @@ def run_ts(script: str) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         entry = work / "entry.ts"
-        entry.write_text(script.replace("@ROOT@", ROOT.as_posix()), encoding="utf-8")
+        entry.write_text(script.replace("@ROOT@", ROOT.as_posix().replace("'", "\\'")), encoding="utf-8")
         bundle = work / "entry.mjs"
         build = (
             "require('esbuild').buildSync({entryPoints: [process.argv[1]], bundle: true, platform: 'node', format: 'esm', "
