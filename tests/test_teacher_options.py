@@ -176,18 +176,21 @@ def test_generation_asks_for_a_schema_and_never_keeps_a_broken_draft(subject_wit
     out = call_tool(svc, "exam_generate", {"subject": "s1", "counts": {"TEST": 2}, "source": "generate", "wait_s": 20})
     job = out["job"]
     assert job["status"] == "done" and job["result"]["generated"] == 1 and job["result"]["dropped"] == 1
-    assert job["result"]["dropReasons"] == {"test inválido: opción sin texto (solo la letra)": 1}
+    # The broken one got its follow-up call ("{}" from this fake) and is still dropped, with both reasons.
+    assert job["result"]["dropReasons"] == {
+        "test inválido: opción sin texto (solo la letra); tras pedir las opciones: menos de 3 opciones": 1}
+    assert job["result"]["optionFollowUps"] == 1
     assert job["result"]["dropSamples"][0]["excerpt"].startswith('{"type": "TEST", "prompt": "Rota"')
     draft = out["exam"]["drafts"][0]
     assert draft["options"] == [{"id": "a", "text": "Un astro"}, {"id": "b", "text": "Una luna"},
                                 {"id": "c", "text": "Un río"}, {"id": "d", "text": "Un mar"}]
     assert draft["problem"] is None
     chats = [c for c in fake.calls if c["kind"] == "chat"]
-    assert [c["response_format"]["type"] for c in chats] == formats
+    assert [c["response_format"]["type"] for c in chats] == formats * 2  # generation, then the options follow-up
     if formats == ["json_object"]:
         assert fake.calls[0]["kind"] == "refused"
     else:
-        assert chats[0]["response_format"]["json_schema"]["schema"] is generate.GEN_SCHEMA
+        assert chats[0]["response_format"]["json_schema"]["schema"] == generate.gen_schema(["TEST"])
 
 
 def test_a_broken_draft_already_stored_is_refused_on_approval(subject_with_source):
@@ -210,3 +213,107 @@ def test_a_broken_draft_already_stored_is_refused_on_approval(subject_with_sourc
 def test_llm_chat_without_model_is_no_model(services):
     with pytest.raises(llm.NoModel):
         llm.chat(services, [{"role": "user", "content": "hola"}], schema={"type": "object"})
+
+
+# ---------------------------------------------------------------- one contract, and the options follow-up
+
+def test_prompt_and_schema_are_one_contract():
+    for types in (["TEST"], ["TEST", "DESARROLLO"], list(generate.QTYPES)):
+        schema = generate.gen_schema(types)
+        items = schema["properties"]["questions"]["items"]
+        variants = items["anyOf"] if "anyOf" in items else [items]
+        assert len(variants) == len(types)
+        system = generate.gen_system(types)
+        for v in variants:
+            t = v["properties"]["type"]["const"]
+            assert v["required"] == generate.REQUIRED[t]
+            for field in v["properties"]:
+                assert f'"{field}"' in system  # every schema field is named in the prompt
+        test_variant = next(v for v in variants if v["properties"]["type"]["const"] == "TEST")
+        assert {"options", "correct", "cita", "citaRespuesta"} <= set(test_variant["required"])
+        assert test_variant["properties"]["options"]["minItems"] == 4
+        # The filled example of the prompt is exactly what the parser accepts.
+        example = system[system.index('{"questions": [\n'):]
+        passages = [{**PASSAGES[0], "n": n} for n in range(1, 6)]
+        accepted, drops = generate.read_generated(example, {t: 1 for t in types}, passages)
+        assert not drops and len(accepted) == len(types)
+
+
+class FakeOpenAIServer:
+    """A real HTTP chat-completions server that IGNORES response_format and answers like the
+    live 27B did: TEST items in the cita/citaRespuesta shape with no options at all."""
+
+    def __init__(self):
+        import http.server
+        import threading
+
+        self.requests = []
+        outer = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                outer.requests.append(body)
+                text = outer.reply(body["messages"])
+                data = json.dumps({"choices": [{"message": {"role": "assistant", "content": text}}], "usage": {}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(data)
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}/v1/chat/completions"
+
+    def reply(self, messages):
+        system = messages[0]["content"]
+        user = messages[-1]["content"]
+        if "pasajes numerados" in system:
+            return json.dumps({"questions": [
+                {"type": "TEST", "prompt": "¿Qué es el árbol sintáctico según el material?", "cita": [1], "citaRespuesta": [1]},
+                {"type": "TEST", "prompt": "¿Para qué sirve la programación dinámica aquí?", "cita": [1], "citaRespuesta": [1]},
+            ]}, ensure_ascii=False)
+        if "no tiene opciones" in system and "árbol" in user:
+            return json.dumps({"options": [{"id": "a", "text": "Una representación jerárquica de la frase"},
+                                           {"id": "b", "text": "Una lista de palabras sin orden"},
+                                           {"id": "c", "text": "Un diccionario de sinónimos"},
+                                           {"id": "d", "text": "Una tabla de frecuencias"}], "correct": ["a"]},
+                              ensure_ascii=False)
+        return json.dumps({"options": ["a", "b", "c", "d"], "correct": ["a"]})  # still useless
+
+    def close(self):
+        self.server.shutdown()
+
+
+def test_follow_up_asks_for_the_missing_options_through_a_real_server(subject_with_source):
+    from hypatia.services import Services
+
+    svc = subject_with_source
+    fake = FakeOpenAIServer()
+    try:
+        (svc.config.data_dir / "backend.json").write_text(json.dumps({"capabilities": {"llm": {
+            "url": fake.url, "model": "fake-27b", "api": "openai", "provider": "fake"}}}), encoding="utf-8")
+        svc.link = lambda: Services.link(svc)  # the real Hoard Link, explicit configuration
+        _index(svc)
+        out = call_tool(svc, "exam_generate", {"subject": "s1", "counts": {"TEST": 2}, "source": "generate", "wait_s": 30})
+    finally:
+        fake.close()
+    job = out["job"]
+    assert job["status"] == "done", job
+    result = job["result"]
+    assert result["generated"] == 1 and result["dropped"] == 1 and result["optionFollowUps"] == 2
+    [reason] = result["dropReasons"]
+    assert "tras pedir las opciones" in reason and "solo la letra" in reason
+    draft = out["exam"]["drafts"][0]
+    assert draft["problem"] is None and draft["correctOptionIds"] == ["a"]
+    assert [o["text"] for o in draft["options"]][0] == "Una representación jerárquica de la frase"
+    assert draft["prompt"] == "¿Qué es el árbol sintáctico según el material?"
+    first, *followups = fake.requests
+    rf = first["response_format"]
+    assert rf["type"] == "json_schema" and rf["json_schema"]["name"] == "preguntas"
+    assert rf["json_schema"]["schema"] == generate.gen_schema(["TEST"])  # sent, but this server ignores it
+    assert len(followups) == 2 and followups[0]["response_format"]["json_schema"]["name"] == "opciones"
+    assert "Velarion" in followups[0]["messages"][-1]["content"]  # the cited passage goes with the question
