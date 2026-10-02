@@ -28,9 +28,10 @@ def test_nothing_answers_so_the_bridge_starts_the_app(monkeypatch, tmp_path):
     started = []
     answers = iter([False, True])
     monkeypatch.setattr(bridge, "_healthy", lambda: next(answers, True))
-    monkeypatch.setattr(bridge.subprocess, "Popen", lambda argv, **kw: started.append((argv, kw["env"], kw["cwd"])))
+    monkeypatch.setattr(bridge.proc, "popen", lambda argv, **kw: started.append((argv, kw["env"], kw["cwd"], kw["detached"])))
     assert bridge.ensure_running(timeout_s=5) is True
-    argv, env, cwd = started[0]
+    argv, env, cwd, detached = started[0]
+    assert detached is True  # the app must outlive the bridge
     assert argv == [sys.executable, "-m", "hypatia"] and Path(cwd) == ROOT
     assert env["HYPATIA_PORT"] == "1" and env["PORT_STRICT"] == "1"
     assert (tmp_path / "logs").is_dir()
