@@ -25,6 +25,8 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent, Tool as MCPTool, ToolAnnotations
 
+from hypatia.hoard_link import proc
+
 ROOT = Path(__file__).resolve().parent
 BASE_URL = os.environ.get("HYPATIA_URL", "http://127.0.0.1:5187").rstrip("/")
 TOKEN_FILE = Path(
@@ -50,14 +52,11 @@ def ensure_running(timeout_s: float = 45.0) -> bool:
         return False
     port = urlparse(BASE_URL).port or 5187
     env = {**os.environ, "HYPATIA_PORT": str(port), "PORT_STRICT": "1", "PYTHONUNBUFFERED": "1"}
-    kwargs: dict[str, Any] = {"start_new_session": True}
-    if sys.platform.startswith("win"):
-        kwargs = {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)}
     logs = Path(os.environ.get("HYPATIA_DATA_DIR") or ROOT / "data") / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     with open(logs / "hypatia-app.log", "ab") as out:
-        subprocess.Popen([sys.executable, "-m", "hypatia"], cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
-                         stdout=out, stderr=subprocess.STDOUT, close_fds=True, **kwargs)
+        # detached: the app outlives this bridge (own session / breakaway from the job on Windows, no console window)
+        proc.popen([sys.executable, "-m", "hypatia"], cwd=ROOT, env=env, stdout=out, stderr=subprocess.STDOUT, detached=True)
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         if _healthy():
