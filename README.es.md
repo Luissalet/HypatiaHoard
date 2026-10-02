@@ -8,7 +8,7 @@ Hypatia's Hoard es la segunda versión de [Exam Coach](https://github.com/Mlgpig
 - **Control por asistente**: 48 herramientas MCP para que Faustus (o cualquier cliente MCP) te examine con repaso espaciado, monte simulacros sobre tus temas flojos, corrija respuestas abiertas, haga cálculos exactos, añada o proponga preguntas a partir de tu propio material y lleve el rol de profesor.
 - **Rol Profesor**: clases, exámenes generados desde tu banco y tu propio material con citas, versiones A/B, rúbricas, corrección en lote con propuestas del modelo que tú confirmas, notas y análisis de la clase. Los datos de alumnos se quedan en tu PC.
 - **Un cuaderno sobre tus fuentes**: respuestas con citas de tus PDFs, guía de estudio, resumen ejecutivo, FAQ, glosario, cronología, mapa mental, resumen en audio a dos voces y tutor socrático.
-- **Solo modelos locales**, a través de Hoard Link (copiado en `hypatia/hoard_link/`), el mismo backend compartido que usa el resto de la familia Hoard. El podcast habla con la voz de Prospero's Hoard. Sin ningún modelo en marcha, cada función de IA devuelve igualmente el material para que el asistente haga el trabajo, y la app desactiva los botones que necesitan un modelo.
+- **Solo modelos locales**, a través de Hoard Link (copiado en `hypatia/hoard_link/`), el mismo backend compartido que usa el resto de la familia Hoard. El podcast habla con la voz de Prospero's Hoard, los embeddings del cuaderno vienen de Borges's Hoard y los PDFs escaneados los lee Kafka's Hoard, todo a través del hub de la familia (ver *En la familia*). Sin ningún modelo en marcha, cada función de IA devuelve igualmente el material para que el asistente haga el trabajo, y la app desactiva los botones que necesitan un modelo.
 
 En este repositorio no hay contenido de ninguna asignatura. Las asignaturas llegan como **paquetes con contraseña** (`.examcoach.enc`) desde el marketplace o desde un fichero; sus preguntas, sus PDFs y tu progreso se quedan en `data/` y `resources/` en tu PC, ambas ignoradas por git.
 
@@ -28,7 +28,7 @@ npm run build
 venv\Scripts\python -m hypatia
 ```
 
-Abre http://127.0.0.1:5187. Hace falta Python 3.11+ con FTS5 en SQLite (las versiones oficiales lo traen) y Node 22 solo para compilar la app. El servidor solo escucha en 127.0.0.1 y rechaza hosts ajenos y peticiones de otros sitios.
+Abre http://127.0.0.1:5187. Hace falta Python 3.11+ con FTS5 en SQLite (las versiones oficiales lo traen) y Node 22 solo para compilar la app. El servidor solo escucha en 127.0.0.1 y rechaza hosts ajenos y peticiones de otros sitios (con la guarda compartida, para HTTP y websockets). Arrancarlo una segunda vez avisa de que ya está en marcha y no toca la primera instancia.
 
 ## Asignaturas (paquetes con contraseña)
 
@@ -57,6 +57,7 @@ Alias heredados de Hypatia 1 (tarjetas): `cards_add`, `decks_list`. `cards_add` 
 ### En la familia
 
 - **Agenda.** `GET /api/family/agenda` (con el token de esta aplicación; `?from=&to=&sphere=`) responde al contrato de la agenda de la familia: la fecha de examen de cada asignatura (`exam`, prioridad alta en la última semana), la fecha de la cabecera de un examen de profesor cuando es una fecha de verdad (`exam`), las entregas pendientes con su día y hora (`deadline`, o `exam` si son pruebas) y, para hoy, un elemento `cards` de todo el día «N tarjetas para repasar hoy» cuando hay tarjetas que tocan. Solo salen nombres de asignaturas, títulos de examen y recuentos, nunca el nombre ni las respuestas de un alumno. El manifiesto dice `"x-family": {"agenda": true}`.
+- **Servicios compartidos, a través del hub.** Las voces del podcast salen de Prospero's Hoard (`voice_tts`, sin URL que configurar); los embeddings del cuaderno, de Borges's Hoard (`embed_texts`; el modelo y su tamaño se guardan con cada vector y un cambio de modelo re-embebe las fuentes en el siguiente rescaneo), con el backend de embeddings propio de Hoard Link de Hypatia como respaldo solo cuando Borges no está; un PDF escaneado (la mitad o más de sus páginas sin capa de texto) lo lee el OCR de Kafka (`doc_extract`). La búsqueda vectorial puntúa todos los vectores guardados (sin tope). Sin esas apps, el cuaderno sigue indexando PDFs con texto y respondiendo por palabras clave.
 - **Eventos de trabajo.** Los trabajos de profesor (`exam_generate`, `grading_run`) publican en el bus los eventos de trabajo canónicos: `hypatia.job.queued`, `started`, `progress` (como mucho cada 3 segundos, con `eta_s` en cuanto hay avance), `done`, `failed` (`no_model`, `no_sources` y errores, con el motivo en `error`) y `cancelled`, cada uno con `{job_id, title, kind: "teacher", progress 0..1, gpu: false, eta_s, url, error}` (la url abre el examen o la tanda). Sustituyen a `hypatia.teacher_job.*`, que el hub traduce a estos, así que los nombres antiguos ya no se envían.
 
 ## Rol Profesor
@@ -86,11 +87,10 @@ El servidor guarda cada tabla de la app como registros JSON con una revisión gl
 | `HYPATIA_DATA_DIR` | `data/` | Base de datos, token, `backend.json`, subidas, salidas del estudio, logs |
 | `HYPATIA_RESOURCES_DIR` | `resources/` | PDFs por asignatura (`resources/<slug>/Temas/…`: los de `import-package` y cada PDF que adjuntas a un tema en la app), servidos en `/resources/` e indexados por el cuaderno |
 | `HYPATIA_PORT` / `PORT`, `PORT_STRICT=1` | `5187` | Puerto; en modo estricto falla en vez de moverse |
-| `HYPATIA_ALLOWED_HOSTS` | | Hosts extra (un túnel al móvil) |
+| `HYPATIA_ALLOWED_HOSTS` | | Hosts extra (un túnel al móvil); `nombre:puerto` solo acepta ese puerto |
 | `HYPATIA_LLM_TIMEOUT_S` | `900` | Lo máximo que puede tardar una llamada al modelo |
 | `HYPATIA_LLM_THINKING` | `0` | `1` deja pensar a `high` cada llamada que no pida su propio nivel (más lento) |
 | `HYPATIA_LLM_EFFORT` | sin fijar | `off`/`low`/`medium`/`high`/`max` impone un nivel de razonamiento a todas las llamadas. Sin fijar, cada tarea elige el suyo: corregir y responder en el cuaderno `medium`, redactar preguntas `high`, guías de estudio y briefings `max`, tomar notas en bloque `off` |
-| `HYPATIA_PROSPERO_URL` | `Prospero's Hoard/data/url` hermano, si no `http://127.0.0.1:8815` | Estudio de voz para el podcast |
 | `SCRIBE_URL`, `SCRIBE_TOKEN` | Audio de Funes en `http://127.0.0.1:8813/audio`; sobrescrituras opcionales de URL/token | Preguntas a partir de clases grabadas |
 | Hoard Link (`data/backend.json`, `HOARD_*`) | | Resolución de modelos; `backend.json` admite también `{"podcast": {"engine": "piper", "voices": ["es_ES-davefx-medium", "es_ES-sharvard-medium"]}}` |
 
@@ -110,7 +110,7 @@ venv\Scripts\python -m pytest -q tests
 npx tsc --noEmit
 ```
 
-Ningún test sale a la red ni toca otra app de la familia (`tests/test_family.py` cubre `source_ref`, los eventos de trabajo y la agenda). Algunos ejecutan el TypeScript con node (necesitan `npm install`): paridad de hashes y del núcleo de profesor, la migración Dexie 8→9 y el filtro de exportaciones (con `fake-indexeddb`).
+Ningún test sale a la red ni toca otra app de la familia (`tests/notebook/test_nb_family.py` cubre los embeddings de Borges, el OCR de Kafka y la versión del índice con un hub falso; `tests/test_family.py` cubre `source_ref`, los eventos de trabajo y la agenda). Algunos ejecutan el TypeScript con node (necesitan `npm install`): paridad de hashes y del núcleo de profesor, la migración Dexie 8→9 y el filtro de exportaciones (con `fake-indexeddb`).
 
 ## Licencia
 
