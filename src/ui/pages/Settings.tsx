@@ -14,6 +14,7 @@ import { slugify } from '@/domain/normalize';
 import { syncImagesToDevServer, type ImageSyncResult } from '@/data/questionImageStorage';
 import { useHoardMode } from '@/data/hoardMode';
 import { RoleSwitch } from '@/ui/components/RoleSwitch';
+import { SchedulerSettings } from '@/ui/components/SchedulerSettings';
 import { pushToGist, pullFromGist, type SyncResult } from '@/data/gistSync';
 import { QuestionPreviewContent } from '@/ui/components/QuestionPreview';
 import type { ImportHistoryEntry, Question } from '@/domain/models';
@@ -603,6 +604,9 @@ export function SettingsPage() {
             </div>
           </div>
         </Card>
+
+        {/* Repaso espaciado (SM-2 / FSRS) */}
+        <SchedulerSettings />
 
         {/* ── Cloud Sync ──────────────────────────────────────────────── */}
         <Card>

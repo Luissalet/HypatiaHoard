@@ -134,6 +134,7 @@ async function syncedSettingsKey(): Promise<string> {
   return JSON.stringify([
     s.alias, s.importedPackIds, s.importHistory?.length, s.globalBankSyncedAt, s.studyStreak,
     s.lastStudyDate, s.subjectGoals, s.marketplacePasswords ? Object.keys(s.marketplacePasswords) : null,
+    s.scheduler, s.desiredRetention,
   ]);
 }
 

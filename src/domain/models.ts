@@ -120,6 +120,9 @@ export interface QuestionStats {
   interval?: number;
   nextReviewAt?: string;  // ISO date
   repetitions?: number;
+  // FSRS-5 (only when Ajustes → Repaso uses FSRS): stability in days, difficulty 1-10
+  fsrsStability?: number;
+  fsrsDifficulty?: number;
 }
 
 export interface Question {
@@ -568,6 +571,13 @@ export interface AppSettings {
    * Fecha ISO (YYYY-MM-DD) del último día con actividad de estudio.
    */
   lastStudyDate?: string;
+  /**
+   * Planificador del repaso espaciado: 'sm2' (por defecto) o 'fsrs' (FSRS-5).
+   * Se sincroniza: Faustus califica con el mismo planificador.
+   */
+  scheduler?: 'sm2' | 'fsrs';
+  /** Retención deseada con FSRS (0,70-0,97; por defecto 0,90). */
+  desiredRetention?: number;
   /**
    * Objetivos de % de acierto por asignatura. subjectId → porcentaje objetivo (0-100).
    * LOCAL — nunca se exporta.

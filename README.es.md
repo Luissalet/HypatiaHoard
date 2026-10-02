@@ -14,7 +14,7 @@ En este repositorio no hay contenido de ninguna asignatura. Las asignaturas lleg
 
 ## Todo lo que hacía Exam Coach
 
-Asignaturas, temas y cuatro tipos de pregunta (test, desarrollo, completar, práctico) con Markdown y LaTeX; sesiones de práctica (aleatoria, falladas, por tema, inteligente SM-2, examen cronometrado); flashcards; modo lectura; modo escucha (PDF a voz con Piper en el navegador); visor y herramientas PDF; conceptos clave; exámenes a medida; extracción de preguntas con IA; evaluación continua y entregables; marketplace de asignaturas con paquetes cifrados; packs de contribución; sincronización por Gist; importar/exportar Anki; estadísticas. El mapa completo está en [FEATURES.md](FEATURES.md).
+Asignaturas, temas y cuatro tipos de pregunta (test, desarrollo, completar, práctico) con Markdown y LaTeX; sesiones de práctica (aleatoria, falladas, por tema, inteligente SM-2, examen cronometrado); repaso espaciado con SM-2 o FSRS-5 (Ajustes → Repaso espaciado, con una retención deseada del 70 al 97 %; las preguntas conservan su historial SM-2 y el asistente califica con el mismo planificador); flashcards; modo lectura; modo escucha (PDF a voz con Piper en el navegador); visor y herramientas PDF; conceptos clave; exámenes a medida; extracción de preguntas con IA; evaluación continua y entregables; marketplace de asignaturas con paquetes cifrados; packs de contribución; sincronización por Gist; importar/exportar Anki; estadísticas. El mapa completo está en [FEATURES.md](FEATURES.md).
 
 Lo que cambia: la app la sirve el servidor local (base `/`), la extracción con IA puede usar tu modelo local (proveedor «Hypatia») y aparece una página **Cuaderno** en cada asignatura.
 

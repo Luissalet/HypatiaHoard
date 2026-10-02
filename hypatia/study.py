@@ -7,7 +7,7 @@ import random
 from datetime import date, timedelta
 from typing import Any
 
-from . import bank
+from . import bank, fsrs
 from .hashing import normalize_text
 from .sm2 import grade_result, parse_grade, updated_stats
 
@@ -80,10 +80,16 @@ def _bump_streak(services) -> None:
     services.store.kv_set("syncedSettings", {**settings, "studyStreak": streak, "lastStudyDate": today})
 
 
+def scheduler_settings(services) -> tuple[str, float]:
+    """The scheduler the app chose in Ajustes (synced): ("sm2" | "fsrs", retention)."""
+    return fsrs.settings_of(services.store.kv_get("syncedSettings"))
+
+
 def review(services, question: dict, grade: Any, via: str = "agent") -> dict:
     grade = parse_grade(grade)
     now_iso = services.now_iso()
-    stats = updated_stats(question.get("stats"), grade, services.now(), now_iso)
+    scheduler, retention = scheduler_settings(services)
+    stats = updated_stats(question.get("stats"), grade, services.now(), now_iso, scheduler, retention)
     updated = {**question, "stats": stats, "updatedAt": now_iso}
     with services.db.tx() as conn:
         services.store.put("question", updated)
@@ -92,8 +98,13 @@ def review(services, question: dict, grade: Any, via: str = "agent") -> dict:
         _bump_streak(services)
     nxt = due_queue(services, question.get("subjectId"), None, 2)["queue"]
     nxt = [q for q in nxt if q["id"] != question["id"]][:1]
-    return {"question": bank.brief(updated, True), "grade": grade, "result": grade_result(grade),
-            "nextReviewAt": stats.get("nextReviewAt"), "next": nxt[0] if nxt else None}
+    out = {"question": bank.brief(updated, True), "grade": grade, "result": grade_result(grade),
+           "nextReviewAt": stats.get("nextReviewAt"), "intervalDays": stats.get("interval"), "scheduler": scheduler,
+           "next": nxt[0] if nxt else None}
+    if scheduler == "fsrs":
+        out["fsrs"] = {"stability": stats.get("fsrsStability"), "difficulty": stats.get("fsrsDifficulty"),
+                       "desiredRetention": retention}
+    return out
 
 
 # ---------- weak topics ----------
@@ -220,5 +231,8 @@ def stats(services, subject: dict | None) -> dict:
     streak = settings.get("studyStreak") or 0
     last = settings.get("lastStudyDate")
     yesterday = (date.fromisoformat(today) - timedelta(days=1)).isoformat()
+    scheduler, retention = fsrs.settings_of(settings)
     return {"today": today, "streak": streak if last in (today, yesterday) else 0, "lastStudyDate": last,
-            "reviewedTodayInChat": reviewed_today, "subjects": [_subject_stats(services, s, today) for s in subjects]}
+            "reviewedTodayInChat": reviewed_today,
+            "scheduler": {"name": scheduler, "desiredRetention": retention if scheduler == "fsrs" else None},
+            "subjects": [_subject_stats(services, s, today) for s in subjects]}

@@ -14,7 +14,7 @@ No course content lives in this repository. Subjects arrive as **password-protec
 
 ## Everything Exam Coach did
 
-Subjects, topics and four question types (test, open answer, fill-in, practical) with Markdown and LaTeX; practice sessions (random, failed, by topic, smart SM-2, timed exam); flashcards; read mode; listen mode (PDF to speech with Piper voices in the browser); PDF viewer and PDF tools; key concepts; curated exams; AI extraction of questions from documents; continuous-evaluation grades and deliverables; the subject marketplace with encrypted packages; contribution packs; Gist sync between devices; Anki import/export; statistics. See [FEATURES.md](FEATURES.md) for the full map.
+Subjects, topics and four question types (test, open answer, fill-in, practical) with Markdown and LaTeX; practice sessions (random, failed, by topic, smart SM-2, timed exam); spaced repetition with SM-2 or FSRS-5 (Ajustes → Repaso espaciado, with a desired retention from 70 % to 97 %; cards keep their SM-2 history and the assistant grades with the same scheduler); flashcards; read mode; listen mode (PDF to speech with Piper voices in the browser); PDF viewer and PDF tools; key concepts; curated exams; AI extraction of questions from documents; continuous-evaluation grades and deliverables; the subject marketplace with encrypted packages; contribution packs; Gist sync between devices; Anki import/export; statistics. See [FEATURES.md](FEATURES.md) for the full map.
 
 What changes: the app is served by the local server (base `/`), its AI extraction can use your local model (provider "Hypatia"), and a **Cuaderno** (notebook) page appears in each subject.
 

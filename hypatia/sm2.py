@@ -68,8 +68,10 @@ def calc_next_review_graded(current: dict[str, Any], grade: str, now: datetime) 
     return _calc(current, GRADE_QUALITY[parse_grade(grade)], now)
 
 
-def updated_stats(stats: dict[str, Any] | None, grade: str, now: datetime, now_iso: str) -> dict[str, Any]:
-    """questionRepo.updateStats with a graded SM-2 step."""
+def updated_stats(stats: dict[str, Any] | None, grade: str, now: datetime, now_iso: str,
+                  scheduler: str = "sm2", retention: float = 0.9) -> dict[str, Any]:
+    """questionRepo.updateStats with a graded SM-2 step, or an FSRS-5 step when
+    scheduler == "fsrs" (hypatia/fsrs.py; same as the app's src/domain/fsrs.ts)."""
     stats = dict(stats or {})
     grade = parse_grade(grade)
     result = grade_result(grade)
@@ -80,5 +82,10 @@ def updated_stats(stats: dict[str, Any] | None, grade: str, now: datetime, now_i
         "lastSeenAt": now_iso,
         "lastResult": result,
     }
-    out.update(calc_next_review_graded(stats, grade, now))
+    if scheduler == "fsrs":
+        from .fsrs import step
+
+        out.update(step(stats, grade, now, retention))
+    else:
+        out.update(calc_next_review_graded(stats, grade, now))
     return out

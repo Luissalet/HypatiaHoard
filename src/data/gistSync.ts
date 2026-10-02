@@ -112,6 +112,8 @@ interface SyncedSettings {
   lastStudyDate?: string;
   subjectGoals?: Record<string, number>;
   marketplacePasswords?: Record<string, string>;
+  scheduler?: 'sm2' | 'fsrs';
+  desiredRetention?: number;
 }
 
 export interface SyncResult {
@@ -183,6 +185,8 @@ async function exportFullBackupUnguarded(): Promise<FullBackup> {
       lastStudyDate: settings.lastStudyDate,
       subjectGoals: settings.subjectGoals,
       marketplacePasswords: settings.marketplacePasswords,
+      scheduler: settings.scheduler,
+      desiredRetention: settings.desiredRetention,
     },
     questionImages,
     pregenManifest: await buildPregenManifest(topics),
@@ -873,6 +877,9 @@ async function mergeSyncedSettings(remote: SyncedSettings): Promise<void> {
     importHistory: mergeImportHistory(local.importHistory, remote.importHistory),
     // Merge marketplace passwords (remote fills gaps, local wins on conflict)
     marketplacePasswords: { ...(remote.marketplacePasswords ?? {}), ...(local.marketplacePasswords ?? {}) },
+    // Review scheduler: this device's choice wins; the remote one fills a gap
+    scheduler: local.scheduler ?? remote.scheduler,
+    desiredRetention: local.desiredRetention ?? remote.desiredRetention,
   });
 }
 

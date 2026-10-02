@@ -145,12 +145,23 @@ export const questionRepo = {
   },
   async updateStats(
     id: string,
-    result: 'CORRECT' | 'WRONG'
+    result: 'CORRECT' | 'WRONG',
+    grade?: 'again' | 'hard' | 'good' | 'easy',
   ): Promise<void> {
     const q = await db.questions.get(id);
     if (!q) return;
-    const { calcNextReview } = await import('@/domain/spacedRepetition');
-    const sm2 = calcNextReview(q.stats, result);
+    const { calcNextReview, GRADE_QUALITY } = await import('@/domain/spacedRepetition');
+    const { getSettings } = await import('./db');
+    const settings = await getSettings().catch(() => null);
+    let sm2: ReturnType<typeof calcNextReview> & { fsrsStability?: number; fsrsDifficulty?: number };
+    if (settings?.scheduler === 'fsrs') {
+      // FSRS-5 (same maths as hypatia/fsrs.py). Without an explicit grade the
+      // binary result maps to good/again.
+      const { fsrsStep } = await import('@/domain/fsrs');
+      sm2 = fsrsStep(q.stats, grade ?? (result === 'CORRECT' ? 'good' : 'again'), new Date(), settings.desiredRetention);
+    } else {
+      sm2 = calcNextReview(q.stats, result, grade ? GRADE_QUALITY[grade] : undefined);
+    }
     const stats: QuestionStats = {
       seen: q.stats.seen + 1,
       correct: q.stats.correct + (result === 'CORRECT' ? 1 : 0),

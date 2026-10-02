@@ -465,7 +465,8 @@ STUDY_TOOLS: list[Tool] = [
          "never the answer, until the user has answered." + SYN + "repasar, pregúntame, quiz, examíname, qué me toca hoy, tarjetas pendientes.",
          CardsDueArgs, ann(True), run_cards_due),
     Tool("card_review", "Grade the question the user just answered: again/hard/good/easy (write). Keywords: calificar, acierto."
-         "\nUpdates stats and SM-2 schedule like the PWA. Pass the prompt you showed (it wins over the id). Call exactly once per "
+         "\nUpdates stats and the schedule like the PWA (SM-2, or FSRS if chosen in Ajustes). "
+         "Pass the prompt you showed (it wins over the id). Call exactly once per "
          "real answer; never grade on the user's behalf. Returns the next due question."
          + SYN + "calificar, he acertado, he fallado, lo sabía, no lo sabía, siguiente pregunta.", CardReviewArgs,
          ann(False, False, False), run_card_review),
