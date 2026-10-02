@@ -114,6 +114,7 @@ interface SyncedSettings {
   marketplacePasswords?: Record<string, string>;
   scheduler?: 'sm2' | 'fsrs';
   desiredRetention?: number;
+  schedulerSetAt?: string;
 }
 
 export interface SyncResult {
@@ -187,6 +188,7 @@ async function exportFullBackupUnguarded(): Promise<FullBackup> {
       marketplacePasswords: settings.marketplacePasswords,
       scheduler: settings.scheduler,
       desiredRetention: settings.desiredRetention,
+      schedulerSetAt: settings.schedulerSetAt,
     },
     questionImages,
     pregenManifest: await buildPregenManifest(topics),
@@ -877,10 +879,17 @@ async function mergeSyncedSettings(remote: SyncedSettings): Promise<void> {
     importHistory: mergeImportHistory(local.importHistory, remote.importHistory),
     // Merge marketplace passwords (remote fills gaps, local wins on conflict)
     marketplacePasswords: { ...(remote.marketplacePasswords ?? {}), ...(local.marketplacePasswords ?? {}) },
-    // Review scheduler: this device's choice wins; the remote one fills a gap
-    scheduler: local.scheduler ?? remote.scheduler,
-    desiredRetention: local.desiredRetention ?? remote.desiredRetention,
+    // Review scheduler: the choice made last wins as a block
+    ...schedulerChoice(local, remote),
   });
+}
+
+/** Same rule as hypatia/merge.py `_scheduler_choice`. */
+function schedulerChoice(local: SyncedSettings, remote: SyncedSettings): Pick<SyncedSettings, 'scheduler' | 'desiredRetention' | 'schedulerSetAt'> {
+  const pickRemote = (!!remote.schedulerSetAt && (!local.schedulerSetAt || remote.schedulerSetAt > local.schedulerSetAt))
+    || (!local.scheduler && !!remote.scheduler);
+  const s = pickRemote ? remote : local;
+  return { scheduler: s.scheduler, desiredRetention: s.desiredRetention, schedulerSetAt: s.schedulerSetAt };
 }
 
 function mergeImportHistory(

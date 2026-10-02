@@ -23,7 +23,7 @@ export function SchedulerSettings() {
   const save = async (next: Scheduler, ret: number) => {
     setScheduler(next);
     setRetention(ret);
-    await saveSettings({ scheduler: next, desiredRetention: ret });
+    await saveSettings({ scheduler: next, desiredRetention: ret, schedulerSetAt: new Date().toISOString() });
     setSaved(next === 'fsrs' ? `Guardado: FSRS al ${Math.round(ret * 100)} %` : 'Guardado: SM-2');
   };
 

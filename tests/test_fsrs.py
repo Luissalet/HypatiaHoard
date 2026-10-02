@@ -140,3 +140,17 @@ def test_typescript_twin_matches_python():
     assert got["previews"] == expected["previews"]
     for g, e in zip(got["out"], expected["out"]):
         assert g == {k: (pytest.approx(v) if isinstance(v, float) else v) for k, v in e.items()}
+
+
+def test_synced_settings_take_the_scheduler_chosen_last():
+    from hypatia.merge import merge_synced_settings
+
+    base = {"alias": "", "importedPackIds": []}
+    server = {**base, "scheduler": "sm2", "desiredRetention": 0.9, "schedulerSetAt": "2026-10-01T10:00:00.000Z"}
+    device = {**base, "scheduler": "fsrs", "desiredRetention": 0.85, "schedulerSetAt": "2026-10-02T10:00:00.000Z"}
+    got = merge_synced_settings(server, device)
+    assert (got["scheduler"], got["desiredRetention"]) == ("fsrs", 0.85)
+    got = merge_synced_settings(device, server)
+    assert (got["scheduler"], got["desiredRetention"]) == ("fsrs", 0.85)
+    assert merge_synced_settings(base, device)["scheduler"] == "fsrs"
+    assert "scheduler" not in merge_synced_settings(base, base)

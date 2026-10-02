@@ -440,7 +440,17 @@ def merge_synced_settings(local: dict[str, Any], remote: dict[str, Any]) -> dict
         globalBankSyncedAt=js_latest(local.get("globalBankSyncedAt"), remote.get("globalBankSyncedAt")),
         importHistory=list(history.values()),
         marketplacePasswords={**(remote.get("marketplacePasswords") or {}), **(local.get("marketplacePasswords") or {})},
+        **_scheduler_choice(local, remote),
     )
+
+
+def _scheduler_choice(local: dict[str, Any], remote: dict[str, Any]) -> dict[str, Any]:
+    """The review scheduler chosen last (schedulerSetAt) wins as a block; a side
+    that never chose one takes the other's."""
+    pick_remote = js_gt(remote.get("schedulerSetAt"), local.get("schedulerSetAt")) or (
+        not local.get("scheduler") and bool(remote.get("scheduler")))
+    pick = remote if pick_remote else local
+    return {key: pick.get(key, UNDEF) for key in ("scheduler", "desiredRetention", "schedulerSetAt")}
 
 
 def _records(backup: dict[str, Any], key: str) -> list[dict]:

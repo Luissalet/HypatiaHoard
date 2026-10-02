@@ -55,7 +55,7 @@ Feature-by-feature map: what each one does, where it lives in code, the user flo
 
 ### 2.3b FSRS-5 scheduler (optional)
 - **What**: Ajustes → *Repaso espaciado* switches the scheduler from SM-2 to FSRS-5 and sets the desired retention (0.70-0.97, default 0.90). Each question keeps `fsrsStability` (days until recall drops to 90 %) and `fsrsDifficulty` (1-10); the next review is the day the predicted recall falls to the desired retention. Same-day reviews use the short-term formula. Questions with only SM-2 state start from it (S = interval, D from the ease factor), and `easeFactor`/`repetitions` stay updated, so switching back to SM-2 is safe. The settings card previews the intervals of a new question for each grade.
-- **Sync**: `scheduler` and `desiredRetention` travel in `syncedSettings` (this device wins, the other fills a gap); the server's `card_review` (chat, MCP, `/api/study/review`) reads them and uses the same maths, and returns `scheduler`, `intervalDays` and, with FSRS, `fsrs.stability/difficulty`. `study_stats` reports the scheduler.
+- **Sync**: `scheduler`, `desiredRetention` and `schedulerSetAt` travel in `syncedSettings` (the choice made last wins as a block, on the device and on the server); the server's `card_review` (chat, MCP, `/api/study/review`) reads them and uses the same maths, and returns `scheduler`, `intervalDays` and, with FSRS, `fsrs.stability/difficulty`. `study_stats` reports the scheduler.
 - **Where**: `domain/fsrs.ts` (`fsrsStep`, `fsrsPreview`), `hypatia/fsrs.py` (same maths; `tests/test_fsrs.py` runs both and compares), `ui/components/SchedulerSettings.tsx`.
 
 ### 2.4 Auto-scoring

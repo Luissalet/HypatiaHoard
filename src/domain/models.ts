@@ -578,6 +578,8 @@ export interface AppSettings {
   scheduler?: 'sm2' | 'fsrs';
   /** Retención deseada con FSRS (0,70-0,97; por defecto 0,90). */
   desiredRetention?: number;
+  /** Cuándo se eligió el planificador (ISO): al sincronizar gana la elección más reciente. */
+  schedulerSetAt?: string;
   /**
    * Objetivos de % de acierto por asignatura. subjectId → porcentaje objetivo (0-100).
    * LOCAL — nunca se exporta.
