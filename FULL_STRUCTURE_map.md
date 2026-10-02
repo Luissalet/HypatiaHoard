@@ -7,7 +7,7 @@ Map of every source file under `src/`, plus the root configs that shape how the 
 - **Path alias**: `@/* → ./src/*` (tsconfig `baseUrl: "."` + `paths`)
 - **PWA**: `vite-plugin-pwa` with autoUpdate + service worker + install banner
 - **Bundle**: client-only SPA, no backend in production. Optional dev API at `/api/upload-pdf`, `/api/upload-question-image`, `/api/write-global-bank` when `npm run dev` is running.
-- **Storage**: IndexedDB (Dexie v1→v8), File System Access API / OPFS for big PDFs, GitHub Gist for cross-device sync, GitHub Releases for package marketplace.
+- **Storage**: IndexedDB (Dexie v1→v9; v9 adds the teacher tables), File System Access API / OPFS for big PDFs, GitHub Gist for cross-device sync, GitHub Releases for package marketplace.
 - **Working language**: Spanish (UI strings and most code comments).
 
 Legend used throughout: 🧠 = domain logic, 💾 = persistence, 🔌 = external service / I-O, 🎨 = UI page, 🧱 = UI component, 🛠 = utility, 🤖 = AI provider, 🔊 = TTS / audio, 📄 = PDF tools, 🚦 = orchestration / entrypoint.
@@ -48,7 +48,7 @@ src/
 │   └── grading.ts                 Continuous-eval grade breakdown
 │
 ├── data/                          💾 Persistence layer (Dexie + external sync)
-│   ├── db.ts                      StudyDB Dexie class — 14 tables, versions 1-8
+│   ├── db.ts                      StudyDB Dexie class — 22 tables, versions 1-9 (v9: teacher role)
 │   ├── repos.ts                   subjectRepo, topicRepo, questionRepo, sessionRepo,
 │   │                              keyConceptRepo, examRepo
 │   ├── deliverableRepo.ts         deliverableRepo + gradingConfigRepo
@@ -69,7 +69,15 @@ src/
 │   ├── exportStudyGuide.ts        Markdown study guide of weak/starred questions
 │   ├── contributionImport.ts      Contribution pack preview / import / undo / export
 │   ├── generateContributionGuide  Generates GUIA_CONTRIBUTION_PACKS.md per user
-│   └── keyConceptsImport.ts       KeyConcepts pack import/export
+│   ├── keyConceptsImport.ts       KeyConcepts pack import/export
+│   ├── studentPrivacy.ts          guardPublicExport: student data never in any export
+│   ├── role.ts                    Estudiante / Profesor switch (per device)
+│   ├── teacherRepo.ts             Teacher CRUD + pending queue + fresh-read updates
+│   ├── teacherExams.ts            Exam from bank (seeded), versions, practice copy, draft approval
+│   ├── teacherBatch.ts            Batch context, decisions, confirm, reinforcement
+│   ├── teacherSyncCore.ts         Pure last-write-wins rules for the teacher sync
+│   ├── teacherSync.ts             /api/teacher/sync push/pull (hoard mode)
+│   └── teacherClient.ts           Server jobs (generation, grading), rubric proposal, photo text
 │
 ├── services/                      🔌 Higher-level services and providers
 │   ├── aiEngine.ts                Provider factory, file→text extraction, explanation gen
@@ -98,7 +106,8 @@ src/
 ├── utils/                         🛠 Pure utilities (TTS, PDF, anki, render)
 │   ├── renderMd.ts                marked + marked-katex-extension wrapper
 │   ├── pdfTextExtractor.ts        pdfjs-dist → structured blocks (heading/list/math/...)
-│   ├── pdfExport.ts               jsPDF + html2canvas exporters
+│   ├── pdfExport.ts               jsPDF + html2canvas exporters (helpers shared with teacherPdf)
+│   ├── teacherPdf.ts              Exam PDF (versions, keys, rubrics) and student feedback PDF
 │   ├── ankiImport.ts              parseAnkiTsv
 │   ├── ankiExport.ts              exportToAnkiTsv
 │   ├── questionUtils.ts           questionBelongsToTopic helper
@@ -141,6 +150,9 @@ Each file is a default-exported (named export, used by `routes.tsx`) React page 
 | `/deliverables` (lazy) | `Deliverables.tsx` 🎨 | Continuous-evaluation tracker — activities, tests, exams; status cycle pending → in_progress → done → submitted; uses `domain/grading.ts`. |
 | `/sessions` (lazy) | `SessionHistory.tsx` 🎨 | Filter+list of finished `PracticeSession`s. |
 | `/stats` (lazy) | `GlobalStats.tsx` 🎨 | Global performance curve, study streak, 70% target line. |
+| `/teacher` (lazy) | `teacher/TeacherHome.tsx` 🎨 | Teacher role tabs: Clases, Exámenes, Rúbricas, Entregas, Análisis (`?tab=`). |
+| `/teacher/exam/:examId` (lazy) | `teacher/TeacherExamPage.tsx` 🎨 | Teacher exam: header, items and points, cited drafts to approve, rubrics, versions and answer key, PDF, new batch. |
+| `/teacher/batch/:batchId` (lazy) | `teacher/GradingBatchPage.tsx` 🎨 | Batch correction: answer grid/CSV/open answers, AI grading job, side-by-side review and confirm, grades CSV, feedback PDF. |
 | `*` | redirects to `/` | catch-all. |
 
 ---
@@ -168,6 +180,7 @@ Each file is a default-exported (named export, used by `routes.tsx`) React page 
 | `ActiveSessionsSidebar.tsx` 🧱 | Lists unfinished `PracticeSession`s (incl. multi-subject) for resume/cancel. Mobile drawer below `lg`. |
 | `PwaUpdateBanner.tsx` 🧱 | Listens to `controllerchange` → shows "reload to update" banner. |
 | `PwaInstallBanner.tsx` 🧱 | Listens to `beforeinstallprompt` → install banner (dismissable, localStorage). |
+| `RoleSwitch.tsx` 🧱 | Estudiante / Profesor segmented switch (compact in headers). |
 | `StorageWarningBanner.tsx` 🧱 | Polls `checkStorageQuota()` every 5 min; warns at 80%. Hidden if FSA configured. |
 
 ---
@@ -202,6 +215,9 @@ Critical routes are eager-loaded; the rest are lazy with a `<PageLoader>` Suspen
 | Lazy | `/deliverables` | `DeliverablesPage` |
 | Lazy | `/sessions` | `SessionHistoryPage` |
 | Lazy | `/stats` | `GlobalStatsPage` |
+| Lazy | `/teacher` | `TeacherHome` |
+| Lazy | `/teacher/exam/:examId` | `TeacherExamPage` |
+| Lazy | `/teacher/batch/:batchId` | `GradingBatchPage` |
 | — | `*` | redirect → `/` |
 
 `HashRouter` is used so the app works as a static site (GitHub Pages, plain hosting) — every URL is `index.html#/whatever`.
@@ -230,4 +246,22 @@ Counted by listing every file under `src/`:
 - `utils/`: **16** TS files (4 of which — `webTts`, `edgeTts` are DEPRECATED stubs, kept for module-resolution)
 - `types/`: **1** (`mespeak.d.ts`)
 - root entrypoints: `main.tsx`, `index.css`, `vite-env.d.ts`
+
+---
+
+## Server (`hypatia/`) — teacher role
+
+| File | Purpose |
+|---|---|
+| `teacher/core.py` | Pure logic (twin of `src/domain/teacherCore.ts`, parity-tested with node) |
+| `teacher/store.py` | `teacher_records` / `teacher_jobs` tables, last-write-wins push, cascades |
+| `teacher/jobs.py` | Background jobs on the notebook worker thread (`exam_generate`, `grading_run`) |
+| `teacher/llm.py` | Model calls through `ai.chat` → explicit `NoModel` |
+| `teacher/generate.py` | Exam from bank and cited model drafts; draft approval; exam view; practice copy |
+| `teacher/rubrics.py` | Rubric proposal (model or template), normalisation, save |
+| `teacher/assess.py` | Batches, answers, grading proposals with verified quotes, photo transcription, review, confirm, report |
+| `teacher/analysis.py` | Class analysis and reinforcement practice sets |
+| `teacher/pdf.py` | Dependency-free PDF writer for `exam_export_pdf` |
+| `teacher/tools.py` | 18 MCP tools |
+| `api/teacher.py` | `/api/teacher/*` for the app |
 

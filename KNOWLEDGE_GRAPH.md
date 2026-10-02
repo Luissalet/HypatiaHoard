@@ -250,6 +250,22 @@ See MEMORY_MODEL.md §2.7.
 
 ---
 
+### 1.18 Teacher role (student data — LOCAL ONLY)
+`domain/teacher.ts`. Dexie v9 tables; server tables `teacher_records` (kind, id, rev, updated_at, deleted, data) and `teacher_jobs`. Never in Gist, global bank, contribution packs, packages or any export (`data/studentPrivacy.ts`).
+
+| Entity (table / server kind) | Key fields | Relations |
+|---|---|---|
+| `TeacherClass` (`teacherClasses` / `class`) | name, course, year, subjectIds | → Subject[] |
+| `TeacherStudent` (`teacherStudents` / `student`) | displayName (name or alias), email?, order | → TeacherClass |
+| `TeacherExam` (`teacherExams` / `teacherExam`) | title, header, spec (counts, topics, difficulty, source, versions, pointsByType, testPenalty), items [{questionId, points, rubricId}], versions [{label, questionOrder, optionOrder}], drafts [{question, citations, answerCitations, status}], practiceExamId | → Subject, Question[], Exam (practice copy), TeacherClass? |
+| `Rubric` (`rubrics` / `rubric`) | scope question\|exam, criteria [{id, name, weight, levels [{id, descriptor, points}]}], origin manual\|llm\|template | → TeacherExam, Question? |
+| `GradingBatch` (`gradingBatches` / `gradingBatch`) | title, status open\|grading\|review\|closed | → TeacherExam, TeacherClass |
+| `Submission` (`submissions` / `submission`) | version, answers {questionId: {letters\|blankAnswers\|text, source}}, decisions {questionId: {points, criteria, comment, source}}, confirmed, result {points, maxPoints, grade, band}, feedback, comment, reinforceExamId | → GradingBatch, TeacherStudent |
+| `GradingProposal` (`gradingProposals` / `proposal`, id `submissionId::questionId`) | status, criteria [{criterionId, levelId, points, justification, quotes}], points, confidence, droppedQuotes, model — written by the server only | → Submission, Rubric |
+| `TeacherSettings` (`teacherSettings` / `teacherSettings`, id `default`) | scale {max, decimals, bands} | — |
+
+Grade: `round_half_up(scale.max × points / maxPoints, decimals)`; band = last band whose `min` ≤ grade. Points of an item: teacher decision, else the objective auto score; nothing open is final until a decision exists and the submission is confirmed.
+
 ## 2. Relationships (cardinalities)
 
 ```
@@ -475,6 +491,8 @@ When merging anything (global-bank sync, Gist pull, contribution import, package
 - All `AppSettings.aiSettings.*Key`, `githubToken`, `syncGistId`, `lastSyncAt`, `orphanMigrationDone`
 
 This is why the merge logic re-maps remote IDs to local ones rather than overwriting whole rows.
+
+Student data (teacher role, §1.18) is stricter than local data: it is never merged with anything because it never leaves the device and the user's own server. The teacher sync is a separate channel (`/api/teacher/sync`, last write wins per record).
 
 ---
 

@@ -5,7 +5,8 @@
 Hypatia's Hoard es la segunda versión de [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), pensada para correr en tu PC y para que la maneje un asistente. Exam Coach se queda como estaba: una PWA pública que usaron alumnos. Hypatia lo incluye entero y añade:
 
 - **Un servidor local** (Python, `hypatia/`) que sirve la app en `http://127.0.0.1:5187`, guarda tus datos de estudio en SQLite y los sincroniza con el IndexedDB de la app.
-- **Control por asistente**: 30 herramientas MCP para que Faustus (o cualquier cliente MCP) te examine con repaso espaciado, monte simulacros sobre tus temas flojos, corrija respuestas abiertas, haga cálculos exactos y añada o proponga preguntas a partir de tu propio material.
+- **Control por asistente**: 48 herramientas MCP para que Faustus (o cualquier cliente MCP) te examine con repaso espaciado, monte simulacros sobre tus temas flojos, corrija respuestas abiertas, haga cálculos exactos, añada o proponga preguntas a partir de tu propio material y lleve el rol de profesor.
+- **Rol Profesor**: clases, exámenes generados desde tu banco y tu propio material con citas, versiones A/B, rúbricas, corrección en lote con propuestas del modelo que tú confirmas, notas y análisis de la clase. Los datos de alumnos se quedan en tu PC.
 - **Un cuaderno sobre tus fuentes**: respuestas con citas de tus PDFs, guía de estudio, resumen ejecutivo, FAQ, glosario, cronología, mapa mental, resumen en audio a dos voces y tutor socrático.
 - **Solo modelos locales**, a través de Hoard Link (copiado en `hypatia/hoard_link/`), el mismo backend compartido que usa el resto de la familia Hoard. El podcast habla con la voz de Prospero's Hoard. Sin ningún modelo en marcha, cada función de IA devuelve igualmente el material para que el asistente haga el trabajo, y la app desactiva los botones que necesitan un modelo.
 
@@ -49,8 +50,25 @@ venv\Scripts\python -m hypatia import-package "C:\ruta\vision-artificial.examcoa
 
 Herramientas de estudio: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`.
 Matemáticas exactas: `math_compute` evalúa operaciones, resuelve ecuaciones polinómicas de grado hasta 4 y deriva fórmulas localmente. Las potencias se escriben con `**`. Devuelve resultado exacto, aproximado (si es numérico) y LaTeX sin leer ni cambiar datos de estudio.
+Profesor: ver [Rol Profesor](#rol-profesor).
 Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` pasa una FAQ terminada al banco de práctica y omite duplicados si se repite.
 Alias heredados de Hypatia 1 (tarjetas): `cards_add`, `decks_list`.
+
+## Rol Profesor
+
+Un interruptor en la cabecera (y en **Ajustes → Rol**) activa las pantallas de profesor. El modo Estudiante sigue igual: un profesor puede seguir practicando.
+
+- **Clases**: grupos (nombre, curso, año, asignaturas) y alumnos (nombre visible o alias, email opcional solo como referencia tuya, nada más). Pega una lista o un CSV (`Nombre;Apellidos;Correo`, o `Apellidos, Nombre` por línea).
+- **Generar examen**: asignatura, temas, número de preguntas por tipo (TEST, DESARROLLO, COMPLETAR, PRACTICO), puntos por tipo, mezcla de dificultad, duración, versiones A–D (orden de preguntas y opciones barajado, mismo contenido), cabecera (centro, curso, fecha, instrucciones) y penalización del test. Origen: el banco, el modelo local redactando desde las fuentes indexadas de la asignatura, o el banco primero y el modelo para lo que falte. Cada pregunta generada cita el pasaje del que sale (archivo, página o apartado) y es un **borrador** hasta que la apruebas al banco. Imprime un PDF con cada versión, el solucionario por versión y las rúbricas; el examen se guarda también como examen practicable de la asignatura.
+- **Rúbricas**: por pregunta o por examen, criterios con peso y niveles (descriptor + puntos). «Proponer rúbrica» se lo pide al modelo local (sin modelo: una plantilla fija); siempre editable. Escala 0–10 con una decimal y las bandas habituales (Suspenso < 5, Aprobado 5–6,9, Notable 7–8,9, Sobresaliente ≥ 9), configurable.
+- **Entregas**: un lote por examen y clase. Las respuestas objetivas, en una rejilla (alumnos × número de pregunta impreso en su versión) o pegando un CSV (`alumno;version;1;2;…`), puntuadas con la misma lógica de la app. Las abiertas, por texto, PDF (su texto) o foto (solo con modelo de visión; si no, se escribe). «Corregir con IA» corre en segundo plano en el servidor y solo **propone**: nivel por criterio, puntos, justificación, citas literales comprobadas contra la respuesta (las que no aparecen se descartan) y confianza. Revisión lado a lado (respuesta | rúbrica | propuesta), aceptar o cambiar, y confirmar: solo entonces se guardan la nota, la banda y el feedback (aciertos, errores, temas y conceptos clave que repasar). CSV de notas de la clase y PDF de feedback.
+- **Análisis**: acierto por pregunta y tema, opciones erróneas, huecos y criterios flojos más comunes, distribución de notas; «Reforzar» crea un examen de práctica (sesiones, tarjetas, SM-2) con los temas flojos, para la clase o para un alumno.
+
+Sin el servidor local (build público) funciona todo salvo lo que necesita modelo, que lo dice. Sin modelo, la generación y la corrección terminan en un estado `no_model` explícito y no se inventa nada.
+
+**Dónde viven los datos.** En IndexedDB (Dexie versión 9: `teacherClasses`, `teacherStudents`, `teacherExams`, `rubrics`, `gradingBatches`, `submissions`, `gradingProposals`, `teacherSettings`) y en tablas propias del servidor (`teacher_records`, `teacher_jobs`), sincronizadas con `/api/teacher/sync/*` (gana la última escritura por registro). **No** pasan por la sincronización de estudio, porque esa sube la misma copia completa que usa el Gist; tener un canal aparte es lo que mantiene nombres, respuestas y notas de alumnos fuera del Gist, el banco global, los contribution packs, los paquetes y cualquier otra exportación. Toda función de exportación pasa por `src/data/studentPrivacy.ts#guardPublicExport`, que quita las tablas de profesor y rechaza cualquier campo de alumno; hay tests sobre exportaciones reales. Las prácticas de «Reforzar» nunca llevan el nombre de un alumno.
+
+Herramientas de profesor (Faustus): `teacher_classes`, `teacher_class_create`, `teacher_students_add`, `exam_generate` (trabajo), `exam_get`, `exam_drafts_review`, `exam_export_pdf`, `rubric_propose`, `rubric_set`, `grading_batch_create`, `grading_submit_answers`, `grading_run` (trabajo), `grading_review`, `grading_confirm`, `grades_report`, `class_analysis`, `class_reinforce`, `teacher_job`. Responden a cosas como «hazme un examen de 10 preguntas del tema 3 con dos versiones», «corrige las entregas del examen X con la rúbrica» o «¿qué tema ha ido peor en 2ºB?» (`class_analysis` → `worstTopic`). El PDF del servidor (`exam_export_pdf`) imprime las fórmulas como LaTeX; el «Imprimir PDF» de la app las dibuja.
 
 ## Cómo se sincronizan la app y el servidor
 
@@ -87,7 +105,7 @@ venv\Scripts\python -m pytest -q tests
 npx tsc --noEmit
 ```
 
-Ningún test sale a la red ni toca otra app de la familia.
+Ningún test sale a la red ni toca otra app de la familia. Algunos ejecutan el TypeScript con node (necesitan `npm install`): paridad de hashes y del núcleo de profesor, la migración Dexie 8→9 y el filtro de exportaciones (con `fake-indexeddb`).
 
 ## Licencia
 

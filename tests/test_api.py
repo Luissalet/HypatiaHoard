@@ -9,7 +9,7 @@ from hypatia import ai
 
 def test_health(client):
     body = client.get("/api/health").json()
-    assert body["service"] == "hypatia-hoard" and body["version"] == "2.0.0" and body["dataDirConfigured"] is True
+    assert body["service"] == "hypatia-hoard" and body["version"] == "2.1.0" and body["dataDirConfigured"] is True
     assert body["hoard_link"]["app"] == "hypatia"
 
 

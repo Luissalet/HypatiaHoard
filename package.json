@@ -1,7 +1,7 @@
 {
   "name": "hypatia-hoard",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "clean": "node -e \"require('fs').readdirSync('.').filter(f=>f.startsWith('vite.config.ts.timestamp')).forEach(f=>require('fs').unlinkSync(f))\"",

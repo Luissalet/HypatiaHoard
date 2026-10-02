@@ -5,6 +5,7 @@ Feature-by-feature map: what each one does, where it lives in code, the user flo
 > **Conventions**
 > - Code paths are relative to `src/` unless noted.
 > - "Local data" = stays in this device's IndexedDB and **never** leaves to the global bank or contribution packs (`notes`, `starred`, `examDate`, `stats`, API keys, GitHub token, `marketplacePasswords`, `subjectGoals`).
+> - **Student data** (teacher role: classes, students, exams for students, rubrics, batches, submissions, answers, proposals, grades, feedback) is local to this device and the user's own Hypatia server. It never goes to the Gist sync, the global bank, contribution packs, packages, exam / key-concept / compact exports, nor the study sync with the server. Enforced by `data/studentPrivacy.ts#guardPublicExport` in every export function and by separate server tables; tested in `tests/test_teacher_ts.py` and `tests/test_teacher_generate_api.py`.
 > - The app is offline-first. Every feature that isn't explicitly network-bound works without internet.
 
 ---
@@ -333,6 +334,36 @@ This is the most engineering-heavy feature.
 
 ---
 
+## 20. Teacher role (Profesor)
+
+Role switch: `ui/components/RoleSwitch.tsx` (Dashboard header, Ajustes → Rol; on phones above the subjects), stored per device in `localStorage` by `data/role.ts`. Teacher mode adds screens; nothing of the student mode is hidden. Routes `/teacher` (tabs), `/teacher/exam/:examId`, `/teacher/batch/:batchId` (`ui/pages/teacher/*`).
+
+### 20.1 Classes
+- **What**: groups (`TeacherClass`: name, course, year, subjectIds) and students (`TeacherStudent`: displayName, optional email, order). Roster import from pasted text or CSV with header (`nombre`, `apellidos`, `email/correo`, `alias`) or `Apellidos, Nombre` lines; duplicates skipped.
+- **Where**: `domain/teacher.ts`, `domain/teacherCore.ts#parseRoster`, `data/teacherRepo.ts` (`classRepo`, `studentRepo`), `ui/pages/teacher/ClassesTab.tsx`.
+
+### 20.2 Exam generation
+- **What**: subject, topics, counts per type, points per type, difficulty mix (bank difficulty 1-2 / 3 / 4-5), versions A–D, header, test penalty. Source `bank`, `generate` (local model from the notebook's indexed sources) or `mixed` (bank first). Model drafts cite passages (file, page/heading, snippet) — drafts without a valid citation are dropped — and need approval (`reviewDrafts`): approved questions enter the bank with a «Fuente: …» line and the `profesor` tag. Versions keep content and shuffle question and option order with a seeded PRNG identical in TS and Python. Answer key per version. The exam is mirrored as an `Exam` (practice / flashcards).
+- **Where**: `data/teacherExams.ts`, `domain/teacherCore.ts#buildVersions/answerKey`, server `hypatia/teacher/generate.py` (job `exam_generate`), UI `TeacherExamsTab.tsx`, `TeacherExamPage.tsx`. PDF: `utils/teacherPdf.ts#generateTeacherExamPDF` (versions, keys, rubrics; KaTeX via `pdfExport.ts`).
+
+### 20.3 Rubrics and grade scale
+- **What**: criteria with weight and levels (descriptor + points), per question or exam-wide. Score: each criterion is worth weight/Σweights of the question × level points / best level points. «Proponer rúbrica» via the server (`/api/teacher/rubrics/propose`, deterministic template without a model). Scale 0–10, one decimal, Suspenso / Aprobado / Notable / Sobresaliente, configurable (`teacherSettings`).
+- **Where**: `ui/pages/teacher/RubricEditor.tsx`, `RubricsTab.tsx`, `domain/teacherCore.ts#rubricBreakdown/gradeFromPoints/bandOf`, `hypatia/teacher/rubrics.py`.
+
+### 20.4 Batch correction (Entregas)
+- **What**: batch = exam + class, one submission per student (versions alternate by roster order). Grid of printed positions per version (letters for TEST, `x; y` for COMPLETAR) or CSV paste; open answers by text, PDF text (`utils/pdfTextExtractor.ts`) or photo transcription (vision model through the server, otherwise typed). TEST/COMPLETAR scored like `domain/scoring.ts` (letters mapped through the version's option order; optional penalty). «Corregir con IA» = server job `grading_run`: per criterion level, points, justification, literal quotes (verified as substrings, others dropped), confidence; stored as `gradingProposals`. Review side by side, accept or override (points or rubric levels), confirm → grade, band, feedback (strengths, mistakes, topics + key concepts to review). Grades CSV (`;`, decimal comma) and feedback PDF.
+- **Where**: `data/teacherBatch.ts`, `ui/pages/teacher/GradingBatchPage.tsx`, `hypatia/teacher/assess.py`.
+
+### 20.5 Class analysis and reinforcement
+- **What**: success per question/topic, wrong options, common wrong blanks, weak criteria, grade bands and histogram, mean/median/pass rate; topics combined across a class's exams. «Reforzar» builds an `Exam` from bank questions of topics under 60 % for the class or one student (named without the student).
+- **Where**: `domain/teacherCore.ts#analyze/combineTopics`, `data/teacherBatch.ts#createReinforcement`, `ui/pages/teacher/AnalysisTab.tsx`, `hypatia/teacher/analysis.py`.
+
+### 20.6 Sync and server
+- **What**: Dexie v9 tables ↔ server `teacher_records` via `/api/teacher/sync/{state,pull,push}` (last write wins by `updatedAt`, deletion rows), started by `hoardSync.startHoardSync` (hoard mode only). Model work runs as jobs on the notebook worker thread (`teacher_jobs`; statuses `done`, `no_model`, `no_sources`, `error`). 18 MCP tools in `hypatia/teacher/tools.py`.
+- **Where**: `data/teacherSync.ts`, `data/teacherSyncCore.ts`, `data/teacherClient.ts`, `hypatia/teacher/store.py`, `jobs.py`, `api/teacher.py`.
+
+---
+
 ## Feature → file quick index
 
 | Feature | Primary file |
@@ -361,4 +392,7 @@ This is the most engineering-heavy feature.
 | State store | `ui/store/index.ts` |
 | Routing | `ui/routes.tsx` |
 | Bootstrap | `src/main.tsx` |
+| Teacher core (scale, versions, scoring, analysis) | `domain/teacherCore.ts` |
+| Teacher storage / sync | `data/teacherRepo.ts` + `data/teacherSync.ts` |
+| Student-data export guard | `data/studentPrivacy.ts` |
 

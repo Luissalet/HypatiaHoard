@@ -1515,7 +1515,7 @@ export function SettingsPage() {
         {/* About */}
         <div className="text-center text-xs text-ink-700 pb-4">
           <p>{hoard ? "Hypatia's Hoard · local-first · servidor en tu PC · tus datos son tuyos" : 'StudyApp · local-first · sin backend · tus datos son tuyos'}</p>
-          <p className="mt-1">Hypatia's Hoard · v2.0.0</p>
+          <p className="mt-1">Hypatia's Hoard · v2.1.0</p>
         </div>
       </main>
 
