@@ -9,7 +9,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources(
   id TEXT PRIMARY KEY, subject_id TEXT NOT NULL, origin TEXT NOT NULL, path TEXT NOT NULL,
   filename TEXT NOT NULL, title TEXT, kind TEXT, pages INTEGER, bytes INTEGER, sha256 TEXT,
-  status TEXT NOT NULL DEFAULT 'pending', error TEXT, added_at TEXT, indexed_at TEXT);
+  status TEXT NOT NULL DEFAULT 'pending', error TEXT, added_at TEXT, indexed_at TEXT,
+  index_version INTEGER);
 CREATE INDEX IF NOT EXISTS sources_subject ON sources(subject_id);
 CREATE INDEX IF NOT EXISTS sources_sha ON sources(subject_id, sha256);
 CREATE TABLE IF NOT EXISTS source_exclusions(
@@ -45,6 +46,9 @@ def init_schema(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(studio_items)").fetchall()}
     if "note" not in cols:  # pragma: no cover - only for pre-release DBs
         conn.execute("ALTER TABLE studio_items ADD COLUMN note TEXT")
+    # sources.index_version: which extraction/chunking rules built the chunks (NULL = the first ones).
+    if "index_version" not in {r[1] for r in conn.execute("PRAGMA table_info(sources)").fetchall()}:
+        conn.execute("ALTER TABLE sources ADD COLUMN index_version INTEGER")
 
 
 def _as_dict(cur: sqlite3.Cursor, row: Any) -> dict[str, Any]:

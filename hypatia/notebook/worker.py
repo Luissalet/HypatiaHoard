@@ -95,9 +95,10 @@ class Worker:
             teacher_jobs.run(self.services, arg, self.stop_event)
 
     def _rescan(self, subject_id: Optional[str]) -> None:
-        from . import sources
+        from . import llm, sources
 
         subjects = self.services.store.list("subject") or []
+        current = llm.embedding_model(self.services)  # the model that embeds now: vectors of another one are re-made
         if subject_id:
             subjects = [s for s in subjects if s.get("id") == subject_id]
         for subject in subjects:
@@ -111,7 +112,7 @@ class Worker:
             for sid in counts.get("pending", []):
                 self.put(P_BACKGROUND, "index", sid)
             pending = set(counts.get("pending", []))
-            for sid in sources.sources_missing_vectors(self.services, subject["id"]):
+            for sid in sources.sources_missing_vectors(self.services, subject["id"], current):
                 if sid not in pending:
                     self.put(P_BACKGROUND, "embed", sid)
 

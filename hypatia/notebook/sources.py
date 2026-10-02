@@ -16,12 +16,13 @@ import hashlib
 import json
 import re
 import weakref
-import zipfile
 from pathlib import Path
 from typing import Any, Iterable, Optional
-from xml.etree import ElementTree
 
 from ..hashing import slugify
+from ..hoard_link import atomic, fam_docs
+from ..hoard_link.docs import chunking, readers_lite, textclean, vecmath
+from ..hoard_link.docs.chunking import Unit
 from . import llm
 from .schema import row, rows
 
@@ -31,6 +32,11 @@ CHUNK_CHARS = 900
 CHUNK_OVERLAP = 150
 MIN_TAIL = 200
 EMBED_BATCH = 32
+# Bumped whenever extraction or chunking changes (2: the shared readers, cleaner and chunker): a source indexed
+# under an older version is re-extracted by the next rescan, so every chunk follows the same rules.
+INDEX_VERSION = 2
+SCAN_BLANK_RATIO = 0.5   # a PDF with at least this share of pages without a text layer is read with OCR
+BLANK_PAGE_CHARS = 20
 _SAFE_NAME = re.compile(r"[^\w\-. ()\[\]áéíóúÁÉÍÓÚñÑüÜ]+", re.UNICODE)
 
 
@@ -52,16 +58,6 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _read_text_file(path: Path) -> str:
-    raw = path.read_bytes()
-    for enc in ("utf-8-sig", "cp1252", "latin-1"):
-        try:
-            return raw.decode(enc)
-        except UnicodeDecodeError:
-            continue
-    return raw.decode("utf-8", "replace")  # pragma: no cover
-
-
 def _pdf_pages(path: Path) -> list[str]:
     from pypdf import PdfReader  # server dependency
 
@@ -80,137 +76,61 @@ def _pdf_pages(path: Path) -> list[str]:
     return pages
 
 
-_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_NOBODY = frozenset({"hub_down", "app_down", "app_missing", "tool_missing"})
 
 
-def _docx_blocks(path: Path) -> list[tuple[Optional[str], str]]:
-    """(heading-or-None, paragraph text) for each paragraph of a .docx."""
-    try:
-        with zipfile.ZipFile(path) as zf:
-            xml = zf.read("word/document.xml")
-    except (zipfile.BadZipFile, KeyError) as exc:
-        raise SourceError(f"DOCX no válido: {exc}") from exc
-    root = ElementTree.fromstring(xml)
-    out: list[tuple[Optional[str], str]] = []
-    for p in root.iter(f"{_W}p"):
-        style = p.find(f"{_W}pPr/{_W}pStyle")
-        style_val = (style.get(f"{_W}val") or "") if style is not None else ""
-        parts: list[str] = []
-        for node in p.iter():
-            if node.tag == f"{_W}t":
-                parts.append(node.text or "")
-            elif node.tag == f"{_W}tab":
-                parts.append("\t")
-            elif node.tag in (f"{_W}br", f"{_W}cr"):
-                parts.append("\n")
-        text = "".join(parts).strip()
-        if not text:
-            continue
-        is_heading = bool(re.match(r"(?i)(heading|t[ií]tulo|title)", style_val))
-        out.append(("h" if is_heading else None, text))
+def _is_scan(pages: list[str]) -> bool:
+    blank = sum(1 for p in pages if textclean.useful_chars(p) < BLANK_PAGE_CHARS)
+    return bool(pages) and blank / len(pages) >= SCAN_BLANK_RATIO
+
+
+def _ocr_pages(path: Path, pages: list[str]) -> list[str]:
+    """A scanned PDF read by Kafka's OCR through the hub (text-layer pages are kept as they are). Without Kafka
+    the pages stay as they were and the caller reports that the file has no text."""
+    got = fam_docs.extract(str(path), ocr="auto", local_fallback=False)
+    if not got.get("ok"):
+        if str(got.get("kind") or "") in _NOBODY:
+            return pages
+        raise SourceError(f"PDF escaneado: no se pudo leer con OCR ({got.get('error') or 'sin respuesta'})")
+    out = list(pages)
+    for unit in got.get("units") or []:
+        n = int(unit.get("number") or 0)
+        if unit.get("kind") == "page" and 1 <= n <= len(out) and textclean.useful_chars(unit.get("text")) >= BLANK_PAGE_CHARS:
+            out[n - 1] = str(unit["text"])
     return out
 
 
-def _clean(text: str) -> str:
-    text = text.replace("­", "").replace("\x00", "")
-    text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)  # hyphenation across lines
-    text = re.sub(r"[ \t ]+", " ", text)
-    text = re.sub(r" *\n *", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return _unstack_words(text.strip())
-
-
-def _unstack_words(text: str) -> str:
-    """Some PDF exporters put every word on its own line ("menor\n\nuso\n\ndirecto"):
-    join them back into running text, or each chunk wastes most of its tokens on breaks."""
-    lines = [ln for ln in text.split("\n") if ln.strip()]
-    if len(lines) < 20:
-        return text
-    single = sum(1 for ln in lines if " " not in ln.strip())
-    lengths = sorted(len(ln) for ln in lines)
-    if single / len(lines) > 0.6 and lengths[len(lengths) // 2] <= 14:
-        return re.sub(r"\s*\n+\s*", " ", text).strip()
-    return text
-
-
-def _line_key(line: str) -> str:
-    return re.sub(r"\d+", "#", line.strip().lower())
-
-
-def strip_repeated_lines(pages: list[str]) -> list[str]:
-    """Drop header/footer lines: lines identical (digits ignored) on >50 % of pages."""
-    if len(pages) < 3:
-        return pages
-    counts: dict[str, int] = {}
-    for page in pages:
-        for key in {_line_key(l) for l in page.splitlines() if l.strip() and len(l.strip()) <= 160}:
-            counts[key] = counts.get(key, 0) + 1
-    repeated = {k for k, c in counts.items() if c > len(pages) / 2}
-    if not repeated:
-        return pages
-    return ["\n".join(l for l in page.splitlines() if _line_key(l) not in repeated) for page in pages]
-
-
-def split_text(text: str, size: int = CHUNK_CHARS, overlap: int = CHUNK_OVERLAP) -> list[str]:
-    """Split into ~size-char windows with ~overlap, cutting at sentence/word boundaries."""
-    text = text.strip()
-    if not text:
-        return []
-    if len(text) <= size:
-        return [text]
-    spans: list[tuple[int, int]] = []
-    start = 0
-    n = len(text)
-    while start < n:
-        end = min(start + size, n)
-        if end < n:
-            window = text[start:end]
-            for pat in ("\n\n", ". ", ".\n", "? ", "! ", "; ", "\n", " "):
-                pos = window.rfind(pat, int(size * 0.6))
-                if pos >= 0:
-                    end = start + (pos + 1 if pat.strip() else pos)
-                    break
-        if text[start:end].strip():
-            spans.append((start, end))
-        if end >= n:
-            break
-        nxt = max(end - overlap, start + 1)
-        sp = text.find(" ", nxt)
-        start = sp + 1 if 0 <= sp < end else nxt
-    if len(spans) >= 2 and spans[-1][1] - spans[-1][0] < MIN_TAIL:
-        last = spans.pop()
-        spans[-1] = (spans[-1][0], last[1])
-    return [text[a:b].strip() for a, b in spans]
+def _chunk_dicts(units: list[Unit]) -> list[dict[str, Any]]:
+    # min_unit=0: a short section keeps its own heading (the citation shows it) instead of joining its neighbour.
+    found = chunking.chunk_units(units, size=CHUNK_CHARS, overlap=CHUNK_OVERLAP, min_unit=0, min_tail=MIN_TAIL)
+    return [{"page": c.page, "heading": c.section or None, "text": c.text} for c in found]
 
 
 def extract_chunks(path: Path, kind: str) -> tuple[int, list[dict[str, Any]]]:
-    """(pages, [{page, heading, text}]) for a file."""
-    chunks: list[dict[str, Any]] = []
+    """(pages, [{page, heading, text}]) for a file. The page is the citation unit of a PDF: chunks never cross it."""
     if kind == "pdf":
-        pages = strip_repeated_lines(_pdf_pages(path))
-        for i, page in enumerate(pages, start=1):
-            for piece in split_text(_clean(page)):
-                chunks.append({"page": i, "heading": None, "text": piece})
-        return len(pages), chunks
+        pages = _pdf_pages(path)
+        if _is_scan(pages):
+            pages = _ocr_pages(path, pages)
+        pages = textclean.strip_repeated_lines(pages)
+        units = [Unit("page", i, "", textclean.clean_text(page)) for i, page in enumerate(pages, start=1)]
+        return len(pages), _chunk_dicts(units)
     if kind == "docx":
-        sections: list[tuple[Optional[str], list[str]]] = [(None, [])]
-        for flag, text in _docx_blocks(path):
-            if flag == "h":
-                sections.append((text[:200], []))
-            else:
-                sections[-1][1].append(text)
-        for heading, paras in sections:
-            for piece in split_text(_clean("\n".join(paras))):
-                chunks.append({"page": None, "heading": heading, "text": piece})
-        return 0, chunks
+        try:
+            found = readers_lite.read_docx(path)
+        except (ValueError, OSError) as exc:  # damaged file, zip bomb
+            raise SourceError(f"DOCX no válido: {exc}") from exc
+        return 0, _chunk_dicts([Unit("section", u["number"], (u.get("title") or "")[:200], u["text"]) for u in found])
     # md / txt: sections by markdown headings
-    text = _read_text_file(path)
+    text = textclean.decode_text(path.read_bytes())
+    units: list[Unit] = []
     heading: Optional[str] = None
     buf: list[str] = []
 
     def flush() -> None:
-        for piece in split_text(_clean("\n".join(buf))):
-            chunks.append({"page": None, "heading": heading, "text": piece})
+        body = textclean.clean_text("\n".join(buf))
+        if body:
+            units.append(Unit("section", len(units) + 1, heading or "", body))
 
     for line in text.splitlines():
         m = re.match(r"^\s{0,3}#{1,6}\s+(.*)$", line) if kind == "md" else None
@@ -221,7 +141,7 @@ def extract_chunks(path: Path, kind: str) -> tuple[int, list[dict[str, Any]]]:
         else:
             buf.append(line)
     flush()
-    return 0, chunks
+    return 0, _chunk_dicts(units)
 
 
 # ---------------------------------------------------------------- discovery
@@ -331,6 +251,11 @@ def register_file(services: Any, subject_id: str, path: Path, origin: str,
     return src, ("changed" if existing else "new")
 
 
+def _stale_index(src: dict[str, Any]) -> bool:
+    """Indexed under older extraction/chunking rules (searchable meanwhile; the rescan rebuilds it)."""
+    return src.get("status") == "indexed" and (src.get("index_version") or 1) != INDEX_VERSION
+
+
 def scan_subject(services: Any, subject: dict[str, Any]) -> dict[str, Any]:
     """Discover repo files for one subject, register them and forget vanished ones."""
     sid = subject["id"]
@@ -354,9 +279,9 @@ def scan_subject(services: Any, subject: dict[str, Any]) -> dict[str, Any]:
                 continue
             counts[change] += 1
             seen.add(src["id"])
-            if src["status"] == "pending":
+            if src["status"] == "pending" or _stale_index(src):
                 pending.append(src["id"])
-    for src in rows(services, "SELECT id, origin, path, status FROM sources WHERE subject_id=?", (sid,)):
+    for src in rows(services, "SELECT id, origin, path, status, index_version FROM sources WHERE subject_id=?", (sid,)):
         if src["origin"] in ("repo", "upload", "studio") and src["id"] not in seen and not Path(src["path"]).is_file():
             remove_source_rows(services, src["id"])
             counts["removed"] += 1
@@ -364,7 +289,7 @@ def scan_subject(services: Any, subject: dict[str, Any]) -> dict[str, Any]:
             with services.db.tx() as conn:
                 conn.execute("UPDATE sources SET status='error', error=? WHERE id=?",
                              ("Archivo no encontrado", src["id"]))
-        elif src["status"] == "pending" and src["id"] not in pending:
+        elif (src["status"] == "pending" or _stale_index(src)) and src["id"] not in pending:
             pending.append(src["id"])
     counts["pending"] = pending
     return counts
@@ -419,9 +344,7 @@ def save_upload(services: Any, subject_id: str, filename: str, data: bytes) -> t
     if not data:
         raise SourceError("El archivo está vacío")
     target = uploads_dir(services, subject_id) / name
-    tmp = target.with_name(target.name + ".part")
-    tmp.write_bytes(data)
-    tmp.replace(target)
+    atomic.write_bytes_atomic(target, data)
     return register_file(services, subject_id, target, "upload")
 
 
@@ -451,7 +374,7 @@ def index_source(services: Any, source_id: str, *, embed: bool = True) -> dict[s
     if not src:
         return {"id": source_id, "status": "missing"}
     path = Path(src["path"])
-    if src["status"] == "indexed":
+    if src["status"] == "indexed" and not _stale_index(src):
         try:
             if path.is_file() and sha256_file(path) == src["sha256"]:
                 return src
@@ -475,8 +398,9 @@ def index_source(services: Any, source_id: str, *, embed: bool = True) -> dict[s
                                (source_id, ord_, ch["page"], ch["heading"], ch["text"]))
             conn.execute("INSERT INTO chunks_fts(rowid, text, heading) VALUES(?,?,?)",
                          (cur.lastrowid, ch["text"], ch["heading"] or ""))
-        conn.execute("UPDATE sources SET status='indexed', error=NULL, pages=?, sha256=?, bytes=?, indexed_at=?"
-                     " WHERE id=?", (pages or None, digest, path.stat().st_size, services.now_iso(), source_id))
+        conn.execute("UPDATE sources SET status='indexed', error=NULL, pages=?, sha256=?, bytes=?, indexed_at=?,"
+                     " index_version=? WHERE id=?",
+                     (pages or None, digest, path.stat().st_size, services.now_iso(), INDEX_VERSION, source_id))
     if embed:
         embed_source(services, source_id)
     return row(services, "SELECT * FROM sources WHERE id=?", (source_id,)) or {}
@@ -487,7 +411,8 @@ _no_embed_until: "weakref.WeakKeyDictionary[Any, float]" = weakref.WeakKeyDictio
 
 
 def embed_source(services: Any, source_id: str) -> int:
-    """Add vectors for chunks without one. Returns how many; 0 when no model (a miss is
+    """Add vectors for chunks without one, and replace the ones another embedding model made (vectors of two
+    models cannot be compared, so a change of model re-embeds). Returns how many; 0 when no model (a miss is
     remembered for a few minutes so a big rescan does not probe the backends per file)."""
     import time
 
@@ -495,18 +420,24 @@ def embed_source(services: Any, source_id: str) -> int:
         return 0
     todo = rows(services, "SELECT c.id, c.text, c.heading FROM chunks c LEFT JOIN chunk_vecs v ON v.chunk_id=c.id"
                           " WHERE c.source_id=? AND v.chunk_id IS NULL ORDER BY c.ord", (source_id,))
+    held = {r["model"] or "" for r in rows(
+        services, "SELECT DISTINCT v.model AS model FROM chunk_vecs v JOIN chunks c ON c.id=v.chunk_id"
+                  " WHERE c.source_id=?", (source_id,))}
+    if held:
+        current = llm.embedding_model(services)
+        if current and held - {current}:
+            todo += rows(services, "SELECT c.id, c.text, c.heading FROM chunks c JOIN chunk_vecs v ON v.chunk_id=c.id"
+                                   " WHERE c.source_id=? AND COALESCE(v.model,'')<>? ORDER BY c.ord", (source_id, current))
     if not todo:
         return 0
     batches = [todo[i:i + EMBED_BATCH] for i in range(0, len(todo), EMBED_BATCH)]
     try:
         model, vectors = llm.embed(services, [[(c["heading"] + "\n" if c["heading"] else "") + c["text"]
-                                              for c in b] for b in batches])
+                                              for c in b] for b in batches], kind="document")
     except llm.NoModel:
         _no_embed_until[services] = time.monotonic() + _NO_EMBED_TTL_S
         return 0
     _no_embed_until.pop(services, None)
-    from .retrieval import pack_vec
-
     done = 0
     with services.db.tx() as conn:
         for batch, vecs in zip(batches, vectors):
@@ -514,16 +445,24 @@ def embed_source(services: Any, source_id: str) -> int:
                 if not v:
                     continue
                 conn.execute("INSERT OR REPLACE INTO chunk_vecs(chunk_id, model, dim, vec) VALUES(?,?,?,?)",
-                             (c["id"], model or "", len(v), pack_vec(v)))
+                             (c["id"], model or "", len(v), vecmath.pack_vec(v)))
                 done += 1
     return done
 
 
-def sources_missing_vectors(services: Any, subject_id: str) -> list[str]:
-    return [r["id"] for r in rows(
+def sources_missing_vectors(services: Any, subject_id: str, current_model: Optional[str] = None) -> list[str]:
+    """Indexed sources with chunks that have no vector, or (given the model that embeds now) whose vectors were
+    made by another model."""
+    found = {r["id"] for r in rows(
         services, "SELECT DISTINCT c.source_id AS id FROM chunks c JOIN sources s ON s.id=c.source_id"
                   " LEFT JOIN chunk_vecs v ON v.chunk_id=c.id WHERE s.subject_id=? AND s.status='indexed'"
-                  " AND v.chunk_id IS NULL", (subject_id,))]
+                  " AND v.chunk_id IS NULL", (subject_id,))}
+    if current_model:
+        found |= {r["id"] for r in rows(
+            services, "SELECT DISTINCT c.source_id AS id FROM chunks c JOIN sources s ON s.id=c.source_id"
+                      " JOIN chunk_vecs v ON v.chunk_id=c.id WHERE s.subject_id=? AND s.status='indexed'"
+                      " AND COALESCE(v.model,'')<>?", (subject_id, current_model))}
+    return sorted(found)
 
 
 def list_sources(services: Any, subject_id: str) -> list[dict[str, Any]]:

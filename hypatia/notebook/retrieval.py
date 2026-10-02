@@ -2,51 +2,19 @@
 
 from __future__ import annotations
 
-import math
 import re
-from array import array
-from typing import Any, Iterable, Optional
+from typing import Any, Optional
 
 from ..hashing import slugify
+from ..hoard_link.docs import textsearch, vecmath
+from ..hoard_link.docs.vecmath import pack_vec, unpack_vec  # noqa: F401 - the stored vector format
 from . import llm
 from .schema import row, rows
 
 FTS_CANDIDATES = 40
 DEFAULT_K = 8
-MAX_VECTOR_SCAN = 6000
+VECTOR_BLOCK = 4000  # vectors read and scored at a time: memory stays flat however big the notebook grows
 SNIPPET_CHARS = 280
-
-_STOP = set("""
-a al algo algun alguna algunas alguno algunos ante antes asi aun bajo bien cada como con contra cual cuales
-cuando de del desde donde dos el ella ellas ello ellos en entre era eran es esa esas ese eso esos esta estan
-estas este esto estos fue fueron ha han hasta hay la las le les lo los mas me mi mis muy nada ni no nos nosotros
-o os otra otras otro otros para pero poco por porque que quien quienes se sea segun ser si sido sin sobre son
-su sus tambien tan tanto te tiene tienen todo todos tu tus un una unas uno unos ya yo explica explicame dime
-cual cuales define definicion significa the of and or to in on for is are what which how why with by an be as
-at this that it from
-""".split())
-
-
-# ---------------------------------------------------------------- vectors
-
-def pack_vec(v: Iterable[float]) -> bytes:
-    return array("f", [float(x) for x in v]).tobytes()
-
-
-def unpack_vec(b: bytes) -> list[float]:
-    a = array("f")
-    a.frombytes(b)
-    return a.tolist()
-
-
-def _norm(v: list[float]) -> float:
-    return math.sqrt(sum(x * x for x in v)) or 1.0
-
-
-def cosine(a: list[float], b: list[float], nb: Optional[float] = None) -> float:
-    if len(a) != len(b):
-        return 0.0
-    return sum(x * y for x, y in zip(a, b)) / (_norm(a) * (nb or _norm(b)))
 
 
 # ---------------------------------------------------------------- scope
@@ -90,22 +58,8 @@ def resolve_scope(services: Any, subject_id: str, topic: Optional[str] = None,
 # ---------------------------------------------------------------- search
 
 def fts_query(text: str) -> Optional[str]:
-    terms: list[str] = []
-    for tok in re.findall(r"\w+", text.lower()):
-        if len(tok) < 2 or tok in _STOP:
-            continue
-        if len(tok) > 6:
-            tok = tok[: max(6, len(tok) - 3)]
-            term = f'"{tok}"*'
-        elif len(tok) >= 4:
-            term = f'"{tok}"*'
-        else:
-            term = f'"{tok}"'
-        if term not in terms:
-            terms.append(term)
-        if len(terms) >= 16:
-            break
-    return " OR ".join(terms) if terms else None
+    """Any of the content words as prefixes (the widest net; bm25 ranks the rest), or None."""
+    return textsearch.fts_query(text, mode="or", max_terms=16) or None
 
 
 def _marks(ids: list[Any]) -> str:
@@ -126,6 +80,8 @@ def _fts(services: Any, query: str, source_ids: list[str], limit: int) -> dict[i
 
 
 def _vectors(services: Any, query: str, source_ids: list[str], candidates: set[int]) -> dict[int, float]:
+    """Cosine scores of the best chunks in scope (every stored vector is scored, in blocks) plus the lexical
+    candidates. Empty when nothing is embedded or the stored vectors come from another model than the query's."""
     if not source_ids:
         return {}
     have = row(services, f"SELECT v.model AS model, COUNT(*) AS n FROM chunk_vecs v JOIN chunks c ON c.id=v.chunk_id"
@@ -134,7 +90,7 @@ def _vectors(services: Any, query: str, source_ids: list[str], candidates: set[i
     if not have or not have["n"]:
         return {}
     try:
-        model, vecs = llm.embed(services, [[query]])
+        model, vecs = llm.embed(services, [[query]], kind="query")
     except llm.NoModel:
         return {}
     if not vecs or not vecs[0] or not vecs[0][0]:
@@ -142,17 +98,32 @@ def _vectors(services: Any, query: str, source_ids: list[str], candidates: set[i
     if model and have["model"] and model != have["model"]:
         return {}
     qv = vecs[0][0]
-    stored = rows(services, f"SELECT v.chunk_id AS id, v.vec AS vec FROM chunk_vecs v JOIN chunks c ON c.id=v.chunk_id"
-                            f" WHERE c.source_id IN ({_marks(source_ids)}) AND v.model=? LIMIT ?",
-                  [*source_ids, have["model"], MAX_VECTOR_SCAN])
-    qn = _norm(qv)
-    scores = {r["id"]: cosine(unpack_vec(r["vec"]), qv, qn) for r in stored}
-    top = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:FTS_CANDIDATES]
-    out = dict(top)
-    for cid in candidates:
-        if cid in scores:
-            out[cid] = scores[cid]
-    return out
+    sql = (f"SELECT v.chunk_id AS id, v.vec AS vec FROM chunk_vecs v JOIN chunks c ON c.id=v.chunk_id"
+           f" WHERE c.source_id IN ({_marks(source_ids)}) AND v.model=? AND v.chunk_id>? ORDER BY v.chunk_id LIMIT ?")
+    best: dict[int, float] = {}
+    after = 0
+    while True:
+        block = rows(services, sql, [*source_ids, have["model"], after, VECTOR_BLOCK])
+        if not block:
+            break
+        after = block[-1]["id"]
+        usable = [r for r in block if len(r["vec"]) == 4 * len(qv)]
+        if usable:
+            matrix = [unpack_vec(r["vec"]) for r in usable]
+            for i, score in vecmath.topk(matrix, qv, FTS_CANDIDATES):
+                best[usable[i]["id"]] = score
+            best = dict(sorted(best.items(), key=lambda kv: kv[1], reverse=True)[:FTS_CANDIDATES])
+        if len(block) < VECTOR_BLOCK:
+            break
+    # the lexical candidates get a score too, even when they are not among the closest vectors
+    missing = [cid for cid in candidates if cid not in best]
+    for start in range(0, len(missing), 500):
+        part = missing[start:start + 500]
+        for r in rows(services, f"SELECT chunk_id AS id, vec FROM chunk_vecs WHERE model=? AND chunk_id IN ({_marks(part)})",
+                      [have["model"], *part]):
+            if len(r["vec"]) == 4 * len(qv):
+                best[r["id"]] = vecmath.cosine(unpack_vec(r["vec"]), qv)
+    return best
 
 
 def _minmax(d: dict[int, float]) -> dict[int, float]:
