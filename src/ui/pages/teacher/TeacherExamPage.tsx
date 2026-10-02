@@ -6,9 +6,9 @@ import { Badge, Button, Card, Input, Select, Textarea, TypeBadge } from '@/ui/co
 import { MdContent } from '@/ui/components/MdContent';
 import { db } from '@/data/db';
 import { batchRepo, classRepo, rubricRepo, teacherExamRepo } from '@/data/teacherRepo';
-import { QTYPES, reviewDrafts, saveExamItems, updateExam } from '@/data/teacherExams';
+import { QTYPES, draftProblem, reviewDrafts, saveExamItems, updateExam } from '@/data/teacherExams';
 import { startGeneration } from '@/data/teacherClient';
-import { answerKey } from '@/domain/teacherCore';
+import { LETTERS, answerKey } from '@/domain/teacherCore';
 import type { Question, QuestionType } from '@/domain/models';
 import type { Rubric, TeacherClass, TeacherExam } from '@/domain/teacher';
 import { generateTeacherExamPDF } from '@/utils/teacherPdf';
@@ -77,6 +77,7 @@ export function TeacherExamPage() {
   }
   const { exam, questions } = data;
   const pending = exam.drafts.filter((d) => d.status === 'pending');
+  const approvable = pending.filter((d) => !draftProblem(d));
   const total = exam.items.reduce((s, i) => s + Number(i.points || 0), 0);
   const rubricOf = (qid: string): Rubric | undefined => {
     const item = exam.items.find((i) => i.questionId === qid);
@@ -146,21 +147,17 @@ export function TeacherExamPage() {
           <Card className="flex flex-col gap-3 border-amber-500/40">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-display text-base text-ink-100">Borradores del modelo ({pending.length})</h2>
-              <Button size="sm" onClick={() => run('drafts', async () => {
-                const res = await reviewDrafts(exam.id, pending.map((d) => d.id), []);
+              <Button size="sm" disabled={!approvable.length} onClick={() => run('drafts', async () => {
+                const res = await reviewDrafts(exam.id, approvable.map((d) => d.id), []);
                 setMsg(`${res.added} preguntas nuevas en el banco y en el examen.`);
-              })} loading={busy === 'drafts'}>Aprobar todos</Button>
+              })} loading={busy === 'drafts'}>Aprobar los válidos ({approvable.length})</Button>
             </div>
             <p className="text-xs text-ink-500">Nada entra en el banco hasta que lo apruebas. Cada borrador cita el pasaje de tu material del que sale.</p>
             {pending.map((d) => (
               <div key={d.id} className="rounded-lg border border-ink-700 p-3 flex flex-col gap-2">
                 <div className="flex items-center gap-2"><TypeBadge type={d.type} /><span className="text-xs text-ink-500">{fmt(d.points)} p · {data.topics.get(d.topicId ?? '') ?? 'Sin tema'}</span></div>
                 <MdContent content={d.question.prompt} className="prose prose-invert prose-sm max-w-none" />
-                {d.question.options && (
-                  <ul className="text-sm text-ink-300 pl-4">
-                    {d.question.options.map((o) => <li key={o.id} className={d.question.correctOptionIds?.includes(o.id) ? 'text-sage-400' : ''}>{o.id}) {o.text}</li>)}
-                  </ul>
-                )}
+                {d.question.options && !draftProblem(d) && <OptionList options={d.question.options} correct={d.question.correctOptionIds ?? []} />}
                 {d.question.modelAnswer && <p className="text-xs text-ink-400"><span className="text-ink-300">Respuesta modelo:</span> {d.question.modelAnswer}</p>}
                 {d.question.clozeText && <p className="text-xs text-ink-400">{d.question.clozeText} → {(d.question.blanks ?? []).map((b) => b.accepted.join(' / ')).join(' | ')}</p>}
                 <div className="text-xs text-ink-400 border-l-2 border-amber-500/50 pl-2">
@@ -171,9 +168,10 @@ export function TeacherExamPage() {
                     <p key={`a${c.n}`}><span className="text-ink-300">Respuesta en:</span> {c.filename}{c.page ? `, p. ${c.page}` : ''} — «{c.snippet}»</p>
                   ))}
                 </div>
+                {draftProblem(d) && <p className="text-xs text-rose-300">No se puede aprobar: {draftProblem(d)}. Recházalo y genera otro.</p>}
                 <div className="flex gap-2 justify-end">
                   <Button size="sm" variant="ghost" onClick={() => run('d', async () => { await reviewDrafts(exam.id, [], [d.id]); })}>Rechazar</Button>
-                  <Button size="sm" onClick={() => run('d', async () => { await reviewDrafts(exam.id, [d.id], []); })}>Aprobar</Button>
+                  <Button size="sm" disabled={!!draftProblem(d)} onClick={() => run('d', async () => { await reviewDrafts(exam.id, [d.id], []); })}>Aprobar</Button>
                 </div>
               </div>
             ))}
@@ -225,6 +223,13 @@ export function TeacherExamPage() {
                   </div>
                 </div>
                 {q && <MdContent content={q.prompt} className="prose prose-invert prose-sm max-w-none" />}
+                {q?.type === 'TEST' && <OptionList options={q.options ?? []} correct={q.correctOptionIds ?? []} />}
+                {q?.type === 'COMPLETAR' && (
+                  <p className="text-xs text-ink-400">Solución: {(q.blanks ?? []).map((b) => b.accepted.join(' / ')).join(' | ')}</p>
+                )}
+                {q && (q.type === 'DESARROLLO' || q.type === 'PRACTICO') && q.modelAnswer && (
+                  <details className="text-xs text-ink-400"><summary className="cursor-pointer">Respuesta modelo</summary><MdContent content={q.modelAnswer} className="prose prose-invert prose-sm max-w-none mt-1" /></details>
+                )}
                 {q && (q.type === 'DESARROLLO' || q.type === 'PRACTICO') && (
                   <div className="flex items-center gap-2">
                     <Button size="sm" variant={rub ? 'secondary' : 'primary'} onClick={() => setRubricFor({ q, points: item.points })}>
@@ -310,5 +315,24 @@ export function TeacherExamPage() {
         <RubricEditor open onClose={() => setRubricFor(null)} exam={exam} question={rubricFor.q} points={rubricFor.points} caps={caps} />
       )}
     </div>
+  );
+}
+
+/** Opciones de un TEST en el orden de la versión A, con las correctas marcadas (vista del profesor). */
+function OptionList({ options, correct }: { options: { id: string; text: string }[]; correct: string[] }) {
+  if (!options.length) return <p className="text-xs text-rose-300">Esta pregunta de test no tiene opciones.</p>;
+  return (
+    <ul className="flex flex-col gap-1 text-sm">
+      {options.map((o, i) => {
+        const ok = correct.includes(o.id);
+        return (
+          <li key={o.id} className={`flex gap-2 rounded px-2 py-1 border ${ok ? 'border-sage-500/50 bg-sage-600/10 text-sage-300' : 'border-ink-700 text-ink-300'}`}>
+            <span className="font-medium">{LETTERS[i]})</span>
+            <MdContent content={o.text} className="prose prose-invert prose-sm max-w-none flex-1 min-w-0" />
+            {ok && <span className="text-xs shrink-0" aria-label="Correcta">✓ correcta</span>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

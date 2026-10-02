@@ -35,6 +35,7 @@ out.roster = input.rosters.map((t) => c.parseRoster(t));
 out.grid = input.grids.map((t) => c.parseAnswerGrid(t));
 out.gridAnswers = c.gridAnswers(exam, input.questions, 'B', { 1: 'b', 2: 'x; y', 4: 'texto libre' });
 out.csv = c.gradesCsv(input.csvRows);
+out.testProblems = input.testDrafts.map((d) => c.testProblem(d));
 console.log(JSON.stringify(out));
 """
 
@@ -102,6 +103,9 @@ def py_side(inp: dict) -> dict:
     from hypatia.teacher.assess import grades_csv
 
     out["csv"] = grades_csv(inp["csvRows"])
+    from hypatia.options import invalid_test_reason
+
+    out["testProblems"] = [invalid_test_reason(d) for d in inp["testDrafts"]]
     return out
 
 
@@ -137,6 +141,17 @@ def test_typescript_twin_matches_python():
                     "Nombre;Apellidos;Correo\nAna;Ficticia;ana@example.invalid\n;;\nBea;Inventada;",
                     "alias\temail\nEstrella\testrella@example.invalid", "\n\n"],
         "grids": ["Alumno;Versión;1;2;3\nAna;b;c;a,c;x\n;A;b\nBea;;a", "Ana\tb\ta\n", "nombre,P1,P3\nAna,a,c"],
+        "testDrafts": [
+            {"options": [{"id": "a", "text": "a"}, {"id": "b", "text": "b"}, {"id": "c", "text": "c"}], "correctOptionIds": ["a"]},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": "Dos"}], "correctOptionIds": ["a"]},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": "Opción B"}, {"id": "c", "text": "Tres"}], "correctOptionIds": ["a"]},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": "uno"}, {"id": "c", "text": "Tres"}], "correctOptionIds": ["a"]},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": "Dos"}, {"id": "c", "text": "Tres"}], "correctOptionIds": []},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": "Dos"}, {"id": "c", "text": "Tres"}], "correctOptionIds": ["z"]},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": "Dos"}, {"id": "c", "text": "Tres"}], "correctOptionIds": ["a", "b", "c"]},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": " "}, {"id": "c", "text": "Tres"}], "correctOptionIds": ["a"]},
+            {"options": [{"id": "a", "text": "Uno"}, {"id": "b", "text": "Dos"}, {"id": "c", "text": "Tres"}], "correctOptionIds": ["c"]},
+        ],
         "csvRows": [{"student": "Ana; con punto", "version": "A", "points": 7.25, "maxPoints": 10, "grade": 7.3,
                      "band": "Notable", "confirmed": True},
                     {"student": 'Bea "B"', "version": "B", "points": None, "maxPoints": 10, "grade": None, "band": None,

@@ -104,6 +104,8 @@ export interface ExamDraft {
   citations: Citation[];
   answerCitations?: Citation[];
   status: 'pending' | 'approved' | 'rejected';
+  /** Por qué se rechazó sin entrar al banco (p. ej. un TEST con opciones rotas). */
+  rejectedReason?: string;
   questionId?: string;
   model?: string | null;
   createdAt?: string;

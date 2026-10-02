@@ -12,7 +12,7 @@ import { examRepo, questionRepo, topicRepo } from './repos';
 import { putRecord, teacherExamRepo } from './teacherRepo';
 import type { Question, QuestionType } from '@/domain/models';
 import type { DifficultyMix, ExamHeader, ExamSpec, TeacherExam } from '@/domain/teacher';
-import { buildVersions, round2, seededShuffle } from '@/domain/teacherCore';
+import { buildVersions, round2, seededShuffle, testProblem } from '@/domain/teacherCore';
 import { computeContentHash } from '@/domain/hashing';
 import { slugify } from '@/domain/normalize';
 
@@ -161,6 +161,11 @@ function sourceLine(cites: TeacherExam['drafts'][number]['citations']): string {
   return parts.length ? `Fuente: ${parts.join('; ')}` : '';
 }
 
+/** ¿Se puede aprobar este borrador? (un TEST tiene que tener opciones de verdad). */
+export function draftProblem(d: TeacherExam['drafts'][number]): string | null {
+  return d.type === 'TEST' ? testProblem(d.question) : null;
+}
+
 /** Aprueba borradores (entran al banco y al examen) o los rechaza. */
 export async function reviewDrafts(examId: string, accept: string[], reject: string[]): Promise<{ exam: TeacherExam; added: number }> {
   const acceptSet = new Set(accept);
@@ -171,7 +176,11 @@ export async function reviewDrafts(examId: string, accept: string[], reject: str
     const drafts = [];
     for (const d0 of fresh.drafts) {
       const d = { ...d0 };
-      if (acceptSet.has(d.id) && d.status === 'pending') {
+      const problem = d.type === 'TEST' ? testProblem(d.question) : null;
+      if (acceptSet.has(d.id) && d.status === 'pending' && problem) {
+        d.status = 'rejected';  // un TEST roto nunca entra en el banco
+        d.rejectedReason = `test inválido: ${problem}`;
+      } else if (acceptSet.has(d.id) && d.status === 'pending') {
         let topicId = d.topicId ?? null;
         if (!topicId || !(await topicRepo.getById(topicId))) {
           const topics = await topicRepo.getBySubject(fresh.subjectId);

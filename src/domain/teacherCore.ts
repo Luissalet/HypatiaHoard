@@ -766,6 +766,31 @@ export function gridAnswers(exam: ExamLike, questions: QMap, versionLabel: strin
   return out;
 }
 
+// ─── Validación de un borrador TEST ──────────────────────────────────────────
+
+const GENERIC_OPTION = /^(?:opci[oó]n|option|respuesta|answer)?\s*\(?[a-z0-9]\)?\.?$/;
+
+/** Por qué un TEST no se puede enseñar (null si está bien). Gemelo de hypatia/options.py#test_problem. */
+export function testProblem(q: { options?: { id: string; text: string }[]; correctOptionIds?: string[] }, minOptions = 3): string | null {
+  const options = q.options ?? [];
+  if (options.length < minOptions) return `menos de ${minOptions} opciones`;
+  const seen = new Set<string>();
+  for (const o of options) {
+    const text = String(o.text ?? '').trim();
+    const norm = normalizeText(text);
+    if (!text) return 'opción vacía';
+    if (norm === normalizeText(String(o.id ?? '').trim()) || GENERIC_OPTION.test(norm)) return 'opción sin texto (solo la letra)';
+    if (seen.has(norm)) return 'opciones repetidas';
+    seen.add(norm);
+  }
+  const ids = options.map((o) => o.id);
+  const correct = q.correctOptionIds ?? [];
+  if (!correct.length) return 'sin respuesta correcta marcada';
+  if (new Set(correct).size !== correct.length || !correct.every((c) => ids.includes(c))) return 'respuesta correcta que no es una de las opciones';
+  if (correct.length === ids.length) return 'todas las opciones marcadas como correctas';
+  return null;
+}
+
 // ─── CSV de notas ────────────────────────────────────────────────────────────
 
 export interface GradeRow {
