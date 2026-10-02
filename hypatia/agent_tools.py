@@ -13,6 +13,8 @@ from .math_tool import compute as compute_math
 from .services import Services
 from .tooling import Tool, ann
 
+from .teacher.tools import TEACHER_TOOLS
+
 try:  # Agent B's notebook package; the study tools work without it.
     from .notebook import NOTEBOOK_TOOLS
 except ImportError:  # pragma: no cover - depends on the checkout
@@ -24,6 +26,7 @@ Never reveal the answer before the user has answered. Never call card_review wit
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
 Notebook: cite passages with [n] exactly as the tools number them, never cite a source you were not given, and prefer notebook_search (cheap, passages with citations) when you can compose the answer yourself; use notebook_ask/studio_generate when the user wants the app to generate it.
 For exact arithmetic, polynomial equations or derivatives, use math_compute and report its result; it does not read or change the study bank.
+Teacher role (classes, exams for students, rubrics, batch correction): exam_generate builds an exam from the bank and/or drafts questions from the teacher's sources with citations (drafts need exam_drafts_review); grading_run only PROPOSES grades for open answers against the rubric: show grading_review to the teacher and call grading_confirm only with what the teacher accepts. Student names, answers and grades stay on this PC: never send them anywhere else.
 Never read the data folder or the database directly; use these tools only."""
 
 QType = Literal["TEST", "DESARROLLO", "COMPLETAR", "PRACTICO"]
@@ -508,7 +511,7 @@ COMPAT_TOOLS: list[Tool] = [
          "\nSame data as subjects_list." + SYN + "mazos, barajas, listar mazos.", Empty, ann(True), run_decks_list),
 ]
 
-TOOLS: list[Tool] = STUDY_TOOLS + list(NOTEBOOK_TOOLS) + COMPAT_TOOLS
+TOOLS: list[Tool] = STUDY_TOOLS + list(NOTEBOOK_TOOLS) + COMPAT_TOOLS + TEACHER_TOOLS
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
 
 
