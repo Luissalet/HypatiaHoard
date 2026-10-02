@@ -64,6 +64,24 @@ export async function putRecord<T extends { id: string }>(kind: TeacherKind, obj
   return record;
 }
 
+const updateQueues = new Map<string, Promise<unknown>>();
+
+/**
+ * Cambia un registro a partir de su versión más reciente, en cola por registro: dos
+ * cambios seguidos (dos casillas de la rejilla, dos puntos de un examen) no se pisan.
+ */
+export function updateRecord<T extends { id: string }>(kind: TeacherKind, id: string, mutate: (fresh: T) => T | Promise<T>): Promise<T> {
+  const key = pendingKey(kind, id);
+  const prev = updateQueues.get(key) ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(async () => {
+    const fresh = (await tableOf(kind).get(id)) as unknown as T | undefined;
+    if (!fresh) throw new Error('El registro ya no existe.');
+    return putRecord(kind, await mutate(fresh)) as unknown as T;
+  });
+  updateQueues.set(key, next);
+  return next;
+}
+
 /** Borra un registro y deja el borrado en cola para el servidor. */
 export async function deleteRecord(kind: TeacherKind, id: string, notify = true): Promise<void> {
   await tableOf(kind).delete(id);
@@ -135,6 +153,7 @@ export const teacherExamRepo = {
   },
   get: (id: string) => db.teacherExams.get(id),
   save: (exam: TeacherExam) => putRecord('teacherExam', exam),
+  update: (id: string, mutate: (e: TeacherExam) => TeacherExam | Promise<TeacherExam>) => updateRecord<TeacherExam>('teacherExam', id, mutate),
   /** Borra el examen del profesor con sus rúbricas y entregas (la copia practicable se queda). */
   async delete(id: string): Promise<void> {
     for (const r of await db.rubrics.where('examId').equals(id).toArray()) await deleteRecord('rubric', r.id, false);
@@ -164,8 +183,9 @@ export const rubricRepo = {
       scope: questionId ? 'question' : 'exam', title: data.title, criteria: data.criteria, origin: data.origin,
     } as Rubric);
     if (questionId) {
-      const fresh = (await db.teacherExams.get(exam.id)) ?? exam;
-      await putRecord('teacherExam', { ...fresh, items: fresh.items.map((i) => (i.questionId === questionId ? { ...i, rubricId: rubric.id } : i)) });
+      await updateRecord<TeacherExam>('teacherExam', exam.id, (fresh) => ({
+        ...fresh, items: fresh.items.map((i) => (i.questionId === questionId ? { ...i, rubricId: rubric.id } : i)),
+      }));
     }
     return rubric;
   },
@@ -222,6 +242,8 @@ export const submissionRepo = {
   byBatch: (batchId: string) => db.submissions.where('batchId').equals(batchId).toArray(),
   get: (id: string) => db.submissions.get(id),
   save: (s: Submission) => putRecord('submission', s),
+  /** Cambia una entrega a partir de su versión más reciente (ver updateRecord). */
+  update: (id: string, mutate: (s: Submission) => Submission | Promise<Submission>) => updateRecord<Submission>('submission', id, mutate),
 };
 
 export const proposalRepo = {

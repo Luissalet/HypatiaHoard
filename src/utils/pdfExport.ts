@@ -584,3 +584,9 @@ export function downloadBlob(blob: Blob, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// Shared with the teacher PDFs (utils/teacherPdf.ts).
+export {
+  addMdImageToPdf, addText, addSectionTitle, addPageNumbers, hasLatex, stripMd,
+  PAGE_W, PAGE_H, MARGIN_L, MARGIN_R, MARGIN_T, MARGIN_B, CONTENT_W,
+};

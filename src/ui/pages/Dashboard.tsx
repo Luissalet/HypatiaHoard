@@ -13,6 +13,8 @@ import { deliverableRepo } from '@/data/deliverableRepo';
 import type { Deliverable } from '@/domain/models';
 import { useTheme } from '@/ui/context/ThemeContext';
 import { useHoardMode } from '@/data/hoardMode';
+import { useRole } from '@/data/role';
+import { RoleSwitch } from '@/ui/components/RoleSwitch';
 
 // Chip de sincronización con Hypatia's Hoard: solo se descarga en modo hoard.
 const HoardChip = import.meta.env.VITE_HOARD === '1' ? lazy(() => import('@/ui/components/HoardChip')) : null;
@@ -24,6 +26,7 @@ const SUBJECT_COLORS = [
 export function Dashboard() {
   const navigate = useNavigate();
   const hoard = useHoardMode();
+  const role = useRole();
   const { theme, toggleTheme } = useTheme();
   const {
     subjects, loadSubjects, createSubject, deleteSubject, updateSubject,
@@ -360,6 +363,7 @@ export function Dashboard() {
 
           {/* Nav: accesos rápidos + info + hamburger (todos los tamaños) */}
           <div className="flex items-center gap-1">
+            <div className="hidden sm:block"><RoleSwitch compact /></div>
             {hoard && HoardChip && (
               <Suspense fallback={null}>
                 <HoardChip />
@@ -581,6 +585,30 @@ export function Dashboard() {
         {/* ── Main (scrollable) ──────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6 sm:py-10">
+
+            {/* Móvil: el cambio de rol va aquí (la cabecera no tiene sitio) */}
+            <div className="sm:hidden mb-4 flex items-center justify-between gap-2">
+              <span className="text-xs text-ink-500 uppercase tracking-widest">Rol</span>
+              <RoleSwitch />
+            </div>
+
+            {/* Rol Profesor: accesos a sus pantallas (el modo Estudiante sigue igual debajo) */}
+            {role === 'teacher' && (
+              <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <h2 className="font-display text-lg text-ink-100">Profesor</h2>
+                  <span className="text-xs text-ink-500">Clases, exámenes y notas: datos locales de este equipo.</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[['clases', 'Clases'], ['examenes', 'Generar examen'], ['rubricas', 'Rúbricas'], ['entregas', 'Corrección'], ['analisis', 'Análisis']].map(([tab, label]) => (
+                    <button key={tab} onClick={() => navigate(`/teacher?tab=${tab}`)}
+                      className="rounded-lg border border-ink-700 bg-ink-800 hover:border-amber-500/50 px-3 py-2.5 text-sm text-ink-200 text-left transition-colors">
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Título */}
             <div className="mb-6 sm:mb-8 flex items-end justify-between gap-4">
@@ -1295,4 +1323,4 @@ export function Dashboard() {
 
     </div>
   );
-}
+}

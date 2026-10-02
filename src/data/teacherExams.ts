@@ -146,9 +146,14 @@ export async function createTeacherExam(input: NewExamInput): Promise<{ exam: Te
   return { exam, toGenerate, shortfall };
 }
 
-/** Guarda cambios de ítems (puntos, orden, quitar/añadir) y rehace versiones. */
-export async function saveExamItems(exam: TeacherExam, items: TeacherExam['items']): Promise<TeacherExam> {
-  return teacherExamRepo.save(await refreshExam({ ...exam, items }));
+/** Cambia los ítems (puntos, orden, quitar/añadir) sobre la versión más reciente y rehace versiones. */
+export async function saveExamItems(examId: string, change: (items: TeacherExam['items']) => TeacherExam['items']): Promise<TeacherExam> {
+  return teacherExamRepo.update(examId, async (fresh) => refreshExam({ ...fresh, items: change(fresh.items) }));
+}
+
+/** Cualquier otro cambio del examen (cabecera, versiones…) con versiones y copia practicable al día. */
+export async function updateExam(examId: string, change: (exam: TeacherExam) => TeacherExam): Promise<TeacherExam> {
+  return teacherExamRepo.update(examId, async (fresh) => refreshExam(change(fresh)));
 }
 
 function sourceLine(cites: TeacherExam['drafts'][number]['citations']): string {
@@ -157,40 +162,42 @@ function sourceLine(cites: TeacherExam['drafts'][number]['citations']): string {
 }
 
 /** Aprueba borradores (entran al banco y al examen) o los rechaza. */
-export async function reviewDrafts(exam: TeacherExam, accept: string[], reject: string[]): Promise<{ exam: TeacherExam; added: number }> {
+export async function reviewDrafts(examId: string, accept: string[], reject: string[]): Promise<{ exam: TeacherExam; added: number }> {
   const acceptSet = new Set(accept);
   const rejectSet = new Set(reject);
-  const items = [...exam.items];
   let added = 0;
-  const drafts = [];
-  for (const d0 of exam.drafts) {
-    const d = { ...d0 };
-    if (acceptSet.has(d.id) && d.status === 'pending') {
-      let topicId = d.topicId ?? null;
-      if (!topicId || !(await topicRepo.getById(topicId))) {
-        const topics = await topicRepo.getBySubject(exam.subjectId);
-        const general = topics.find((t) => slugify(t.title) === 'general');
-        topicId = general?.id ?? (await topicRepo.create({ subjectId: exam.subjectId, title: 'General', order: await topicRepo.getNextOrder(exam.subjectId) })).id;
+  const exam = await teacherExamRepo.update(examId, async (fresh) => {
+    const items = [...fresh.items];
+    const drafts = [];
+    for (const d0 of fresh.drafts) {
+      const d = { ...d0 };
+      if (acceptSet.has(d.id) && d.status === 'pending') {
+        let topicId = d.topicId ?? null;
+        if (!topicId || !(await topicRepo.getById(topicId))) {
+          const topics = await topicRepo.getBySubject(fresh.subjectId);
+          const general = topics.find((t) => slugify(t.title) === 'general');
+          topicId = general?.id ?? (await topicRepo.create({ subjectId: fresh.subjectId, title: 'General', order: await topicRepo.getNextOrder(fresh.subjectId) })).id;
+        }
+        const line = sourceLine(d.citations ?? []);
+        const data = {
+          ...d.question,
+          subjectId: fresh.subjectId, topicId: topicId!, origin: 'test' as const,
+          explanation: [d.question.explanation, line].filter(Boolean).join('\n\n') || undefined,
+          tags: [...new Set([...((d.question as { tags?: string[] }).tags ?? []), 'profesor'])].sort(),
+        };
+        const hash = await computeContentHash(data, slugify((await topicRepo.getById(topicId!))?.title ?? ''));
+        const dup = (await db.questions.where('contentHash').equals(hash).toArray()).find((q) => q.subjectId === fresh.subjectId);
+        const q = dup ?? (await questionRepo.create(data));
+        if (!dup) added++;
+        d.status = 'approved';
+        d.questionId = q.id;
+        if (!items.some((i) => i.questionId === q.id)) items.push({ questionId: q.id, points: d.points || DEFAULT_POINTS[q.type] });
+      } else if (rejectSet.has(d.id) && d.status === 'pending') {
+        d.status = 'rejected';
       }
-      const line = sourceLine(d.citations ?? []);
-      const data = {
-        ...d.question,
-        subjectId: exam.subjectId, topicId: topicId!, origin: 'test' as const,
-        explanation: [d.question.explanation, line].filter(Boolean).join('\n\n') || undefined,
-        tags: [...new Set([...(d.question as { tags?: string[] }).tags ?? [], 'profesor'])].sort(),
-      };
-      const hash = await computeContentHash(data, slugify((await topicRepo.getById(topicId!))?.title ?? ''));
-      const dup = (await db.questions.where('contentHash').equals(hash).toArray()).find((q) => q.subjectId === exam.subjectId);
-      const q = dup ?? (await questionRepo.create(data));
-      if (!dup) added++;
-      d.status = 'approved';
-      d.questionId = q.id;
-      if (!items.some((i) => i.questionId === q.id)) items.push({ questionId: q.id, points: d.points || DEFAULT_POINTS[q.type] });
-    } else if (rejectSet.has(d.id) && d.status === 'pending') {
-      d.status = 'rejected';
+      drafts.push(d);
     }
-    drafts.push(d);
-  }
-  const saved = await teacherExamRepo.save(await refreshExam({ ...exam, items, drafts }));
-  return { exam: saved, added };
+    return refreshExam({ ...fresh, items, drafts });
+  });
+  return { exam, added };
 }

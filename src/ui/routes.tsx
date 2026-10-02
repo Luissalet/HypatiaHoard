@@ -22,6 +22,10 @@ const SessionHistoryPage   = lazy(() => import('./pages/SessionHistory').then(m 
 const GlobalPracticePage   = lazy(() => import('./pages/GlobalPracticePage').then(m => ({ default: m.GlobalPracticePage })));
 const PdfToolsPage         = lazy(() => import('./pages/PdfToolsPage').then(m => ({ default: m.PdfToolsPage })));
 const MarketplacePage      = lazy(() => import('./pages/Marketplace').then(m => ({ default: m.MarketplacePage })));
+// Rol Profesor: clases, exámenes, rúbricas, entregas y análisis (datos locales).
+const TeacherHome          = lazy(() => import('./pages/teacher/TeacherHome').then(m => ({ default: m.TeacherHome })));
+const TeacherExamPage      = lazy(() => import('./pages/teacher/TeacherExamPage').then(m => ({ default: m.TeacherExamPage })));
+const GradingBatchPage     = lazy(() => import('./pages/teacher/GradingBatchPage').then(m => ({ default: m.GradingBatchPage })));
 // Cuaderno (Hypatia's Hoard): solo existe en el build local (VITE_HOARD=1); la página además
 // comprueba isHoardMode(). En el build público la ruta ni se registra.
 const NotebookPage         = import.meta.env.VITE_HOARD === '1'
@@ -67,6 +71,9 @@ export function AppRouter() {
           <Route path="/deliverables"                          element={<DeliverablesPage />} />
           <Route path="/sessions"                              element={<SessionHistoryPage />} />
           <Route path="/stats"                                 element={<GlobalStatsPage />} />
+          <Route path="/teacher"                               element={<TeacherHome />} />
+          <Route path="/teacher/exam/:examId"                  element={<TeacherExamPage />} />
+          <Route path="/teacher/batch/:batchId"                element={<GradingBatchPage />} />
           <Route path="*"                                      element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

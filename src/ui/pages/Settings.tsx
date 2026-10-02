@@ -13,6 +13,7 @@ import { downloadBlob } from '@/utils/pdfExport';
 import { slugify } from '@/domain/normalize';
 import { syncImagesToDevServer, type ImageSyncResult } from '@/data/questionImageStorage';
 import { useHoardMode } from '@/data/hoardMode';
+import { RoleSwitch } from '@/ui/components/RoleSwitch';
 import { pushToGist, pullFromGist, type SyncResult } from '@/data/gistSync';
 import { QuestionPreviewContent } from '@/ui/components/QuestionPreview';
 import type { ImportHistoryEntry, Question } from '@/domain/models';
@@ -571,6 +572,21 @@ export function SettingsPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6">
+        {/* Rol */}
+        <Card>
+          <h2 className="font-display text-base text-ink-200 mb-1">Rol</h2>
+          <p className="text-sm text-ink-500 mb-4">
+            <strong className="text-ink-300">Estudiante</strong> es la app de siempre. <strong className="text-ink-300">Profesor</strong> añade
+            clases, generación de exámenes (del banco o con IA desde tu material, con versiones A/B), rúbricas, corrección en lote y
+            análisis de la clase, sin quitar nada: puedes seguir practicando. Los datos de alumnos se quedan en este equipo y en tu Hypatia;
+            nunca van al Gist, al banco global ni a los contribution packs.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <RoleSwitch navigateOnTeacher />
+            <Button size="sm" variant="ghost" onClick={() => navigate('/teacher')}>Abrir pantallas de Profesor</Button>
+          </div>
+        </Card>
+
         {/* Identity */}
         <Card>
           <h2 className="font-display text-base text-ink-200 mb-4">Identidad</h2>
