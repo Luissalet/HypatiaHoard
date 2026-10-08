@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, study, suggest
 from .math_tool import compute as compute_math
+from .math_tool import linear_system
 from .services import Services
 from .tooling import Tool, ann
 
@@ -25,7 +26,7 @@ Quizzing: call cards_due (or exam_mock for a mock exam), show ONLY the prompt (a
 Never reveal the answer before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent questions, grades or sources.
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
 Notebook: cite passages with [n] exactly as the tools number them, never cite a source you were not given, and prefer notebook_search (cheap, passages with citations) when you can compose the answer yourself; use notebook_ask/studio_generate when the user wants the app to generate it.
-For exact arithmetic, polynomial equations or derivatives, use math_compute and report its result; it does not read or change the study bank.
+For exact arithmetic, polynomial equations or derivatives, use math_compute and report its result. For systems of linear equations use math_linear_system, with number strings and variables in column order. Both are independent of the study bank.
 Teacher role (classes, exams for students, rubrics, batch correction): exam_generate builds an exam from the bank and/or drafts questions from the teacher's sources with citations (drafts need exam_drafts_review); grading_run only PROPOSES grades for open answers against the rubric: show grading_review to the teacher and call grading_confirm only with what the teacher accepts. Student names, answers and grades stay on this PC: never send them anywhere else.
 Never read the data folder or the database directly; use these tools only."""
 
@@ -41,6 +42,15 @@ class MathComputeArgs(BaseModel):
     operation: Literal["evaluate", "solve", "differentiate"]
     expression: str = Field(..., min_length=1, max_length=200, description="Arithmetic expression or equation; use ** for powers, e.g. x**2-2=0.")
     variable: Literal["x", "y", "t"] = "x"
+
+
+class MathLinearSystemArgs(BaseModel):
+    coefficients: list[list[str]] = Field(..., min_length=1, max_length=12,
+        description="Matrix A, one equation per row, columns in variables order; integer, decimal or fraction strings, e.g. [['1/3','2'],['1','-1']].")
+    constants: list[str] = Field(..., min_length=1, max_length=12,
+        description="Right-hand side b, one number string per equation, e.g. ['1','0.5'].")
+    variables: list[str] = Field(..., min_length=1, max_length=8,
+        description="Distinct variable names in column order, e.g. ['x','y']. Required to label exact solutions.")
 
 
 class SubjectArg(BaseModel):
@@ -271,6 +281,10 @@ def run_math_compute(_: Services, args: MathComputeArgs) -> dict:
     return compute_math(args.operation, args.expression, args.variable)
 
 
+def run_math_linear_system(_: Services, args: MathLinearSystemArgs) -> dict:
+    return linear_system(args.coefficients, args.constants, args.variables)
+
+
 # ---------- study tools ----------
 
 def run_subjects_list(services: Services, _: Empty) -> dict:
@@ -431,6 +445,12 @@ def run_decks_list(services: Services, _: Empty) -> dict:
 SYN = "\nSinónimos: "
 
 STUDY_TOOLS: list[Tool] = [
+    Tool("math_linear_system", "Solve exact linear systems: unique, infinite or inconsistent. Keywords: sistemas, matrices."
+         "\nA*x=b with integer/decimal/fraction strings, up to 12 equations and 8 named variables in column order. "
+         "Returns exact solutions, original free-variable names, ranks, augmented RREF and substitution residuals. "
+         "No study data is read or changed; inconsistent systems have no solution. Decimal points use '.'; 1/3 stays exact."
+         + SYN + "sistema lineal, resolver sistemas de ecuaciones, Gauss, álgebra lineal, matriz ampliada.",
+         MathLinearSystemArgs, ann(True), run_math_linear_system),
     Tool("math_compute", "Calculate exact arithmetic, solve a polynomial equation or differentiate a formula. Keywords: matemáticas."
          "\nUses local symbolic calculation; no study data is read or changed. Syntax: ** for powers, one variable x/y/t, "
          "sqrt/sin/cos/exp/log. Solving supports polynomial degree up to 4. Returns exact and LaTeX forms."

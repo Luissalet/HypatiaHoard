@@ -40,8 +40,8 @@ def bank(services):
 def test_catalog_descriptions_and_schemas():
     names = [t.name for t in TOOLS]
     teacher = {t.name for t in agent_tools.TEACHER_TOOLS}
-    # The student catalog stays compact; the teacher role adds its own block of tools.
-    assert len(names) == len(set(names)) and len(names) - len(teacher) <= 30 and len(teacher) <= 20
+    # One new exact linear-system calculator joins the compact student catalog.
+    assert len(names) == len(set(names)) and len(names) - len(teacher) <= 31 and len(teacher) <= 20
     for name in ("subjects_list", "cards_due", "card_review", "answer_grade", "exam_mock", "questions_suggest",
                  "cards_add", "decks_list", "deliverables_upcoming", "key_concept_add"):
         assert name in names
