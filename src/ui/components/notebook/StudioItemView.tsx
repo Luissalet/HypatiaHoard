@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { Button } from '@/ui/components';
 import {
-  studioAudioUrl, studioToConcepts, studioToQuestions, normalizeCitations,
+  studioAudioUrl, studioToConcepts, studioToPage, studioToQuestions, normalizeCitations,
   type StudioItem, type StudioKind, type Citation,
 } from '@/data/hoardClient';
 import { useNotebook } from './NotebookContext';
@@ -118,6 +118,24 @@ export function StudioItemView({ item, onDelete }: StudioItemViewProps) {
     }
   };
 
+  const saveAsPage = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await studioToPage(item.id);
+      setMsg({
+        ok: true,
+        text: r.existing ? 'Esta página ya estaba en tu repaso.' : 'Página guardada: entra en tu calendario de repaso. Se sincroniza en unos segundos.',
+      });
+      const { syncNow } = await import('@/data/hoardSync');
+      void syncNow();
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const running = item.status === 'queued' || item.status === 'running';
   const date = item.finishedAt ?? item.createdAt;
 
@@ -164,6 +182,11 @@ export function StudioItemView({ item, onDelete }: StudioItemViewProps) {
       {item.status === 'done' && item.kind === 'faq' && (faq(item).length > 0 || !!item.content) && (
         <div>
           <Button size="sm" onClick={() => void convert('questions')} loading={busy}>Crear preguntas</Button>
+        </div>
+      )}
+      {item.status === 'done' && ['study_guide', 'briefing', 'timeline'].includes(item.kind) && !!item.content && (
+        <div>
+          <Button size="sm" variant="secondary" onClick={() => void saveAsPage()} loading={busy}>Guardar como página de repaso</Button>
         </div>
       )}
       {msg && <p className={`text-xs ${msg.ok ? 'text-sage-400' : 'text-rose-400'}`}>{msg.text}</p>}

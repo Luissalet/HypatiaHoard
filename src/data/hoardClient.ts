@@ -428,6 +428,11 @@ export async function studioToConcepts(id: string): Promise<Obj> {
   return (await hoardJson(`/notebook/studio/${encodeURIComponent(id)}/to-concepts`, jsonInit('POST', {}))) as Obj;
 }
 
+/** Study guide / briefing / timeline -> a page card (HTML lesson in the review schedule). */
+export async function studioToPage(id: string): Promise<Obj> {
+  return (await hoardJson(`/notebook/studio/${encodeURIComponent(id)}/to-page`, jsonInit('POST', {}))) as Obj;
+}
+
 export async function studioToQuestions(id: string): Promise<Obj> {
   return (await hoardJson(`/notebook/studio/${encodeURIComponent(id)}/to-questions`, jsonInit('POST', {}))) as Obj;
 }

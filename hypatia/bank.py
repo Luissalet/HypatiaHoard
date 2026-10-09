@@ -18,7 +18,7 @@ DEFAULT_TOPIC = "General"
 
 # Fields a question may carry from ExtractedQuestion / the assistant.
 CONTENT_FIELDS = ("type", "prompt", "options", "correctOptionIds", "modelAnswer", "keywords", "numericAnswer",
-                  "clozeText", "blanks", "explanation", "difficulty", "origin", "tags")
+                  "clozeText", "blanks", "explanation", "difficulty", "origin", "tags", "pageHtml")
 ANSWER_FIELDS = ("correctOptionIds", "modelAnswer", "keywords", "numericAnswer", "blanks", "explanation")
 
 
@@ -241,8 +241,14 @@ def brief(question: dict, with_answer: bool = True, topics: dict[str, str] | Non
         out["options"] = question["options"]
     if question.get("clozeText"):
         out["clozeText"] = question["clozeText"]
+    if question.get("pageHtml"):
+        # A page card: the lesson itself is the front (show it whole), recall is self-graded.
+        out["kind"] = "page"
+        out["pageHtml"] = question["pageHtml"]
     if with_answer:
         for key in ANSWER_FIELDS:
+            if key == "modelAnswer" and question.get("pageHtml"):
+                continue  # its plain text duplicates pageHtml
             if question.get(key) not in (None, "", []):
                 out[key] = question[key]
     if question.get("tags"):

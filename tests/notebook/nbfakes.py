@@ -231,6 +231,9 @@ class StubStore:
             out = [v for v in out if v.get("subjectId") == subject_id]
         return out
 
+    def kv_get(self, key: str) -> Optional[dict]:
+        return None
+
     def by_hash(self, kind: str, h: str) -> list[dict]:
         return [v for (k, _), v in self.data.items() if k == kind and v.get("contentHash") == h]
 

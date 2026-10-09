@@ -29,6 +29,16 @@ def review(request: Request, body: tools.CardReviewArgs):
     return _run(tools.run_card_review, request, body)
 
 
+@router.post("/pages")
+def page_add(request: Request, body: tools.PageCardAddArgs):
+    return _run(tools.run_page_card_add, request, body)
+
+
+@router.post("/pages/list")
+def pages_list(request: Request, body: tools.PagesListArgs):
+    return _run(tools.run_pages_list, request, body)
+
+
 @router.post("/grade")
 def grade(request: Request, body: tools.AnswerGradeArgs):
     return _run(tools.run_answer_grade, request, body)

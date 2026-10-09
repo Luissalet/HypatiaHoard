@@ -49,6 +49,19 @@ def test_faq_and_to_questions(indexed):
         studio.to_concepts(indexed, item["id"])
 
 
+def test_study_guide_to_page_card(indexed):
+    item = _run(indexed, "study_guide")
+    res = studio.to_page(indexed, item["id"])
+    q = indexed.store.get("question", res["id"])
+    assert q["pageHtml"] and "<script" not in q["pageHtml"] and "[1]" not in q["pageHtml"]
+    assert q["prompt"] == "Guía de redes" and q["type"] == "DESARROLLO" and "pagina" in q["tags"]
+    assert q["sourceRef"] == f"studio://{item['id']}" and q["stats"]["seen"] == 0
+    assert not res["existing"] and studio.to_page(indexed, item["id"])["existing"] is True  # idempotent
+    faq = _run(indexed, "faq")
+    with pytest.raises(ValueError):
+        studio.to_page(indexed, faq["id"])
+
+
 def test_glossary_and_to_concepts(indexed):
     item = _run(indexed, "glossary", topic="tema 1")
     assert [d["term"] for d in item["data"]] == ["Perceptrón", "Gradiente"]

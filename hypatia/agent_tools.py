@@ -8,7 +8,7 @@ from typing import Any, Literal, Union
 
 from pydantic import BaseModel, Field
 
-from . import bank, grading, study, suggest
+from . import bank, grading, pages, study, suggest
 from .math_tool import compute as compute_math
 from .math_tool import linear_system
 from .services import Services
@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover - depends on the checkout
 
 AGENT_INSTRUCTIONS = """Hypatia's Hoard is the user's exam-prep bank (the same data as the Exam Coach PWA at http://127.0.0.1:5187, synced both ways): subjects, topics, questions (TEST, DESARROLLO, COMPLETAR, PRACTICO) with spaced repetition, key concepts, deliverables, and a notebook of the user's own sources (PDFs, notes) with citations.
 Quizzing: call cards_due (or exam_mock for a mock exam), show ONLY the prompt (and the options for TEST), wait for the user's real answer, then grade it: answer_grade for TEST/COMPLETAR (deterministic) or DESARROLLO/PRACTICO (model rubric; if it returns no verdict, compare with modelAnswer yourself), then call card_review once with the prompt you showed (and the id) and the grade the answer earns: again if wrong, blank, "no me acuerdo" or about something else; hard if partly right; good if right; easy only if instant and complete. Then say what the model answer said.
+Page cards (kind \"page\" in cards_due: an HTML lesson, `pageHtml`) are reviewed whole: show the lesson (or its text), ask how much the user recalls, and call card_review with the prompt (the page title) and the grade they report; there is no answer to withhold. Create them with page_card_add from material the user has.
 Never reveal the answer before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent questions, grades or sources.
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
 Notebook: cite passages with [n] exactly as the tools number them, never cite a source you were not given, and prefer notebook_search (cheap, passages with citations) when you can compose the answer yourself; use notebook_ask/studio_generate when the user wants the app to generate it.
@@ -235,6 +236,22 @@ class CardsAddArgs(BaseModel):
     cards: list[CardIn] = Field(..., min_length=1, max_length=100)
 
 
+class PageCardAddArgs(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200, description="Subject name; created if missing.")
+    title: str | None = Field(None, max_length=300, description="Page title (the card's prompt); defaults to the HTML <title>/<h1>.")
+    html: str | None = Field(None, max_length=3_000_000, description="The lesson as HTML. It is sanitized: no scripts, styles, forms or remote resources; images only as data: URIs.")
+    markdown: str | None = Field(None, max_length=500_000, description="Alternative to html: Markdown (headings, lists, quotes, bold/italic/code).")
+    topic: str | None = Field(None, max_length=200, description="Topic (title or number); created if missing, default 'Páginas'.")
+    tags: list[str] | None = Field(None, max_length=30)
+    source_ref: str = Field("", max_length=500, description="Where it came from; kept with the card.")
+
+
+class PagesListArgs(BaseModel):
+    subject: str | None = Field(None, max_length=200, description="Subject; omit for every subject.")
+    due_only: bool = Field(False, description="Only the page cards that are due now (or never seen).")
+    limit: int = Field(50, ge=1, le=200)
+
+
 # ---------- helpers ----------
 
 def _subject(services: Services, ref: str | None) -> dict | None:
@@ -419,6 +436,24 @@ def run_deliverables_upcoming(services: Services, args: DeliverablesArgs) -> dic
     return {"days": args.days, "count": len(rows), "deliverables": rows}
 
 
+def run_page_card_add(services: Services, args: PageCardAddArgs) -> dict:
+    if bool(args.html) == bool(args.markdown):
+        raise ValueError("Give exactly one of html or markdown.")
+    html = args.html or pages.markdown_to_html(args.markdown or "")
+    subject, created = bank.ensure_subject(services, args.subject)
+    topic = _topic_for_write(services, subject, args.topic or "Páginas")
+    card, existing = pages.add_page(services, subject, topic, args.title or "", html, args.tags, args.source_ref)
+    return {"id": card["id"], "title": card["prompt"], "subject": subject["name"], "subjectCreated": created,
+            "topic": topic.get("title"), "existing": existing, "chars": len(card.get("modelAnswer") or ""),
+            "tags": card.get("tags")}
+
+
+def run_pages_list(services: Services, args: PagesListArgs) -> dict:
+    subject = _subject(services, args.subject)
+    rows = pages.list_pages(services, subject["id"] if subject else None, args.due_only, args.limit)
+    return {"count": len(rows), "pages": rows}
+
+
 # ---------- Hypatia compatibility ----------
 
 def run_cards_add(services: Services, args: CardsAddArgs) -> dict:
@@ -490,6 +525,15 @@ STUDY_TOOLS: list[Tool] = [
          "real answer; never grade on the user's behalf. Returns the next due question."
          + SYN + "calificar, he acertado, he fallado, lo sabía, no lo sabía, siguiente pregunta.", CardReviewArgs,
          ann(False, False, False), run_card_review),
+    Tool("page_card_add", "Add an HTML lesson as a page card that enters the review schedule (write). Keywords: página, lección.\n"
+         "Reviewed whole with card_review (self-graded). Give html or markdown; html is sanitized (no scripts, styles or "
+         "remote resources; images only as data: URIs). Idempotent per subject on the content.\n"
+         "Sinónimos: tarjeta de página, lección HTML, repasar un resumen entero, página de estudio, guardar esta página.",
+         PageCardAddArgs, ann(False, False, True), run_page_card_add),
+    Tool("pages_list", "List the page cards (HTML lessons) with their next review. Keywords: páginas, lecciones.\n"
+         "Optionally only those due now. Use cards_due to review them.\n"
+         "Sinónimos: páginas de estudio, lecciones guardadas, qué páginas me tocan.",
+         PagesListArgs, ann(True), run_pages_list),
     Tool("answer_grade", "Check the user's answer to a question: verdict, score, feedback. Keywords: corregir respuesta."
          "\nTEST/COMPLETAR deterministic; DESARROLLO/PRACTICO with a local model rubric (without one: matched keywords + "
          "modelAnswer for you to judge). Returns suggestedGrade for card_review. Saves nothing."

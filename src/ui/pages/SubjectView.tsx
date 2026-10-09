@@ -6,6 +6,7 @@ import {
   EmptyState, StatsSummary, Select,
 } from '@/ui/components';
 import { QuestionForm } from '@/ui/components/QuestionForm';
+import { PageCardForm } from '@/ui/components/PageCardForm';
 import { PdfViewer, type PdfViewerHandle } from '@/ui/components/PdfViewer';
 import { MdContent } from '@/ui/components/MdContent';
 import { renderMd } from '@/utils/renderMd';
@@ -347,6 +348,7 @@ export function SubjectView() {
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [topicTitle, setTopicTitle] = useState('');
   const [questionModal, setQuestionModal] = useState(false);
+  const [pageModal, setPageModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null);
 
@@ -1019,6 +1021,7 @@ const handleResourceDelete = async (categorySlug: string, filename: string) => {
                     </span>
                   </label>
                 )}
+                <Button size="sm" variant="secondary" onClick={() => setPageModal(true)}>+ Página</Button>
                 <Button size="sm" onClick={() => { setEditingQuestion(null); setQuestionModal(true); }}>+ Nueva pregunta</Button>
               </div>
             </div>
@@ -1756,6 +1759,18 @@ const handleResourceDelete = async (categorySlug: string, filename: string) => {
             subjectId={subjectId}
             onSave={handleQuestionSave}
             onCancel={() => { setQuestionModal(false); setEditingQuestion(null); }}
+          />
+        )}
+      </Modal>
+
+      {/* Modal página (tarjeta de página) */}
+      <Modal open={pageModal} onClose={() => setPageModal(false)} title="Nueva página de estudio" size="lg">
+        {subjectId && (
+          <PageCardForm
+            topics={subjectTopics}
+            subjectId={subjectId}
+            onSave={async (data) => { await createQuestion(data); setPageModal(false); }}
+            onCancel={() => setPageModal(false)}
           />
         )}
       </Modal>
