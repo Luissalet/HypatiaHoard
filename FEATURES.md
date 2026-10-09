@@ -58,6 +58,14 @@ Feature-by-feature map: what each one does, where it lives in code, the user flo
 - **Sync**: `scheduler`, `desiredRetention` and `schedulerSetAt` travel in `syncedSettings` (the choice made last wins as a block, on the device and on the server); the server's `card_review` (chat, MCP, `/api/study/review`) reads them and uses the same maths, and returns `scheduler`, `intervalDays` and, with FSRS, `fsrs.stability/difficulty`. `study_stats` reports the scheduler.
 - **Where**: `domain/fsrs.ts` (`fsrsStep`, `fsrsPreview`), `hypatia/fsrs.py` (same maths; `tests/test_fsrs.py` runs both and compares), `ui/components/SchedulerSettings.tsx`.
 
+### 2.3c Page cards (HTML lessons in the schedule)
+- **What**: a card that is a whole lesson. It is a DESARROLLO question (so SM-2/FSRS, sync, stats and due counts need nothing new) with `pageHtml` (the sanitized lesson), the title as prompt, its plain text as `modelAnswer` and the tag `pagina`. It is reviewed whole: Flashcard mode shows the lesson (no flip) and four recall buttons (Otra vez / Difícil / Bien / Fácil, keys 1-4) that feed the selected scheduler with the real grade.
+- **Create**: Asignatura → *+ Página* (pasted HTML or an imported `.html`, with a sanitized preview); Cuaderno → Estudio → *Guardar como página de repaso* on a study guide, briefing or timeline (Markdown → HTML, citation markers removed, idempotent); the assistant with `page_card_add` (html or markdown); HTTP `POST /api/study/pages`, `POST /api/study/pages/list`, `POST /api/notebook/studio/{id}/to-page`.
+- **Review**: `cards_due` lists them with `kind: "page"` and `pageHtml`; `card_review` grades them like any card (the prompt is the page title); `pages_list` (optionally `due_only`) shows the next review of each page. Due counts and `study_stats` include them.
+- **Sanitizing** (`hypatia/pages.py` and its twin `src/utils/sanitizeHtml.ts`, same output on the same input): an allow-list tokenizer. Scripts, styles, frames, forms, SVG/MathML, event handlers, inline styles, classes, remote images and non-http(s)/mailto/# links never survive; images are kept only as `data:image/png|jpeg|gif|webp`; links open in a new tab with `noopener`. The lesson is shown inside a sandboxed iframe with a CSP that allows no scripts and only `data:` images, after sanitizing it again.
+- **Limits**: CSS from the original page is dropped (basic formatting only: headings, lists, tables, code, quotes, bold/italic); a page may hold up to 1.5 M characters after sanitizing (data images count); PracticeSession and exams treat a page as an ordinary open question (title as the prompt), the whole-page review is Flashcard mode, chat and the MCP tools.
+- **Where**: `hypatia/pages.py`, `hypatia/agent_tools.py` (`page_card_add`, `pages_list`), `hypatia/notebook/studio.py` (`to_page`), `src/utils/sanitizeHtml.ts`, `src/data/pageCards.ts`, `ui/components/PageCardView.tsx`, `PageCardForm.tsx`, `ui/pages/Flashcard.tsx`; tests `tests/test_pages.py`, `tests/test_page_cards_ts.py` (Python and TypeScript sanitizers compared).
+
 ### 2.4 Auto-scoring
 - **What**:
   - TEST: set-equality on `correctOptionIds`.
@@ -380,6 +388,7 @@ Role switch: `ui/components/RoleSwitch.tsx` (Dashboard header, Ajustes → Rol; 
 | Questions CRUD | `data/repos.ts#questionRepo` |
 | Auto-score | `domain/scoring.ts` |
 | SM-2 | `domain/spacedRepetition.ts` |
+| Page cards (HTML lessons) | `hypatia/pages.py`, `utils/sanitizeHtml.ts`, `data/pageCards.ts` |
 | Continuous grade | `domain/grading.ts` |
 | Content hashing | `domain/hashing.ts` |
 | Slug / normalize | `domain/normalize.ts` |

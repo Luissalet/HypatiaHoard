@@ -203,6 +203,11 @@ def studio_to_questions(request: Request, item_id: str):
     return _run(studio.to_questions, _svc(request), item_id)
 
 
+@router.post("/api/notebook/studio/{item_id}/to-page")
+def studio_to_page(request: Request, item_id: str):
+    return _run(studio.to_page, _svc(request), item_id)
+
+
 @router.post("/api/notebook/studio/{item_id}/to-source")
 def studio_to_source(request: Request, item_id: str):
     return {"source": _run(studio.add_as_source, _svc(request), item_id)}

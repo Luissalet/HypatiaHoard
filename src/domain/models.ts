@@ -158,6 +158,10 @@ export interface Question {
   clozeText?: string;
   blanks?: ClozeBlank[];
 
+  // Page card: an HTML lesson (sanitized) reviewed whole; the question is a DESARROLLO
+  // whose prompt is the title and modelAnswer its plain text. See data/pageCards.ts.
+  pageHtml?: string;
+
   // PDF anchor
   pdfAnchorId?: string;
 

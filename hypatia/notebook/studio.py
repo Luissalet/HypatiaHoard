@@ -520,6 +520,36 @@ def to_questions(services: Any, item_id: str) -> dict[str, Any]:
     return {"added": len(added), "skipped": skipped, "ids": added, "topicId": topic_id}
 
 
+PAGE_KINDS = ("study_guide", "briefing", "timeline")
+
+
+def to_page(services: Any, item_id: str) -> dict[str, Any]:
+    """Study guide / briefing / timeline -> a page card (sanitized HTML lesson in the review schedule)."""
+    from .. import pages
+
+    r = row(services, "SELECT * FROM studio_items WHERE id=?", (item_id,))
+    if not r:
+        raise LookupError(f"No existe el elemento de estudio {item_id}")
+    if r["kind"] not in PAGE_KINDS:
+        raise ValueError("Solo una guía de estudio, un documento informativo o una cronología se pueden guardar como página")
+    if r["status"] != "done" or not r.get("content"):
+        raise ValueError("El elemento aún no está terminado")
+    scope = _loads(r.get("scope"), {})
+    sid = r["subject_id"]
+    subject = services.store.get("subject", sid)
+    if subject is None:
+        raise ValueError("La asignatura ya no existe")
+    topic = services.store.get("topic", _topic_for_questions(services, sid, scope))
+    content = retrieval.strip_markers(r["content"])
+    _title, body = _title_from_markdown(content)
+    if _title:  # the page shows its title as the card's front line; drop the duplicate heading
+        body = body.strip().split("\n", 1)[1] if "\n" in body.strip() else ""
+    title = (r.get("title") or _title or KINDS.get(r["kind"], "Página")).strip()
+    card, existing = pages.add_page(services, subject, topic, title, pages.markdown_to_html(body),
+                                    ["cuaderno"], source_ref=f"studio://{item_id}")
+    return {"id": card["id"], "title": card["prompt"], "existing": existing, "topicId": topic["id"]}
+
+
 def add_as_source(services: Any, item_id: str) -> dict[str, Any]:
     """Save a finished item's markdown as a 'studio' source of its subject and index it."""
     r = row(services, "SELECT * FROM studio_items WHERE id=?", (item_id,))

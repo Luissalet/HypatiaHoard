@@ -20,6 +20,47 @@ import { TypeBadge, Button } from '@/ui/components';
 import { renderMd } from '@/utils/renderMd';
 import type { Question, QuestionType } from '@/domain/models';
 import { MdContent } from '../components/MdContent';
+import { PageCardView } from '../components/PageCardView';
+
+type PageGrade = 'again' | 'hard' | 'good' | 'easy';
+
+const PAGE_GRADES: { grade: PageGrade; label: string; cls: string }[] = [
+  { grade: 'again', label: 'Otra vez', cls: 'border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20' },
+  { grade: 'hard', label: 'Difícil', cls: 'border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20' },
+  { grade: 'good', label: 'Bien', cls: 'border-sage-500/30 bg-sage-500/10 text-sage-400 hover:bg-sage-500/20' },
+  { grade: 'easy', label: 'Fácil', cls: 'border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20' },
+];
+
+/** A page card is reviewed whole: the lesson is shown, then the user grades how much they recall. */
+function PageFlashcard({ question, topicTitle, done, onGrade }: {
+  question: Question; topicTitle: string; done: boolean; onGrade: (g: PageGrade) => void;
+}) {
+  return (
+    <div className="w-full max-w-2xl rounded-2xl bg-ink-900 border border-ink-700 p-6 flex flex-col gap-4" data-testid="page-flashcard">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded px-2 py-0.5">Página</span>
+        {topicTitle && <span className="text-xs text-ink-500 bg-ink-800 rounded px-2 py-0.5">{topicTitle}</span>}
+      </div>
+      <h2 className="font-display text-xl text-ink-100">{question.prompt}</h2>
+      <PageCardView html={question.pageHtml ?? ''} />
+      {done ? (
+        <p className="text-xs text-ink-600 text-center">✓ Evaluada</p>
+      ) : (
+        <div>
+          <p className="text-xs text-ink-500 text-center mb-2">¿Cuánto recuerdas de esta página?</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {PAGE_GRADES.map((g, i) => (
+              <button key={g.grade} onClick={() => onGrade(g.grade)} data-testid={`page-grade-${g.grade}`}
+                className={`py-2.5 rounded-xl border text-sm font-medium transition-colors ${g.cls}`}>
+                {g.label}<span className="text-xs opacity-60 ml-1">[{i + 1}]</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 // ─── Cloze renderer ──────────────────────────────────────────────────────────
@@ -423,10 +464,10 @@ export function FlashcardPage() {
     setFlipped((f) => !f);
   }, []);
 
-  const handleSelfEval = useCallback(async (result: 'CORRECT' | 'WRONG') => {
+  const handleSelfEval = useCallback(async (result: 'CORRECT' | 'WRONG', grade?: PageGrade) => {
     const q = questions[currentIndex];
     if (!q) return;
-    await questionRepo.updateStats(q.id, result);
+    await questionRepo.updateStats(q.id, result, grade);
     setQuestions((prev) =>
       prev.map((question, i) =>
         i === currentIndex
@@ -442,6 +483,18 @@ export function FlashcardPage() {
     const handler = (e: KeyboardEvent) => {
       // Don't intercept if typing in an input
       if ((e.target as HTMLElement).matches('input, textarea')) return;
+
+      if (questions[currentIndex]?.pageHtml) {
+        // Page card: 1-4 grade the recall (again/hard/good/easy); the page itself has no flip.
+        const idx = ['1', '2', '3', '4'].indexOf(e.key);
+        if (idx >= 0 && !selfEvalDone.has(currentIndex)) {
+          e.preventDefault();
+          const grade = PAGE_GRADES[idx].grade;
+          void handleSelfEval(grade === 'again' ? 'WRONG' : 'CORRECT', grade);
+          return;
+        }
+        if (e.key === ' ') return;
+      }
 
       if (e.key === '1' && flipped && !selfEvalDone.has(currentIndex)) {
         e.preventDefault();
@@ -463,7 +516,7 @@ export function FlashcardPage() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleFlip, handleSelfEval, goNext, goPrev, flipped, currentIndex, selfEvalDone]);
+  }, [handleFlip, handleSelfEval, goNext, goPrev, flipped, currentIndex, selfEvalDone, questions]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -559,16 +612,26 @@ export function FlashcardPage() {
         </div>
 
         {/* Flashcard */}
-        <Flashcard
-          key={currentIndex}
-          question={currentQuestion}
-          topicTitle={topicTitle}
-          flipped={flipped}
-          onFlip={handleFlip}
-          currentIndex={currentIndex}
-          selfEvalDone={selfEvalDone}
-          onSelfEval={handleSelfEval}
-        />
+        {currentQuestion.pageHtml ? (
+          <PageFlashcard
+            key={currentIndex}
+            question={currentQuestion}
+            topicTitle={topicTitle}
+            done={selfEvalDone.has(currentIndex)}
+            onGrade={(g) => void handleSelfEval(g === 'again' ? 'WRONG' : 'CORRECT', g)}
+          />
+        ) : (
+          <Flashcard
+            key={currentIndex}
+            question={currentQuestion}
+            topicTitle={topicTitle}
+            flipped={flipped}
+            onFlip={handleFlip}
+            currentIndex={currentIndex}
+            selfEvalDone={selfEvalDone}
+            onSelfEval={handleSelfEval}
+          />
+        )}
 
         {/* Navigation buttons */}
         <div className="flex items-center gap-4">
