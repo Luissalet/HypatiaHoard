@@ -74,8 +74,9 @@ Feature-by-feature map: what each one does, where it lives in code, the user flo
 - **Mastery per concept** (`concept_mastery`, computed on demand, never stored): from the `reviews` table of the questions linked to the concept (for reviews made in the PWA, which only syncs counters, the question's own stats). Accuracy weights each answer by `0.5^(age_days/14)`; mastery = accuracy x min(1, attempts/3). Level: `sin ver` (no attempts), `débil` (accuracy below 0.5, or last answer wrong with accuracy below 0.75), `dominado` (mastery 0.75 or more and last answer right), else `en progreso`. Per lesson: average mastery, level counts and the weakest concepts; per subject: the lessons and the 10 weakest concepts.
 - **Tools / HTTP**: `lesson_from_document` (text or path, `save=false` previews with the full text and the drafts, `as_page_card` also adds the lesson as a page card, idempotent per document), `lesson_get`, `concept_mastery`, `lesson_delete` (`delete_questions` optional); `POST /api/study/lessons`, `/lessons/get`, `/lessons/mastery`, `/lessons/delete`.
 - **Storage**: SQLite table `lessons` (migration 2, local, not synced to the PWA); the questions themselves are normal synced records.
-- **Limits**: no UI yet (assistant and HTTP only); scanned PDFs without a text layer are rejected (use the notebook's OCR path first); unmarked headings are guessed, so a PDF without any structure falls back to paragraph blocks; one question per concept; the lesson is not re-split if the document changes (delete it and create it again).
-- **Where**: `hypatia/lessons.py`, `hypatia/backend.py` (`build_lesson_messages`), `hypatia/db.py` (`LESSONS_SCHEMA`), `hypatia/agent_tools.py`, `hypatia/api/study.py`; tests `tests/test_lessons.py`.
+- **UI** (hoard build only): Cuaderno → *Lecciones* tab (also the *Enséñame un documento* button in a subject's header, which opens it). *Enséñame este documento*: paste text or pick a .txt/.md/.pdf (the PDF text is read in the browser with pdf.js, headings marked), *Vista previa* (nothing stored: sections, concepts and drafted questions) and *Crear lección*; the list of lessons with their mastery; the lesson view with a section stepper, the section text, concept chips with their level, the section's questions (TEST as options, others as free text; *Comprobar* calls /api/study/grade, shows the verdict and the model answer, then four grade buttons with the suggested one highlighted that call /api/study/review) and the *Dominio por concepto* panel (level counts, weakest concepts, a bar per concept that jumps to its section). Keyboard and screen-reader friendly (labels, ria-live results, progress bars with values), touch targets of 44 px, no horizontal scroll at 390 px. Spanish only, like the rest of the app.
+- **Limits**: scanned PDFs without a text layer are rejected (use the notebook's OCR path first); unmarked headings are guessed, so a PDF without any structure falls back to paragraph blocks; one question per concept; the lesson is not re-split if the document changes (delete it and create it again).
+- **Where**: `hypatia/lessons.py`, `hypatia/backend.py` (`build_lesson_messages`), `hypatia/db.py` (`LESSONS_SCHEMA`), `hypatia/agent_tools.py`, `hypatia/api/study.py`, `src/data/lessonsClient.ts`, `src/ui/components/notebook/LessonsPanel.tsx` (tab in `src/ui/pages/Notebook.tsx`, button in `SubjectView.tsx`); tests `tests/test_lessons.py`.
 ### 2.4 Auto-scoring
 - **What**:
   - TEST: set-equality on `correctOptionIds`.
@@ -399,7 +400,7 @@ Role switch: `ui/components/RoleSwitch.tsx` (Dashboard header, Ajustes → Rol; 
 | Auto-score | `domain/scoring.ts` |
 | SM-2 | `domain/spacedRepetition.ts` |
 | Page cards (HTML lessons) | `hypatia/pages.py`, `utils/sanitizeHtml.ts`, `data/pageCards.ts` |
-| Lessons from a document, mastery per concept | `hypatia/lessons.py` |
+| Lessons from a document, mastery per concept | `hypatia/lessons.py`, `ui/components/notebook/LessonsPanel.tsx` |
 | Continuous grade | `domain/grading.ts` |
 | Content hashing | `domain/hashing.ts` |
 | Slug / normalize | `domain/normalize.ts` |

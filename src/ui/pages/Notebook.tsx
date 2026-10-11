@@ -3,7 +3,7 @@
  *
  * Source notebook for one subject, backed by the local
  * Hypatia's Hoard server: Fuentes (sources), Chat (grounded Q&A with
- * citations), Estudio (generated guides, mind map, audio) and Tutor.
+ * citations), Lecciones (teach me a document), Estudio (generated guides, mind map, audio) and Tutor.
  * Route: /subject/:subjectId/notebook (registered only in the hoard build).
  */
 
@@ -23,9 +23,10 @@ import { PdfPageModal } from '@/ui/components/notebook/PdfPageModal';
 import { SourcesPanel } from '@/ui/components/notebook/SourcesPanel';
 import { ChatPanel } from '@/ui/components/notebook/ChatPanel';
 import { StudioPanel } from '@/ui/components/notebook/StudioPanel';
+import { LessonsPanel } from '@/ui/components/notebook/LessonsPanel';
 
-type TabId = 'sources' | 'chat' | 'studio' | 'tutor';
-const TAB_IDS: TabId[] = ['sources', 'chat', 'studio', 'tutor'];
+type TabId = 'sources' | 'chat' | 'studio' | 'lessons' | 'tutor';
+const TAB_IDS: TabId[] = ['sources', 'chat', 'studio', 'lessons', 'tutor'];
 
 export function NotebookPage() {
   const { subjectId = '' } = useParams<{ subjectId: string }>();
@@ -134,6 +135,7 @@ export function NotebookPage() {
     { id: 'sources', label: sources.length ? `Fuentes · ${indexed}` : 'Fuentes' },
     { id: 'chat', label: 'Chat' },
     { id: 'studio', label: 'Estudio' },
+    { id: 'lessons', label: 'Lecciones' },
     { id: 'tutor', label: 'Tutor' },
   ];
 
@@ -176,6 +178,7 @@ export function NotebookPage() {
           </div>
           {tab === 'chat' && <ChatPanel key="chat" mode="sources" />}
           {tab === 'studio' && <StudioPanel />}
+          {tab === 'lessons' && <LessonsPanel />}
           {tab === 'tutor' && <ChatPanel key="tutor" mode="tutor" />}
         </main>
 
