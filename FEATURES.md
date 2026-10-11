@@ -66,6 +66,16 @@ Feature-by-feature map: what each one does, where it lives in code, the user flo
 - **Limits**: CSS from the original page is dropped (basic formatting only: headings, lists, tables, code, quotes, bold/italic); a page may hold up to 1.5 M characters after sanitizing (data images count); PracticeSession and exams treat a page as an ordinary open question (title as the prompt), the whole-page review is Flashcard mode, chat and the MCP tools.
 - **Where**: `hypatia/pages.py`, `hypatia/agent_tools.py` (`page_card_add`, `pages_list`), `hypatia/notebook/studio.py` (`to_page`), `src/utils/sanitizeHtml.ts`, `src/data/pageCards.ts`, `ui/components/PageCardView.tsx`, `PageCardForm.tsx`, `ui/pages/Flashcard.tsx`; tests `tests/test_pages.py`, `tests/test_page_cards_ts.py` (Python and TypeScript sanitizers compared).
 
+### 2.3d Lessons from a document (guided lesson + mastery per concept)
+- **What**: "teach me this document". A document (pasted text, or a local file Hypatia reads: PDF, DOCX, ODT, EPUB, HTML, TXT) becomes a lesson object: sections, key concepts per section, and one question per concept that lives in the bank (so SM-2/FSRS, sync, stats and due counts need nothing new). Questions are tagged `leccion` and go into a topic named after the lesson, so `weak_topics` and mock exams already see them.
+- **Sections** (deterministic, no model): markdown headings, numbered headings (`1.2 Title`), `Tema 3` / `Chapter 2` lines, ALL-CAPS lines, and unmarked short title lines such as a PDF gives (a short capitalised line without final punctuation before a body line); otherwise paragraph blocks of about 2 200 characters. Giants are split, tiny ones folded, at most `max_sections` (default 10, up to 20); up to 60 000 characters per document.
+- **Concepts**: per section the same model hook as `questions_suggest` (`hypatia.ai.chat`) returns up to 4 concepts, each with a summary and a TEST or DESARROLLO question; invalid items are dropped. With no model, `use_model=false`, or a reply that is not JSON, deterministic rules take over: definitions (`X es Y`, `X is Y`, `Term: definition`), **bold** terms and the section heading, with a DESARROLLO question whose model answer is the sentence from the document. The result says which was used (`model`, `note`).
+- **Flow**: `lesson_get` (without `lesson`: every lesson with its mastery; with it: outline plus the interleaved `flow` of `read` and `question` steps, answers withheld; with `section=n`: the text, concepts and questions of that section). The user answers, `answer_grade` and `card_review` do the rest as for any card.
+- **Mastery per concept** (`concept_mastery`, computed on demand, never stored): from the `reviews` table of the questions linked to the concept (for reviews made in the PWA, which only syncs counters, the question's own stats). Accuracy weights each answer by `0.5^(age_days/14)`; mastery = accuracy x min(1, attempts/3). Level: `sin ver` (no attempts), `débil` (accuracy below 0.5, or last answer wrong with accuracy below 0.75), `dominado` (mastery 0.75 or more and last answer right), else `en progreso`. Per lesson: average mastery, level counts and the weakest concepts; per subject: the lessons and the 10 weakest concepts.
+- **Tools / HTTP**: `lesson_from_document` (text or path, `save=false` previews with the full text and the drafts, `as_page_card` also adds the lesson as a page card, idempotent per document), `lesson_get`, `concept_mastery`, `lesson_delete` (`delete_questions` optional); `POST /api/study/lessons`, `/lessons/get`, `/lessons/mastery`, `/lessons/delete`.
+- **Storage**: SQLite table `lessons` (migration 2, local, not synced to the PWA); the questions themselves are normal synced records.
+- **Limits**: no UI yet (assistant and HTTP only); scanned PDFs without a text layer are rejected (use the notebook's OCR path first); unmarked headings are guessed, so a PDF without any structure falls back to paragraph blocks; one question per concept; the lesson is not re-split if the document changes (delete it and create it again).
+- **Where**: `hypatia/lessons.py`, `hypatia/backend.py` (`build_lesson_messages`), `hypatia/db.py` (`LESSONS_SCHEMA`), `hypatia/agent_tools.py`, `hypatia/api/study.py`; tests `tests/test_lessons.py`.
 ### 2.4 Auto-scoring
 - **What**:
   - TEST: set-equality on `correctOptionIds`.
@@ -389,6 +399,7 @@ Role switch: `ui/components/RoleSwitch.tsx` (Dashboard header, Ajustes → Rol; 
 | Auto-score | `domain/scoring.ts` |
 | SM-2 | `domain/spacedRepetition.ts` |
 | Page cards (HTML lessons) | `hypatia/pages.py`, `utils/sanitizeHtml.ts`, `data/pageCards.ts` |
+| Lessons from a document, mastery per concept | `hypatia/lessons.py` |
 | Continuous grade | `domain/grading.ts` |
 | Content hashing | `domain/hashing.ts` |
 | Slug / normalize | `domain/normalize.ts` |

@@ -266,6 +266,9 @@ See MEMORY_MODEL.md §2.7.
 
 Grade: `round_half_up(scale.max × points / maxPoints, decimals)`; band = last band whose `min` ≤ grade. Points of an item: teacher decision, else the objective auto score; nothing open is final until a decision exists and the submission is confirmed.
 
+### 1.19 Lesson (server-side, local; hypatia/lessons.py)
+`lessons` table row (JSON): `id`, `title`, `subjectId`, `topicId`, `source`, `language`, `contentHash` (subject + normalized text), `model` (null when rules were used), `sections[{n,title,text}]`, `concepts[{id,name,summary,section,questionIds[]}]`, optional `pageCardId`. Each concept links to Question ids (tag `leccion`); Subject 1..N Lesson, Lesson 1..N Concept, Concept 1..N Question. Mastery per concept is derived (reviews table, else question stats), never stored: recency-weighted accuracy (half-life 14 days) x min(1, attempts/3); levels sin ver / débil / en progreso / dominado. Not part of the PWA sync or the pack formats.
+
 ## 2. Relationships (cardinalities)
 
 ```

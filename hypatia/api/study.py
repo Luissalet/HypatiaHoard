@@ -39,6 +39,26 @@ def pages_list(request: Request, body: tools.PagesListArgs):
     return _run(tools.run_pages_list, request, body)
 
 
+@router.post("/lessons")
+def lesson_create(request: Request, body: tools.LessonFromDocumentArgs):
+    return _run(tools.run_lesson_from_document, request, body)
+
+
+@router.post("/lessons/get")
+def lesson_get(request: Request, body: tools.LessonRef):
+    return _run(tools.run_lesson_get, request, body)
+
+
+@router.post("/lessons/mastery")
+def lesson_mastery(request: Request, body: tools.ConceptMasteryArgs):
+    return _run(tools.run_concept_mastery, request, body)
+
+
+@router.post("/lessons/delete")
+def lesson_delete(request: Request, body: tools.LessonDeleteArgs):
+    return _run(tools.run_lesson_delete, request, body)
+
+
 @router.post("/grade")
 def grade(request: Request, body: tools.AnswerGradeArgs):
     return _run(tools.run_answer_grade, request, body)

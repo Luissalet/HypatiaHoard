@@ -18,12 +18,12 @@ def test_a_database_made_before_the_shared_wrapper_keeps_its_data(tmp_path):
     db = Database(path)
     try:
         assert db.conn.execute("SELECT value FROM kv WHERE key='k'").fetchone()["value"] == "v"
-        assert db.schema_version == 1
+        assert db.schema_version == 2
     finally:
         db.close()
     reopened = Database(path)  # and opening it again changes nothing
     try:
-        assert reopened.schema_version == 1
+        assert reopened.schema_version == 2
     finally:
         reopened.close()
 

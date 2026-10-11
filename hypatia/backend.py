@@ -60,6 +60,23 @@ def build_suggest_messages(material: str, n: int, types: list[str], language: st
     return [{"role": "system", "content": system}, {"role": "user", "content": material}]
 
 
+LESSON_SYSTEM = (
+    "Eres un profesor que prepara una lección guiada. Del fragmento del documento, extrae sus conceptos clave "
+    "(hasta {n}): ideas, definiciones o procedimientos que el alumno debe dominar. Reglas: nunca inventes nada que "
+    "no esté en el fragmento; escribe en {language}; 'name' es corto (2-6 palabras); 'summary' explica el concepto "
+    "en 1-2 frases con palabras del fragmento. Para cada concepto añade una 'question' que lo evalúe: "
+    '{{"type":"TEST","prompt","options":[{{"id":"a","text"}}...],"correctOptionIds":["a"],"explanation"}} '
+    'o {{"type":"DESARROLLO","prompt","modelAnswer","keywords":[...]}}. '
+    'Responde SOLO con JSON estricto, sin texto ni bloques ```: {{"concepts":[{{"name","summary","question"}}]}}. '
+    "Si el fragmento no tiene conceptos, devuelve {{\"concepts\":[]}}."
+)
+
+
+def build_lesson_messages(title: str, text: str, language: str = "es", n: int = 4) -> list[dict[str, str]]:
+    system = LESSON_SYSTEM.format(language=_LANGUAGE_NAME.get(language, language), n=n)
+    return [{"role": "system", "content": system}, {"role": "user", "content": f"# {title}\n\n{text}" if title else text}]
+
+
 GRADE_SYSTEM = (
     "Eres un profesor que corrige respuestas de examen con honestidad. Compara la respuesta del alumno con la "
     "respuesta modelo y las palabras clave. Una afirmación cierta pero sobre otra cosa no puntúa. "

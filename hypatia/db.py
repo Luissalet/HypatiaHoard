@@ -27,6 +27,14 @@ CREATE VIRTUAL TABLE IF NOT EXISTS questions_fts USING fts5(
 """
 
 
+# Migration 2: guided lessons built from documents (see lessons.py); mastery is computed, not stored.
+LESSONS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS lessons(
+  id TEXT PRIMARY KEY, subject_id TEXT, content_hash TEXT, created_at TEXT, data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS lessons_subject ON lessons(subject_id);
+"""
+
+
 def check_sqlite() -> None:
     version = tuple(int(p) for p in sqlite3.sqlite_version.split("."))
     if version < MIN_SQLITE:
@@ -47,4 +55,4 @@ class Database(sqlkit.Database):
 
     def __init__(self, path: Path | str):
         check_sqlite()
-        super().__init__(path, migrations=[SCHEMA])
+        super().__init__(path, migrations=[SCHEMA, LESSONS_SCHEMA])
