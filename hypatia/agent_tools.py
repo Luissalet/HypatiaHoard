@@ -8,7 +8,7 @@ from typing import Any, Literal, Union
 
 from pydantic import BaseModel, Field
 
-from . import bank, grading, pages, study, suggest
+from . import bank, grading, lessons, pages, study, suggest
 from .math_tool import compute as compute_math
 from .math_tool import linear_system
 from .services import Services
@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover - depends on the checkout
 AGENT_INSTRUCTIONS = """Hypatia's Hoard is the user's exam-prep bank (the same data as the Exam Coach PWA at http://127.0.0.1:5187, synced both ways): subjects, topics, questions (TEST, DESARROLLO, COMPLETAR, PRACTICO) with spaced repetition, key concepts, deliverables, and a notebook of the user's own sources (PDFs, notes) with citations.
 Quizzing: call cards_due (or exam_mock for a mock exam), show ONLY the prompt (and the options for TEST), wait for the user's real answer, then grade it: answer_grade for TEST/COMPLETAR (deterministic) or DESARROLLO/PRACTICO (model rubric; if it returns no verdict, compare with modelAnswer yourself), then call card_review once with the prompt you showed (and the id) and the grade the answer earns: again if wrong, blank, "no me acuerdo" or about something else; hard if partly right; good if right; easy only if instant and complete. Then say what the model answer said.
 Page cards (kind \"page\" in cards_due: an HTML lesson, `pageHtml`) are reviewed whole: show the lesson (or its text), ask how much the user recalls, and call card_review with the prompt (the page title) and the grade they report; there is no answer to withhold. Create them with page_card_add from material the user has.
+Teach a document: lesson_from_document turns pasted text or a file (PDF, DOCX...) into a lesson (sections, key concepts, one question per concept stored in the bank; save=false previews). Then lesson_get(lesson, section=n) gives one section to teach and its questions to interleave; quiz them as usual (answer_grade, card_review). concept_mastery shows the mastery per concept computed from the review history; use it to pick what to reteach.
 Never reveal the answer before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent questions, grades or sources.
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
 Notebook: cite passages with [n] exactly as the tools number them, never cite a source you were not given, and prefer notebook_search (cheap, passages with citations) when you can compose the answer yourself; use notebook_ask/studio_generate when the user wants the app to generate it.
@@ -252,6 +253,36 @@ class PagesListArgs(BaseModel):
     limit: int = Field(50, ge=1, le=200)
 
 
+class LessonFromDocumentArgs(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200, description="Subject name; created if missing.")
+    text: str | None = Field(None, max_length=400_000, description="The document text (Markdown or plain). Or give path.")
+    path: str | None = Field(None, max_length=2000, description="A local file Hypatia can read (PDF, DOCX, EPUB, TXT...). Or give text.")
+    title: str | None = Field(None, max_length=200, description="Lesson title; defaults to the document's.")
+    topic: str | None = Field(None, max_length=200, description="Topic for the questions; default: the lesson title.")
+    language: Literal["es", "en", "auto"] = "auto"
+    max_sections: int = Field(10, ge=1, le=20)
+    use_model: bool = Field(True, description="false: deterministic extraction only (no model call).")
+    save: bool = Field(True, description="false: preview (full text, concepts and question drafts), nothing stored.")
+    as_page_card: bool = Field(False, description="Also add the whole lesson as a page card in the review schedule.")
+
+
+class LessonRef(BaseModel):
+    lesson: str | None = Field(None, max_length=200, description="Lesson id, title or unique prefix; omit to list.")
+    subject: str | None = Field(None, max_length=200, description="Limit to this subject.")
+    section: int | None = Field(None, ge=1, le=50, description="One section: its text, concepts and questions to ask.")
+    with_answers: bool = Field(False, description="Include the answers (false when quizzing).")
+
+
+class ConceptMasteryArgs(BaseModel):
+    lesson: str | None = Field(None, max_length=200, description="Lesson id, title or prefix; omit to cover the subject.")
+    subject: str | None = Field(None, max_length=200)
+
+
+class LessonDeleteArgs(BaseModel):
+    lesson: str = Field(..., min_length=1, max_length=200)
+    delete_questions: bool = Field(False, description="Also delete the lesson's questions from the bank (default keeps them).")
+
+
 # ---------- helpers ----------
 
 def _subject(services: Services, ref: str | None) -> dict | None:
@@ -454,6 +485,55 @@ def run_pages_list(services: Services, args: PagesListArgs) -> dict:
     return {"count": len(rows), "pages": rows}
 
 
+def run_lesson_from_document(services: Services, args: LessonFromDocumentArgs) -> dict:
+    try:
+        text, doc_title, label = lessons.read_document(args.text, args.path)
+        if args.save:
+            subject, created = bank.ensure_subject(services, args.subject)
+        else:  # a preview works for a subject that does not exist yet
+            try:
+                subject, created = services.resolve_subject(args.subject), False
+            except LookupError:
+                subject, created = {"id": "preview", "name": args.subject.strip()}, False
+        out = lessons.create(services, subject, text, (args.title or doc_title or "").strip(), label, args.topic,
+                             args.language, args.max_sections, args.use_model, args.save, args.as_page_card)
+    except lessons.LessonInputError as error:
+        raise ValueError(str(error)) from error
+    return {**out, "subject": subject["name"], "subjectCreated": created}
+
+
+def _lesson_scope(services: Services, ref: str | None, subject_ref: str | None) -> tuple[dict | None, dict | None]:
+    subject = _subject(services, subject_ref)
+    lesson = lessons.resolve_lesson(services, ref, subject["id"] if subject else None) if ref and ref.strip() else None
+    return lesson, subject
+
+
+def run_lesson_get(services: Services, args: LessonRef) -> dict:
+    lesson, subject = _lesson_scope(services, args.lesson, args.subject)
+    if lesson is None:
+        rows = [lessons.summary_row(services, x) for x in lessons.list_lessons(services, subject["id"] if subject else None)]
+        return {"count": len(rows), "lessons": rows}
+    return lessons.teach(services, lesson, args.section, args.with_answers)
+
+
+def run_concept_mastery(services: Services, args: ConceptMasteryArgs) -> dict:
+    lesson, subject = _lesson_scope(services, args.lesson, args.subject)
+    if lesson is not None:
+        return lessons.mastery(services, lesson)
+    if subject is None:
+        raise ValueError("Give a lesson or a subject.")
+    results = [lessons.mastery(services, x) for x in lessons.list_lessons(services, subject["id"])]
+    weakest = sorted((dict(c, lesson=r["lesson"]) for r in results for c in r["concepts"] if c["level"] != "dominado"),
+                     key=lambda c: (c["mastery"], c["attempts"]))[:10]
+    return {"subject": subject["name"], "count": len(results),
+            "lessons": [{k: r[k] for k in ("lessonId", "lesson", "mastery", "levels", "weakest")} for r in results],
+            "weakestConcepts": weakest}
+
+
+def run_lesson_delete(services: Services, args: LessonDeleteArgs) -> dict:
+    return lessons.delete_lesson(services, lessons.resolve_lesson(services, args.lesson), args.delete_questions)
+
+
 # ---------- Hypatia compatibility ----------
 
 def run_cards_add(services: Services, args: CardsAddArgs) -> dict:
@@ -563,6 +643,24 @@ STUDY_TOOLS: list[Tool] = [
     Tool("questions_suggest_accept", "Save the question drafts the user accepted (write). Keywords: guardar sugeridas, aceptar."
          "\nSame effect as questions_add (dedupe by content hash)." + SYN + "acepta las preguntas, guarda las sugeridas.",
          QuestionsSuggestAcceptArgs, ann(False, False, True), run_questions_suggest_accept),
+    Tool("lesson_from_document", "Turn a document into a guided lesson: sections, concepts, questions (write). Keywords: enséñame.\n"
+         "Give text or a file path (PDF, DOCX...). Splits into sections, extracts key concepts per section with the local "
+         "model (deterministic rules if none answers), drafts one question per concept and stores them in the bank so the "
+         "schedule reviews them; save=false previews. Idempotent per document. Teach it with lesson_get.\n"
+         "Sinónimos: enséñame este documento, lección de un PDF, estudiar este texto, explícame este tema, guía de estudio.",
+         LessonFromDocumentArgs, ann(False, False, True), run_lesson_from_document),
+    Tool("lesson_get", "List lessons, or get one with the flow to teach it: read a section, then its questions. Keywords: lección.\n"
+         "Without lesson: every lesson with mastery. With lesson: outline and interleaved flow (questions without answers); "
+         "with section=n: that section's text, concepts and questions.\n"
+         "Sinónimos: abrir lección, siguiente sección, mis lecciones, continuar la lección.", LessonRef, ann(True), run_lesson_get),
+    Tool("concept_mastery", "Mastery per concept of a lesson (or all of a subject's), from the review history. Keywords: dominio.\n"
+         "Recency-weighted accuracy x confidence, level (sin ver, débil, en progreso, dominado), due now and what to reteach. "
+         "Computed from reviews; nothing stored.\n"
+         "Sinónimos: dominio por concepto, qué conceptos domino, qué me falta de la lección, conceptos débiles.",
+         ConceptMasteryArgs, ann(True), run_concept_mastery),
+    Tool("lesson_delete", "Delete a lesson (write, destructive); its questions stay unless delete_questions. Keywords: borrar lección.\n"
+         "Lets you rebuild a lesson from the same document.\nSinónimos: eliminar lección, rehacer lección.",
+         LessonDeleteArgs, ann(False, True, True), run_lesson_delete),
     Tool("deliverables_upcoming", "Upcoming deliverables (activities, tests, exams) with due dates. Keywords: entregas, plazos."
          "\nPending items due within `days`, soonest first." + SYN + "entregas, qué tengo que entregar, plazos, fechas límite.",
          DeliverablesArgs, ann(True), run_deliverables_upcoming),
