@@ -817,6 +817,12 @@ const handleResourceDelete = async (categorySlug: string, filename: string) => {
                   <span className="hidden sm:inline">📓 Cuaderno</span>
                 </Button>
               )}
+              {hoard && (
+                <Button size="sm" variant="ghost" onClick={() => navigate(`/subject/${subjectId}/notebook?tab=lessons`)} title="Enséñame este documento: lección por secciones con preguntas y dominio por concepto" aria-label="Enséñame este documento">
+                  <span className="sm:hidden">🎓</span>
+                  <span className="hidden sm:inline">🎓 Enséñame un documento</span>
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={handleStatsClick}>
                 <span className="sm:hidden">📊</span>
                 <span className="hidden sm:inline">📊 Estadísticas</span>
