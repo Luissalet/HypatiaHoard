@@ -82,6 +82,8 @@ def test_optional_clear_noop_and_no_resurrection(services):
 @pytest.mark.parametrize("patch", [{"id": "other"}, {"createdAt": None}, {"contentHash": "fake"},
                                   {"prompt": None}, {"prompt": 123}, {"options": "bad"},
                                   {"modelAnswer": []}, {"correctOptionIds": [{}]},
+                                  {"explanation": 42}, {"tags": "text"}, {"keywords": [3]}, {"starred": "yes"},
+                                  {"difficulty": 99},
                                   {"blanks": [{"id": "b", "accepted": [1]}]}])
 def test_invalid_patch_is_atomic(client, patch):
     seed(client.services)
