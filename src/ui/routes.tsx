@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { FaustusCopilot } from './components/FaustusCopilot';
 
 // ── Rutas críticas: carga inmediata ────────────────────────────────────────
 // Estas páginas se usan desde el primer segundo, no se difieren.
@@ -77,6 +78,7 @@ export function AppRouter() {
           <Route path="*"                                      element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      <FaustusCopilot />
     </HashRouter>
   );
 }
