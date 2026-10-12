@@ -4,11 +4,12 @@ import type { Question, Topic, QuestionType, QuestionOption, ClozeBlank, Questio
 import { Button, Input, Textarea, Select } from './index';
 import { MdContent } from '@/ui/components/MdContent';
 import { saveQuestionImage } from '@/data/questionImageStorage';
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 
 interface QuestionFormProps {
   topics: Topic[];
   initial?: Partial<Question>;
-  onSave: (data: Omit<Question, 'id' | 'stats' | 'createdAt' | 'updatedAt' | 'contentHash'>) => void;
+  onSave: (data: Omit<Question, 'id' | 'stats' | 'createdAt' | 'updatedAt' | 'contentHash'>) => void | Promise<void>;
   onCancel: () => void;
   subjectId: string;
 }
@@ -346,6 +347,8 @@ function MultiTopicSelector({ topics, selectedIds, onChange }: MultiTopicSelecto
 // ─── Main form ────────────────────────────────────────────────────────────────
 
 export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: QuestionFormProps) {
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [type, setType] = useState<QuestionType>(initial?.type ?? 'TEST');
 
   // Multi-topic support
@@ -384,6 +387,9 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
 
   // Notas personales (LOCAL — nunca exportadas)
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  useCopilotDraft('question', initial?.id, { subjectId, topicId: selectedTopicIds[0], topicIds: selectedTopicIds,
+    type, prompt, explanation, difficulty, tags, origin, options, correctOptionIds, modelAnswer,
+    keywords, numericAnswer, clozeText, blanks, notes });
 
   const addOption = () => setOptions([...options, { id: uuidv4(), text: '' }]);
   const removeOption = (id: string) => {
@@ -410,7 +416,7 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
     setBlanks(found);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsedTags = tags.split(',').map((t) => t.trim()).filter(Boolean);
     const parsedKeywords = keywords.split(',').map((k) => k.trim()).filter(Boolean);
@@ -418,7 +424,9 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
 
     const primaryTopicId = selectedTopicIds[0] ?? '';
 
-    onSave({
+    setSaveError('');
+    setSaving(true);
+    try { await onSave({
       subjectId,
       topicId: primaryTopicId,
       topicIds: selectedTopicIds.length > 1 ? selectedTopicIds : undefined,
@@ -444,11 +452,12 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
       starred: initial?.starred,
       // De dónde vino la tarjeta (la pone el servidor); se conserva al editar
       sourceRef: initial?.sourceRef,
-    });
+    }); } catch (problem) { setSaveError(String(problem)); } finally { setSaving(false); }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5" data-copilot-kind="question" data-copilot-id={initial?.id || 'new'}>
+      {saveError && <p role="alert">{saveError}</p>}
       {/* Row 1: type + origin */}
       <div className="grid grid-cols-2 gap-4">
         <Select
@@ -662,7 +671,7 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
       {/* Actions */}
       <div className="flex gap-3 justify-end pt-1">
         <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" disabled={!prompt.trim() || selectedTopicIds.length === 0}>
+        <Button type="submit" disabled={saving || !prompt.trim() || selectedTopicIds.length === 0}>
           {initial?.id ? 'Guardar cambios' : 'Crear pregunta'}
         </Button>
       </div>

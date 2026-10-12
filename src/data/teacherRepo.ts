@@ -16,6 +16,9 @@ import type {
 } from '@/domain/teacher';
 import { DEFAULT_SCALE, normalizeScale, matchStudent } from '@/domain/teacherCore';
 import { normalizeText } from '@/domain/normalize';
+import { changedObjectFields } from './copilotCore';
+import { isHoardMode } from './hoardMode';
+import { hoardJson } from './hoardClient';
 import {
   TEACHER_DELETES_KEY, TEACHER_KIND_TABLE, TEACHER_PENDING_KEY, addDelete, parseDeletes, parseList, pendingKey,
 } from './teacherSyncCore';
@@ -66,6 +69,19 @@ export async function putRecord<T extends { id: string }>(kind: TeacherKind, obj
 
 const updateQueues = new Map<string, Promise<unknown>>();
 
+async function nativePatch<T extends { id: string }>(kind: TeacherKind, id: string, patch: object, mergeObjects = false): Promise<T | null> {
+  if (!isHoardMode()) return null;
+  await (await import('./teacherSync')).teacherSyncNow();
+  const result = await hoardJson<{ record: T }>(`/bank/records/${kind}/${encodeURIComponent(id)}?merge_objects=${mergeObjects}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(Object.fromEntries(Object.entries(patch).filter(([key]) =>
+      !['id', 'createdAt', 'updatedAt', 'contentHash'].includes(key)).map(([key, value]) => [key, value ?? null]))),
+  });
+  await tableOf(kind).put(result.record);
+  notifyTeacherChanged();
+  return result.record;
+}
+
 /**
  * Cambia un registro a partir de su versión más reciente, en cola por registro: dos
  * cambios seguidos (dos casillas de la rejilla, dos puntos de un examen) no se pisan.
@@ -76,7 +92,9 @@ export function updateRecord<T extends { id: string }>(kind: TeacherKind, id: st
   const next = prev.catch(() => undefined).then(async () => {
     const fresh = (await tableOf(kind).get(id)) as unknown as T | undefined;
     if (!fresh) throw new Error('El registro ya no existe.');
-    return putRecord(kind, await mutate(fresh)) as unknown as T;
+    const updated = await mutate(fresh);
+    const saved = await nativePatch<T>(kind, id, changedObjectFields(fresh, updated), true);
+    return saved ?? putRecord(kind, updated) as unknown as T;
   });
   updateQueues.set(key, next);
   return next;
@@ -102,6 +120,7 @@ export const classRepo = {
     return putRecord('class', { id: uuidv4(), ...data } as TeacherClass);
   },
   async update(id: string, patch: Partial<TeacherClass>): Promise<void> {
+    if (await nativePatch('class', id, patch)) return;
     const current = await db.teacherClasses.get(id);
     if (current) await putRecord('class', { ...current, ...patch, id });
   },
@@ -138,6 +157,7 @@ export const studentRepo = {
     return { added, skipped };
   },
   async update(id: string, patch: Partial<TeacherStudent>): Promise<void> {
+    if (await nativePatch('student', id, patch)) return;
     const current = await db.teacherStudents.get(id);
     if (current) await putRecord('student', { ...current, ...patch, id });
   },

@@ -49,6 +49,7 @@ class RecordRef(BaseModel):
 
 class RecordPatchArgs(RecordRef):
     patch: dict[str, Any] = Field(..., description="Only changed top-level fields; null removes a field. Arrays and objects replace their field. Omit untouched fields, including stats. Do not supply id, createdAt, updatedAt or contentHash.")
+    merge_objects: bool = Field(False, description="Recursively merge changed object fields instead of replacing whole objects (e.g. teacher exam header). Arrays still replace their field.")
 
 
 def run_record_get(services: Services, args: RecordRef) -> dict:
@@ -56,7 +57,7 @@ def run_record_get(services: Services, args: RecordRef) -> dict:
 
 
 def run_record_patch(services: Services, args: RecordPatchArgs) -> dict:
-    return {"kind": args.kind, "record": records.patch_record(services, args.kind, args.id, args.patch)}
+    return {"kind": args.kind, "record": records.patch_record(services, args.kind, args.id, args.patch, args.merge_objects)}
 
 
 class MathComputeArgs(BaseModel):

@@ -141,6 +141,12 @@ export function ChatPanel({ mode }: ChatPanelProps) {
     }
   };
 
+  const continueInFaustus = () => {
+    window.dispatchEvent(new CustomEvent('hypatia:open-copilot', { detail: {
+      chatId, mode, topicId: topicId ? serverTopicId(topicId) : undefined, draft: input.trim(),
+    } }));
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -150,6 +156,8 @@ export function ChatPanel({ mode }: ChatPanelProps) {
 
   return (
     <div className="flex flex-col gap-3 min-h-[60vh]">
+      <Button onClick={continueInFaustus}>Continuar en Faustus</Button>
+      <p className="text-xs text-ink-400">Las consultas con fuentes y el tutor conservan sus citas y progreso. Puedes continuar la conversación en Faustus.</p>
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-2">
         <div className="w-full sm:w-64">

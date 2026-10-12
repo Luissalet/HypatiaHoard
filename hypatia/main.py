@@ -17,6 +17,8 @@ from .agenda import agenda_items
 from .config import Config
 from .hoard_link import family, fam_agenda
 from .hoard_link.guard import install_guard
+from .hoard_link.copilot import make_copilot_router
+from .hoard_link.config import LinkConfig
 from .resources import index_for
 from .services import Services
 from .teacher import start as start_teacher
@@ -95,6 +97,10 @@ def create_app(config: Config | None = None, services: Services | None = None) -
     fam_agenda.install_fastapi(app, agenda_provider)
     if notebook_router is not None:
         app.include_router(notebook_router)
+
+    link = LinkConfig.load(path=config.data_dir / "backend.json", app="hypatia")
+    app.include_router(make_copilot_router("hypatia", config.data_dir, app_name="Hypatia's Hoard",
+                                         faustus_urls=link.faustus_urls, token=link.faustus_token))
 
     dist = config.dist_dir
 

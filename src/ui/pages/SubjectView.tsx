@@ -1,4 +1,6 @@
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { changedFields } from '@/data/copilotCore';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '@/ui/store';
 import {
@@ -347,6 +349,7 @@ export function SubjectView() {
   const [topicModal, setTopicModal] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [topicTitle, setTopicTitle] = useState('');
+  useCopilotDraft('topic', editingTopic?.id, { subjectId, title: topicTitle }, topicModal);
   const [questionModal, setQuestionModal] = useState(false);
   const [pageModal, setPageModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
@@ -736,7 +739,7 @@ const handleResourceDelete = async (categorySlug: string, filename: string) => {
 
   const handleQuestionSave = async (data: Omit<Question, 'id' | 'stats' | 'createdAt' | 'updatedAt' | 'contentHash'>) => {
     if (editingQuestion) {
-      await updateQuestion(editingQuestion.id, data);
+      await updateQuestion(editingQuestion.id, changedFields(editingQuestion, data));
     } else {
       await createQuestion(data);
     }

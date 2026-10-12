@@ -1,6 +1,8 @@
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 /** Clases: grupos (nombre, curso, año, asignaturas) y sus alumnos (nombre o alias). */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
+import { changedFields } from '@/data/copilotCore';
 import { Badge, Button, Card, EmptyState, Input, Modal, Textarea } from '@/ui/components';
 import { useStore } from '@/ui/store';
 import { classRepo, studentRepo } from '@/data/teacherRepo';
@@ -15,6 +17,7 @@ export function ClassesTab() {
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ name: '', course: '', year: '', subjectIds: [] as string[] });
+  useCopilotDraft('class', undefined, form, creating);
   const current = classes.find((c) => c.id === selected) ?? classes[0];
 
   const create = async () => {
@@ -84,7 +87,9 @@ function ClassDetail({ klass, subjects, tick }: { klass: TeacherClass; subjects:
   const [showImport, setShowImport] = useState(false);
   const [msg, setMsg] = useState('');
   const [editing, setEditing] = useState(false);
+  const editBase = useRef(klass);
   const [edit, setEdit] = useState({ name: klass.name, course: klass.course ?? '', year: klass.year ?? '', subjectIds: klass.subjectIds });
+  useCopilotDraft('class', klass.id, edit, editing);
   const preview = useMemo(() => parseRoster(roster), [roster]);
   const subjectNames = klass.subjectIds.map((id) => subjects.find((s) => s.id === id)?.name ?? '—');
 
@@ -105,12 +110,12 @@ function ClassDetail({ klass, subjects, tick }: { klass: TeacherClass; subjects:
     <Card className="flex flex-col gap-4 min-w-0">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="font-display text-lg text-ink-100">{klass.name}</h2>
+          <h2 className="font-display text-lg text-ink-100" data-copilot-kind="class" data-copilot-id={klass.id}>{klass.name}</h2>
           <p className="text-xs text-ink-500">{[klass.course, klass.year].filter(Boolean).join(' · ')}</p>
           <div className="flex flex-wrap gap-1 mt-2">{subjectNames.map((n, i) => <Badge key={i} color="amber">{n}</Badge>)}</div>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="secondary" onClick={() => { setEdit({ name: klass.name, course: klass.course ?? '', year: klass.year ?? '', subjectIds: klass.subjectIds }); setEditing(true); }}>Editar</Button>
+          <Button size="sm" variant="secondary" onClick={() => { editBase.current = klass; setEdit({ name: klass.name, course: klass.course ?? '', year: klass.year ?? '', subjectIds: klass.subjectIds }); setEditing(true); }}>Editar</Button>
           <Button size="sm" variant="danger" onClick={async () => {
             if (confirm(`¿Borrar la clase «${klass.name}» con sus alumnos y entregas?`)) await classRepo.delete(klass.id);
           }}>Borrar</Button>
@@ -172,7 +177,7 @@ function ClassDetail({ klass, subjects, tick }: { klass: TeacherClass; subjects:
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancelar</Button>
             <Button size="sm" disabled={!edit.name.trim()} onClick={async () => {
-              await classRepo.update(klass.id, { name: edit.name.trim(), course: edit.course.trim() || null, year: edit.year.trim() || null, subjectIds: edit.subjectIds });
+              await classRepo.update(klass.id, changedFields(editBase.current, { name: edit.name.trim(), course: edit.course.trim() || null, year: edit.year.trim() || null, subjectIds: edit.subjectIds }));
               setEditing(false);
             }}>Guardar</Button>
           </div>

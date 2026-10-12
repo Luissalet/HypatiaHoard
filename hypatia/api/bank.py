@@ -29,8 +29,8 @@ def get_record(request: Request, kind: str, record_id: str):
 
 
 @router.patch("/records/{kind}/{record_id}")
-def patch_record(request: Request, kind: str, record_id: str, body: dict[str, Any]):
-    return {"kind": kind, "record": _run(records.patch_record, services(request), kind, record_id, body)}
+def patch_record(request: Request, kind: str, record_id: str, body: dict[str, Any], merge_objects: bool = False):
+    return {"kind": kind, "record": _run(records.patch_record, services(request), kind, record_id, body, merge_objects)}
 
 
 @router.get("/subjects")

@@ -65,7 +65,19 @@ def _validate(kind: str, record: dict) -> None:
         record["contentHash"] = compute_concept_hash(record["category"], record["title"], record["content"])
 
 
-def patch_record(services, kind: str, id: str, patch: dict[str, Any]) -> dict[str, Any]:
+def _merge_fields(current: dict, patch: dict) -> dict:
+    result = dict(current)
+    for key, value in patch.items():
+        if value is None:
+            result.pop(key, None)
+        elif isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _merge_fields(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+def patch_record(services, kind: str, id: str, patch: dict[str, Any], merge_objects: bool = False) -> dict[str, Any]:
     """Apply supplied top-level fields to the latest row; null removes an optional field.
 
     Nested values and arrays replace their whole field. Identity, timestamps and
@@ -78,12 +90,15 @@ def patch_record(services, kind: str, id: str, patch: dict[str, Any]) -> dict[st
         current = store.get(kind, id)
         if current is None:
             raise LookupError(f"{kind} {id} does not exist.")
-        updated = dict(current)
-        for key, value in patch.items():
-            if value is None:
-                updated.pop(key, None)
-            else:
-                updated[key] = value
+        if merge_objects:
+            updated = _merge_fields(current, patch)
+        else:
+            updated = dict(current)
+            for key, value in patch.items():
+                if value is None:
+                    updated.pop(key, None)
+                else:
+                    updated[key] = value
         if updated == current:
             return current
         _validate(kind, updated)

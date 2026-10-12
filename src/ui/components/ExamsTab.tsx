@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react';
+import { changedFields } from '@/data/copilotCore';
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Modal, Input, EmptyState, Badge, TypeBadge, Select } from '@/ui/components';
 import { QuestionPreviewContent } from '@/ui/components/QuestionPreview';
@@ -125,7 +127,7 @@ export function ExamsTab({ subjectId, exams, questions, topics, onCreate, onUpda
 
   const handleSave = async (data: { name: string; description: string; questionIds: string[] }) => {
     if (editingExam) {
-      await onUpdate(editingExam.id, data);
+      await onUpdate(editingExam.id, changedFields(editingExam, data));
     } else {
       await onCreate({ subjectId, ...data });
     }
@@ -385,6 +387,7 @@ function ExamEditor({ initial, questions, topics, onSave, onCancel }: ExamEditor
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [selectedIds, setSelectedIds] = useState<string[]>(initial?.questionIds ?? []);
+  useCopilotDraft('exam', initial?.id, { name, description, questionIds: selectedIds });
 
   // Internal tab: 'bank' or 'selected'
   const [view, setView] = useState<'bank' | 'selected'>('bank');
@@ -452,6 +455,7 @@ function ExamEditor({ initial, questions, topics, onSave, onCancel }: ExamEditor
       <div className="flex gap-3">
         <Input
           label="Nombre del examen"
+          data-copilot-kind="exam" data-copilot-id={initial?.id || 'new'}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Ej: Parcial Temas 1-5"

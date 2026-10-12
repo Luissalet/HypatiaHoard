@@ -1,0 +1,8 @@
+.hypatia-copilot-toggle { position: fixed; right: 1rem; bottom: 1rem; z-index: 70; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; background: #1f1b2e; color: #e06c75; border-radius: 50%; border: 1px solid #7f7f7f73; }
+.hypatia-copilot-toggle:focus-visible { outline: 2px solid #e06c75; outline-offset: 2px; }
+.hypatia-copilot { position: fixed; z-index: 71; right: 1rem; bottom: 4.5rem; width: min(28rem, calc(100vw - 2rem)); height: min(42rem, calc(100dvh - 6rem)); background: var(--ink-950, #111827); border: 1px solid #475569; border-radius: .75rem; display: flex; flex-direction: column; box-shadow: 0 12px 40px #0005; }
+.hypatia-copilot header { display: flex; align-items: center; justify-content: space-between; padding: .6rem 1rem; }
+.hypatia-copilot header button { padding: .25rem .5rem; }
+.hypatia-copilot-host { flex: 1; min-height: 0; }
+.hypatia-copilot-host faustus-chat { display: block; height: 100%; }
+.hypatia-copilot [role=alert] { padding: .5rem 1rem; color: #fca5a5; overflow-wrap: anywhere; }

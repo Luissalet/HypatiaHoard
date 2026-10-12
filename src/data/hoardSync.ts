@@ -228,9 +228,11 @@ async function pull(): Promise<{ changed: boolean; rev: number }> {
 async function refreshUi(): Promise<void> {
   const store = useStore.getState();
   await store.loadSubjects();
-  const subjectId = store.questions[0]?.subjectId ?? store.topics[0]?.subjectId;
+  const route = /^#\/(?:subject|flashcard)\/([^/?]+)/.exec(location.hash);
+  const subjectId = route ? decodeURIComponent(route[1]) : store.currentSession?.subjectId;
   if (subjectId) {
-    await Promise.all([store.loadTopics(subjectId), store.loadQuestions(subjectId)]);
+    await Promise.all([store.loadTopics(subjectId), store.loadQuestions(subjectId),
+      store.loadKeyConcepts(subjectId), store.loadExams(subjectId)]);
   }
   window.dispatchEvent(new CustomEvent('hypatia-synced'));
 }

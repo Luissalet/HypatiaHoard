@@ -10,6 +10,7 @@ import { setProgressUpdater } from './utils/backgroundSynthesis';
 import { useStore } from './ui/store';
 import { setHoardDetection } from './data/hoardMode';
 import './index.css';
+import { FaustusCopilot } from './ui/components/FaustusCopilot';
 
 // Arranca auto-sync con GitHub Gist (solo hace algo si hay token + gistId configurados)
 startAutoSync();
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
       <AppRouter />
+      <FaustusCopilot />
       <PwaUpdateBanner />
       <PwaInstallBanner />
       <StorageWarningBanner />

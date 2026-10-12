@@ -124,3 +124,10 @@ MIT, Luis María Salete Cuartero.
 
 MCP `record_get` y GET `/api/bank/records/{kind}/{id}` leen el objeto completo. `record_patch` y PATCH en esa ruta aplican solo los campos cambiados en una transaccion: los omitidos conservan su valor actual, incluidos los cambios concurrentes. Null borra campos opcionales; hash, busqueda y revision de sincronizacion cambian juntos. Los ids inexistentes o borrados no crean registros. Contrato completo en [API de registros](docs/API.md).
 
+## Copilot de Faustus
+
+El Hoard local muestra el panel común de Faustus en todas las vistas principales. Faustus guarda las conversaciones activas, borradores y turnos y utiliza su modelo global. Hypatia aporta la vista, los ids reales de los objetos de estudio o profesor, la selección y los campos visibles sin guardar; las altas `new` y los ids inexistentes no inventan objetos. El panel sigue el idioma y el tema de la app.
+
+El servidor monta `/api/copilot/info`, `/api/copilot/panel.js` y `/api/copilot/proxy` con el transporte canónico de HoardLink. `copilot-space-id` identifica de forma duradera la carpeta de datos; las credenciales permanecen en el servidor. Los cambios de las herramientas refrescan las listas sin remontar formularios abiertos. Al guardar se envían sólo los campos cambiados a la API atómica de registros; los arrays y objetos anidados siguen siendo sustituciones de su campo completo.
+
+Las consultas con fuentes y el Tutor del cuaderno conservan sus flujos pedagógicos con citas. Continuar en Faustus abre el asistente común. Las conversaciones antiguas permanecen legibles con sus citas; al continuarlas se importan por la API común idempotente, conservando ids de mensajes, fechas y metadatos de citas. Las conversaciones generales se ejecutan en Faustus, con sesiones y borradores independientes por asignatura. El Chat de fuentes y el Tutor conservan sus turnos nativos, citas, pasajes y dificultades. Se conservan las herramientas nativas de fuentes/tutor, el estado pedagógico y los datos originales. Requiere el servicio Faustus configurado y recompilar la PWA local con `npm run build`. La PWA pública sin conexión conserva su funcionamiento.
