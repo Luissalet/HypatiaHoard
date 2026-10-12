@@ -35,7 +35,7 @@ def _validate(kind: str, record: dict) -> None:
         if not isinstance(record.get(key), str) or not record[key].strip():
             raise ValueError(f"A {kind} needs a non-empty {key}.")
     if kind == "question":
-        for key in ("modelAnswer", "clozeText"):
+        for key in ("modelAnswer", "clozeText", "explanation", "numericAnswer", "pageHtml", "notes", "sourceRef"):
             if key in record and not isinstance(record[key], str):
                 raise ValueError(f"{key} must be text.")
         for key in ("options", "blanks"):
@@ -45,10 +45,14 @@ def _validate(kind: str, record: dict) -> None:
         for option in record.get("options") or []:
             if not isinstance(option.get("id"), str) or not isinstance(option.get("text"), str):
                 raise ValueError("Options need text ids and text values.")
-        for key in ("correctOptionIds",):
+        for key in ("correctOptionIds", "tags", "keywords", "topicIds"):
             if key in record and (not isinstance(record[key], list) or
                                   any(not isinstance(item, str) for item in record[key])):
                 raise ValueError(f"{key} must be a list of strings.")
+        if "starred" in record and not isinstance(record["starred"], bool):
+            raise ValueError("starred must be a boolean.")
+        if "difficulty" in record and (type(record["difficulty"]) is not int or not 1 <= record["difficulty"] <= 5):
+            raise ValueError("difficulty must be an integer from 1 to 5.")
         for blank in record.get("blanks") or []:
             if not isinstance(blank.get("id"), str) or not isinstance(blank.get("accepted"), list) or \
                     any(not isinstance(item, str) for item in blank["accepted"]):
