@@ -118,7 +118,7 @@ export function FaustusCopilot() {
         };
         panel.contextProvider = async () => {
           // A queued turn on a detached panel still belongs to its original view.
-          if (lastContext && (disposed || location.hash !== route)) return lastContext;
+          if (lastContext && (disposed || (location.hash || '#/') !== route)) return lastContext;
           // Capture the editor before any record lookup can yield to navigation.
           const hash = location.hash;
           const text = window.getSelection()?.toString() || '';
