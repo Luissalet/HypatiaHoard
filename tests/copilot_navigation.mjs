@@ -60,7 +60,7 @@ async function hoardJson(path) {
   return { record: { id, name: id === 'A' ? 'Networks' : 'Biology' } };
 }
 globalThis.__copilotTest = { useState, useEffect, useRef, React, hoardJson,
-  useLocation: () => ({ pathname: location.hash.slice(1), search: '', hash: '' }),
+  useLocation: () => ({ pathname: location.hash.slice(1) || '/', search: '', hash: '' }),
   useHoardMode: () => true, useTheme: () => ({ theme: 'dark' }), TEACHER_KIND_TABLE: {}, FaustusMark: () => null };
 globalThis.MutationObserver = class { observe() {} disconnect() {} };
 globalThis.localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
@@ -75,13 +75,13 @@ const js = ts.transpileModule(source, { compilerOptions: {
 } }).outputText;
 component = (await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'))).FaustusCopilot;
 
-function setup(paused) {
+function setup(paused, initialHash = '#/subject/A') {
   for (const hook of hooks) hook?.cleanup?.();
   hooks = []; panels = []; held = []; holdA = paused;
   storage.clear();
   for (const id of ['A', 'B']) { storage.set('hypatia-faustus-space-' + id, 'SID-' + id); storage.set('hypatia-faustus-space-' + id + '-draft', 'Draft ' + id); }
   dom = { id: 'A', heading: 'Networks', field: 'Editor A', selection: 'Selection A' };
-  globalThis.location = { hash: '#/subject/A', origin: 'http://qa.invalid' };
+  globalThis.location = { hash: initialHash, origin: 'http://qa.invalid' };
   globalThis.window = new EventTarget();
   window.location = location;
   window.getSelection = () => ({ toString: () => dom.selection });
@@ -151,5 +151,14 @@ assert.equal(host.current, panelB);
 assert.equal(panelB.session, 'SID-B');
 assert.equal(panelB.transcript, 'SID-B');
 assert.equal((await panelB.contextProvider()).project.external_project_id, 'B');
+
+// The normal launcher URL has no hash; HashRouter still calls that route '/'.
+setup(false, '');
+await until(() => host.current?.isConnected);
+dom.field = 'New subject unsaved name';
+const dashboard = await host.current.contextProvider();
+assert.equal(dashboard.view.route, '#/');
+assert.equal(dashboard.view.editor.fields[0].value, 'New subject unsaved name');
+assert.equal(dashboard.view.editor.objects[0].draft.name, 'New subject unsaved name');
 for (const hook of hooks) hook?.cleanup?.();
-console.log('Pending context and pending mount navigation preserve A snapshots and B session/draft/transcript');
+console.log('Pending navigation keeps A/B scoped; root URL without hash provides fresh editor drafts');
