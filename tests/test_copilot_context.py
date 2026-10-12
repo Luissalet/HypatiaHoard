@@ -27,3 +27,9 @@ console.log('route, new, partial-save and canonical-id checks passed');
 '''
     result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=root, text=True, capture_output=True)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_pending_navigation_keeps_context_and_widget_scoped():
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(['node', 'tests/copilot_navigation.mjs'], cwd=root, text=True, capture_output=True)
+    assert result.returncode == 0, result.stdout + result.stderr
