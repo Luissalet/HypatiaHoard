@@ -124,3 +124,10 @@ MIT, Luis María Salete Cuartero.
 
 Read full study records with MCP `record_get` or GET `/api/bank/records/{kind}/{id}`. Apply only changed fields with `record_patch` or PATCH on the same route: omitted fields retain their latest values, including concurrent edits. Null clears optional fields; hashes, search and sync revisions update together. Unknown or deleted ids never create records. See [Record API](docs/API.md).
 
+## Faustus copilot
+
+The local Hoard shows the shared Faustus panel on every main view. Faustus owns the active conversations, drafts, model and tool turns. Hypatia provides the current view, its real study/teacher object ids, selection and visible unsaved editor fields; `new` and missing ids provide no invented object. The panel follows the app language and theme and uses the global Faustus model configuration.
+
+The server exposes `/api/copilot/info`, `/api/copilot/panel.js` and `/api/copilot/proxy` using the canonical HoardLink transport. The persistent `copilot-space-id` identifies this data directory; endpoint credentials stay on the server. There is no additional agent loop in the panel. Tool changes refresh study and teacher lists without remounting open editors. Changed-field saves use the native atomic record API; arrays and nested objects remain whole-field replacements.
+
+Notebook source Q&A and the Socratic tutor retain their cited, pedagogical workflows; Continue in Faustus opens the shared assistant. Existing local notebook conversations remain readable with their citations; Continue imports the selected conversation through the shared idempotent import API with original message ids, dates and citation metadata. General assistant turns run in Faustus, with separate sessions and drafts for each subject. Source Q&A and Tutor retain their native UI turns, citations, passages and weakness feedback. The native source/tutor tools and educational state remain available, and the original notebook data are retained. To use this UI, start the configured Faustus service and rebuild the local PWA with `npm run build`. The public offline PWA retains its existing behaviour.

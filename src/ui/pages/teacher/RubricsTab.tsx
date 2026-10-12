@@ -1,6 +1,8 @@
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 /** Rúbricas por examen y la escala de notas (0-10, una decimal, bandas configurables). */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { changedFields } from '@/data/copilotCore';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Card, Input } from '@/ui/components';
 import { db } from '@/data/db';
@@ -49,11 +51,22 @@ export function RubricsTab() {
 }
 
 function ScaleEditor({ tick }: { tick: number }) {
-  const [scale, setScale] = useState<GradeScale>(DEFAULT_SCALE);
+  const [scale, setScaleState] = useState<GradeScale>(DEFAULT_SCALE);
+  const base = useRef<GradeScale>(DEFAULT_SCALE);
+  const dirty = useRef(false);
+  useCopilotDraft('teacherSettings', 'default', { scale });
+  const setScale = (value: GradeScale) => { dirty.current = true; setScaleState(value); };
   const [saved, setSaved] = useState('');
-  useEffect(() => { void teacherSettingsRepo.getScale().then(setScale); }, [tick]);
+  useEffect(() => { void teacherSettingsRepo.getScale().then(value => {
+    if (!dirty.current) { base.current = value; setScaleState(value); }
+  }); }, [tick]);
   const save = async () => {
-    await teacherSettingsRepo.saveScale(normalizeScale(scale));
+    const fresh = await teacherSettingsRepo.getScale();
+    const updated = { ...fresh, ...changedFields(base.current, normalizeScale(scale)) };
+    await teacherSettingsRepo.saveScale(updated);
+    base.current = updated;
+    dirty.current = false;
+    setScaleState(updated);
     setSaved('Escala guardada.');
     setTimeout(() => setSaved(''), 2000);
   };

@@ -13,6 +13,7 @@ import type {
 } from '@/domain/models';
 import { computeContentHash } from '@/domain/hashing';
 import { slugify, normalizeText } from '@/domain/normalize';
+import { saveRecordPatch } from './recordPatch';
 
 const now = () => new Date().toISOString();
 
@@ -36,6 +37,7 @@ export const subjectRepo = {
     return subject;
   },
   async update(id: string, data: Partial<Subject>): Promise<void> {
+    if (await saveRecordPatch('subject', id, data)) return;
     await db.subjects.update(id, { ...data, updatedAt: now() });
   },
   async delete(id: string): Promise<void> {
@@ -73,6 +75,7 @@ export const topicRepo = {
     return topic;
   },
   async update(id: string, data: Partial<Topic>): Promise<void> {
+    if (await saveRecordPatch('topic', id, data)) return;
     await db.topics.update(id, { ...data, updatedAt: now() });
   },
   async delete(id: string): Promise<void> {
@@ -125,6 +128,7 @@ export const questionRepo = {
     return question;
   },
   async update(id: string, data: Partial<Question>): Promise<void> {
+    if (await saveRecordPatch('question', id, data)) return;
     await db.questions.update(id, { ...data, updatedAt: now() });
   },
   async delete(id: string): Promise<void> {
@@ -293,6 +297,7 @@ export const keyConceptRepo = {
   },
 
   async update(id: string, data: Partial<KeyConcept>): Promise<void> {
+    if (await saveRecordPatch('keyConcept', id, data)) return;
     // Recalcular hash si cambia el contenido
     if (data.title !== undefined || data.content !== undefined || data.category !== undefined) {
       const existing = await db.keyConcepts.get(id);
@@ -356,6 +361,7 @@ export const examRepo = {
   },
 
   async update(id: string, data: Partial<Exam>): Promise<void> {
+    if (await saveRecordPatch('exam', id, data)) return;
     await db.exams.update(id, { ...data, updatedAt: now() });
   },
 

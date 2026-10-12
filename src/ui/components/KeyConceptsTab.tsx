@@ -8,6 +8,8 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { changedFields } from '@/data/copilotCore';
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 import { Button, Modal, Input, Select, EmptyState, Badge } from '@/ui/components';
 import { MdContent } from '@/ui/components/MdContent';
 import type { KeyConcept, KeyConceptCategory, Topic } from '@/domain/models';
@@ -408,6 +410,7 @@ function ConceptFormModal({
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(editing?.tags ?? []);
   const [saving, setSaving] = useState(false);
+  useCopilotDraft('keyConcept', editing?.id, { title, content, category, topicId, tags });
 
   const addTag = () => {
     const t = tagInput.trim();
@@ -424,13 +427,13 @@ function ConceptFormModal({
     setSaving(true);
     try {
       if (editing) {
-        await onUpdate(editing.id, {
+        await onUpdate(editing.id, changedFields(editing, {
           title: title.trim(),
           content: content.trim(),
           category,
           topicId: topicId || undefined,
           tags: tags.length > 0 ? tags : undefined,
-        });
+        }));
       } else {
         const order = concepts.filter((c) => c.category === category).length;
         await onCreate({
@@ -457,7 +460,7 @@ function ConceptFormModal({
       title={editing ? 'Editar concepto' : 'Nuevo concepto'}
       size="lg"
     >
-      <div className="space-y-4">
+      <div className="space-y-4" data-copilot-kind="keyConcept" data-copilot-id={editing?.id || 'new'}>
         {/* Category */}
         <div className="space-y-1">
           <label className="block text-xs font-medium text-ink-400">Categoría</label>

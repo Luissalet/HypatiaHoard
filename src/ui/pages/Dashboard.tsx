@@ -1,3 +1,4 @@
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/ui/store';
@@ -37,6 +38,7 @@ export function Dashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [subjectName, setSubjectName] = useState('');
   const [subjectColor, setSubjectColor] = useState(SUBJECT_COLORS[0]);
+  useCopilotDraft('subject', undefined, { name: subjectName, color: subjectColor }, showCreate);
 
   const [stats, setStats] = useState<Record<string, { total: number; correct: number; seen: number }>>({});
   const [dueToday, setDueToday] = useState<Record<string, number>>({});

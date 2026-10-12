@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react';
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 import { Button, Input, Select, Textarea } from '@/ui/components';
 import { PageCardView } from '@/ui/components/PageCardView';
 import { buildPageCardData, readHtmlFile, type PageCardData } from '@/data/pageCards';
@@ -24,6 +25,7 @@ export function PageCardForm({ topics, subjectId, onSave, onCancel }: Props) {
   const [topicId, setTopicId] = useState(topics[0]?.id ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useCopilotDraft('question', undefined, { kind: 'page', subjectId, topicId, prompt: title, pageHtml: html });
 
   let preview: string | null = null;
   let built: PageCardData | null = null;

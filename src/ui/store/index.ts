@@ -144,8 +144,9 @@ export const useStore = create<AppStore>((set, get) => ({
 
   updateSubject: async (id, data) => {
     await subjectRepo.update(id, data);
+    const fresh = await subjectRepo.getById(id);
     set((s) => ({
-      subjects: s.subjects.map((sub) => (sub.id === id ? { ...sub, ...data } : sub)),
+      subjects: s.subjects.map((sub) => (sub.id === id ? fresh ?? sub : sub)),
     }));
   },
 
@@ -167,8 +168,9 @@ export const useStore = create<AppStore>((set, get) => ({
 
   updateTopic: async (id, data) => {
     await topicRepo.update(id, data);
+    const fresh = await topicRepo.getById(id);
     set((s) => ({
-      topics: s.topics.map((t) => (t.id === id ? { ...t, ...data } : t)),
+      topics: s.topics.map((t) => (t.id === id ? fresh ?? t : t)),
     }));
   },
 
@@ -194,8 +196,9 @@ export const useStore = create<AppStore>((set, get) => ({
 
   updateQuestion: async (id, data) => {
     await questionRepo.update(id, data);
+    const fresh = await questionRepo.getById(id);
     set((s) => ({
-      questions: s.questions.map((q) => (q.id === id ? { ...q, ...data } : q)),
+      questions: s.questions.map((q) => (q.id === id ? fresh ?? q : q)),
     }));
   },
 
@@ -224,8 +227,9 @@ export const useStore = create<AppStore>((set, get) => ({
 
   updateKeyConcept: async (id, data) => {
     await keyConceptRepo.update(id, data);
+    const fresh = await keyConceptRepo.getById(id);
     set((s) => ({
-      keyConcepts: s.keyConcepts.map((c) => (c.id === id ? { ...c, ...data } : c)),
+      keyConcepts: s.keyConcepts.map((c) => (c.id === id ? fresh ?? c : c)),
     }));
   },
 
@@ -248,8 +252,9 @@ export const useStore = create<AppStore>((set, get) => ({
 
   updateExam: async (id, data) => {
     await examRepo.update(id, data);
+    const fresh = await examRepo.getById(id);
     set((s) => ({
-      exams: s.exams.map((e) => (e.id === id ? { ...e, ...data } : e)),
+      exams: s.exams.map((e) => (e.id === id ? fresh ?? e : e)),
     }));
   },
 

@@ -1,6 +1,8 @@
+import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 /** Un examen del profesor: cabecera, preguntas y puntos, borradores con su cita, rúbricas, versiones, PDF. */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { changedFields } from '@/data/copilotCore';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Card, Input, Select, Textarea, TypeBadge } from '@/ui/components';
 import { MdContent } from '@/ui/components/MdContent';
@@ -39,7 +41,9 @@ export function TeacherExamPage() {
   const [rubricFor, setRubricFor] = useState<{ q: Question | null; points: number } | null>(null);
   const [jobId, setJobId] = useState<string | null>(params.get('job'));
   const [header, setHeader] = useState<TeacherExam['header'] | null>(null);
+  const headerBase = useRef<Pick<TeacherExam, 'header' | 'title'>>();
   const [title, setTitle] = useState('');
+  useCopilotDraft('teacherExam', data?.exam?.id, { title, header }, !!data?.exam);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [pdfOpts, setPdfOpts] = useState({ withKey: true, withRubrics: true });
@@ -51,13 +55,14 @@ export function TeacherExamPage() {
 
   useEffect(() => {
     if (data?.exam) {
+      headerBase.current = { header: data.exam.header, title: data.exam.title };
       setHeader(data.exam.header);
       setTitle(data.exam.title);
       if (!jobId && data.exam.jobId && !params.get('job')) setJobId(data.exam.jobId);
       if (data.exam.classId) setClassForBatch((c) => c || data.exam.classId!);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.exam?.id, data?.exam?.updatedAt]);
+  }, [data?.exam?.id]);
 
   const candidates = useMemo(() => {
     if (!data) return [];
@@ -91,7 +96,11 @@ export function TeacherExamPage() {
     try { await fn(); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } finally { setBusy(''); }
   };
   const saveHeader = () => run('header', async () => {
-    await updateExam(exam.id, (fresh) => ({ ...fresh, title: title.trim() || fresh.title, header: header ?? fresh.header }));
+    const baseline = headerBase.current ?? exam;
+    const titlePatch = changedFields({ title: baseline.title }, { title: title.trim() || exam.title });
+    const headerPatch = changedFields(baseline.header, header ?? exam.header);
+    await updateExam(exam.id, (fresh) => ({ ...fresh, ...titlePatch, header: { ...fresh.header, ...headerPatch } }));
+    headerBase.current = { title: title.trim() || exam.title, header: header ?? exam.header };
     setMsg('Guardado.');
   });
   const move = (questionId: string, d: number) => void saveExamItems(exam.id, (items) => {
