@@ -166,19 +166,21 @@ def add_question(services, subject: dict, topic: dict, data: dict[str, Any], ori
 
 
 def update_question(services, question: dict, patch: dict[str, Any]) -> dict:
-    updated = {**question}
-    for key, value in patch.items():
-        if value is None:
-            continue
-        updated[key] = value
-    if updated.get("type") == "TEST" or "options" in patch:
-        updated.update({k: v for k, v in clean_question_input(updated).items()
-                        if k in ("options", "blanks", "correctOptionIds")})
-    validate_question(updated)
-    updated["contentHash"] = compute_content_hash(updated)
-    updated["updatedAt"] = services.now_iso()
-    services.store.put("question", updated)
-    return updated
+    with services.db.tx():
+        # Callers may have read this question before another tool edited it.
+        updated = get_question(services, question["id"])
+        for key, value in patch.items():
+            if value is None:
+                continue
+            updated[key] = value
+        if updated.get("type") == "TEST" or "options" in patch:
+            updated.update({k: v for k, v in clean_question_input(updated).items()
+                            if k in ("options", "blanks", "correctOptionIds")})
+        validate_question(updated)
+        updated["contentHash"] = compute_content_hash(updated)
+        updated["updatedAt"] = services.now_iso()
+        services.store.put("question", updated)
+        return updated
 
 
 def get_question(services, id: str) -> dict:

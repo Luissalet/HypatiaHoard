@@ -119,3 +119,8 @@ No test reaches the network or a sibling app (`tests/notebook/test_nb_family.py`
 ## License
 
 MIT, Luis María Salete Cuartero.
+
+## Native record edits
+
+Read full study records with MCP `record_get` or GET `/api/bank/records/{kind}/{id}`. Apply only changed fields with `record_patch` or PATCH on the same route: omitted fields retain their latest values, including concurrent edits. Null clears optional fields; hashes, search and sync revisions update together. Unknown or deleted ids never create records. See [Record API](docs/API.md).
+

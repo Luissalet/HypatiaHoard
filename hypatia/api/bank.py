@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from .. import agent_tools as tools
 from .. import bank
+from .. import records
 from .deps import services
 
 router = APIRouter(prefix="/api/bank")
@@ -20,6 +21,16 @@ def _run(fn, *args):
         raise HTTPException(404, str(error)) from error
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
+
+
+@router.get("/records/{kind}/{record_id}")
+def get_record(request: Request, kind: str, record_id: str):
+    return {"kind": kind, "record": _run(records.get_record, services(request), kind, record_id)}
+
+
+@router.patch("/records/{kind}/{record_id}")
+def patch_record(request: Request, kind: str, record_id: str, body: dict[str, Any]):
+    return {"kind": kind, "record": _run(records.patch_record, services(request), kind, record_id, body)}
 
 
 @router.get("/subjects")

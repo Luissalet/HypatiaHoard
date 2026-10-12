@@ -8,7 +8,7 @@ from typing import Any, Literal, Union
 
 from pydantic import BaseModel, Field
 
-from . import bank, grading, lessons, pages, study, suggest
+from . import bank, grading, lessons, pages, records, study, suggest
 from .math_tool import compute as compute_math
 from .math_tool import linear_system
 from .services import Services
@@ -38,6 +38,25 @@ Grade = Union[int, str]
 
 class Empty(BaseModel):
     pass
+
+
+class RecordRef(BaseModel):
+    kind: Literal["subject", "topic", "question", "session", "pdfAnchor", "keyConcept", "exam",
+                  "deliverable", "gradingConfig", "installedPackage", "class", "student", "teacherExam",
+                  "rubric", "gradingBatch", "submission", "proposal", "teacherSettings"]
+    id: str = Field(..., min_length=1, description="Exact existing server record id; not a name or a new-object route.")
+
+
+class RecordPatchArgs(RecordRef):
+    patch: dict[str, Any] = Field(..., description="Only changed top-level fields; null removes a field. Arrays and objects replace their field. Omit untouched fields, including stats. Do not supply id, createdAt, updatedAt or contentHash.")
+
+
+def run_record_get(services: Services, args: RecordRef) -> dict:
+    return {"kind": args.kind, "record": records.get_record(services, args.kind, args.id)}
+
+
+def run_record_patch(services: Services, args: RecordPatchArgs) -> dict:
+    return {"kind": args.kind, "record": records.patch_record(services, args.kind, args.id, args.patch)}
 
 
 class MathComputeArgs(BaseModel):
@@ -676,6 +695,19 @@ COMPAT_TOOLS: list[Tool] = [
 ]
 
 TOOLS: list[Tool] = STUDY_TOOLS + list(NOTEBOOK_TOOLS) + COMPAT_TOOLS + TEACHER_TOOLS
+TOOLS += [
+    Tool("record_get", "Read one study-bank record by its exact kind and id, including all native fields. Keywords: objeto."
+         + SYN + "ver objeto, asignatura, tema, sesion, examen, entrega.",
+         RecordRef, ann(True), run_record_get),
+    Tool("record_patch", "Atomically edit only changed fields of an existing study-bank record. Keywords: editar campos.\n"
+         "Read with record_get first. Omitted fields retain their latest values, including concurrent edits. "
+         "Null removes an optional field; arrays and nested objects replace their entire field. "
+         "Unknown ids never create records. Teacher objects retain their separate local-only sync store. "
+         "Notebook chats use their existing tools."
+         + SYN + "editar campos, cambios parciales, conservar cambios, actualizar objeto.",
+         RecordPatchArgs, ann(False), run_record_patch),
+]
+
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
 
 
