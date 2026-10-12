@@ -119,3 +119,8 @@ Ningún test sale a la red ni toca otra app de la familia (`tests/notebook/test_
 ## Licencia
 
 MIT, Luis María Salete Cuartero.
+
+## Edicion nativa de registros
+
+MCP `record_get` y GET `/api/bank/records/{kind}/{id}` leen el objeto completo. `record_patch` y PATCH en esa ruta aplican solo los campos cambiados en una transaccion: los omitidos conservan su valor actual, incluidos los cambios concurrentes. Null borra campos opcionales; hash, busqueda y revision de sincronizacion cambian juntos. Los ids inexistentes o borrados no crean registros. Contrato completo en [API de registros](docs/API.md).
+
