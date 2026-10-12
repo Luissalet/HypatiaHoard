@@ -4,6 +4,7 @@ import type { Question, Topic, QuestionType, QuestionOption, ClozeBlank, Questio
 import { Button, Input, Textarea, Select } from './index';
 import { MdContent } from '@/ui/components/MdContent';
 import { saveQuestionImage } from '@/data/questionImageStorage';
+import { reportEditor } from '@/hoard-copilot-state';
 
 interface QuestionFormProps {
   topics: Topic[];
@@ -384,6 +385,37 @@ export function QuestionForm({ topics, initial, onSave, onCancel, subjectId }: Q
 
   // Notas personales (LOCAL — nunca exportadas)
   const [notes, setNotes] = useState(initial?.notes ?? '');
+
+  // The Faustus copilot sees the form's unsaved input (a new card or the edit of an existing one).
+  useEffect(() => {
+    const base: Partial<Question> = initial ?? {};
+    const dirty =
+      prompt !== (base.prompt ?? '') ||
+      explanation !== (base.explanation ?? '') ||
+      modelAnswer !== (base.modelAnswer ?? '') ||
+      clozeText !== (base.clozeText ?? '') ||
+      type !== (base.type ?? 'TEST') ||
+      (!base.options && options.some((o) => o.text.trim() !== ''));
+    reportEditor('question', {
+      dirty,
+      fields: {
+        question_id: initial?.id ?? null,
+        type,
+        prompt,
+        explanation,
+        difficulty,
+        tags,
+        origin,
+        options: options.map((o) => o.text),
+        correct_options: options.flatMap((o, i) => (correctOptionIds.includes(o.id) ? [i] : [])),
+        model_answer: modelAnswer,
+        keywords,
+        cloze_text: clozeText,
+        topic_ids: selectedTopicIds,
+      },
+    });
+  }, [type, prompt, explanation, difficulty, tags, origin, options, correctOptionIds, modelAnswer, keywords, clozeText, selectedTopicIds]);
+  useEffect(() => () => reportEditor('question', null), []);
 
   const addOption = () => setOptions([...options, { id: uuidv4(), text: '' }]);
   const removeOption = (id: string) => {

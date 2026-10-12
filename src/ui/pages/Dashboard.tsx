@@ -1,4 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
+import { reportEditor } from '@/hoard-copilot-state';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/ui/store';
 import { Button, Card, Modal, Input, Countdown, Progress, EmptyState } from '@/ui/components';
@@ -37,6 +38,11 @@ export function Dashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [subjectName, setSubjectName] = useState('');
   const [subjectColor, setSubjectColor] = useState(SUBJECT_COLORS[0]);
+  // The Faustus copilot: the new-subject form's unsaved input.
+  useEffect(() => {
+    reportEditor('subject', showCreate ? { dirty: subjectName.trim() !== '', fields: { name: subjectName, color: subjectColor } } : null);
+  }, [showCreate, subjectName, subjectColor]);
+  useEffect(() => () => reportEditor('subject', null), []);
 
   const [stats, setStats] = useState<Record<string, { total: number; correct: number; seen: number }>>({});
   const [dueToday, setDueToday] = useState<Record<string, number>>({});

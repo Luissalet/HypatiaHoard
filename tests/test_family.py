@@ -250,7 +250,7 @@ def test_manifest_declares_the_agenda():
     from pathlib import Path
 
     manifest = json.loads((Path(__file__).resolve().parent.parent / "faustus-plugin.json").read_text(encoding="utf-8"))
-    assert manifest["x-family"] == {"agenda": True}
+    assert manifest["x-family"]["agenda"] is True  # the copilot declaration beside it is checked in test_copilot.py
 
 
 def test_a_card_with_a_source_ref_survives_a_sync_round_trip(client):

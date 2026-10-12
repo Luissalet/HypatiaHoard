@@ -64,6 +64,14 @@ Aliases kept from Hypatia 1 (flashcards): `cards_add`, `decks_list`. `cards_add`
 - **Shared services, through the hub.** The podcast voices come from Prospero's Hoard (`voice_tts`, no URL to configure); notebook embeddings come from Borges's Hoard (`embed_texts`, the model and its size are stored with each vector and a change of model re-embeds the sources in the next rescan), with Hypatia's own Hoard Link embedding backend as the fallback only when Borges is not there; a scanned PDF (half or more of its pages without a text layer) is read by Kafka's OCR (`doc_extract`). Vector search scores every stored vector (no cap). Without those apps the notebook still indexes text PDFs and answers from keywords.
 - **Job events.** Teacher jobs (`exam_generate`, `grading_run`) post the canonical job events on the family bus: `hypatia.job.queued`, `started`, `progress` (at most every 3 seconds, with `eta_s` once there is progress), `done`, `failed` (`no_model`, `no_sources` and errors, with the reason in `error`) and `cancelled`, each with `{job_id, title, kind: "teacher", progress 0..1, gpu: false, eta_s, url, error}` (the url opens the exam or the batch). They replace `hypatia.teacher_job.*`, which the hub maps onto these, so the old names are no longer sent.
 
+### Faustus copilot
+
+In the app (the build the server serves) a floating **Faustus** button opens a side panel with the Faustus chat, relayed by this server (`/api/copilot/*`; the Faustus token stays on the server). The conversation, model and tools live in Faustus: the app keeps no chat loop or history. One conversation per subject.
+
+Each turn carries what is open, read from this browser's data with the ids Faustus' tools use (`local_id` beside them when this browser's differ): the **subject** (name, exam date, topic and question counts; it is also the conversation's `project`), the **topic** being read or filtered, the **notebook sources** on the Cuaderno page, the **practice session** and the **question** on screen, a **teacher exam** or **grading batch** (titles, status and counts only: never student names or answers), and the page and tab. On the dashboard it lists the subjects. Unsaved input goes in `view.editor`: the question form (type, prompt, options, answer...), the topic title, the new-subject form and an answer typed but not submitted. After an agent turn the app syncs at once, so changes made through the tools appear without reloading or leaving a form.
+
+The service worker serves the app shell from its cache, so the page adds the launcher tag itself; the server also injects it into any HTML it serves. Turn it off with `HOARD_COPILOT=0` (no routes, no button; rebuild is not needed). Faustus is found through `HOARD_FAUSTUS_URL` (and `HOARD_FAUSTUS_TOKEN`) or the Hoard Link config.
+
 ## Teacher role (Profesor)
 
 A switch in the header (and in **Ajustes → Rol**) turns on the teacher screens. Student mode stays as it is: a teacher can still practise.

@@ -9,7 +9,11 @@ import { startAutoSync } from './data/gistSync';
 import { setProgressUpdater } from './utils/backgroundSynthesis';
 import { useStore } from './ui/store';
 import { setHoardDetection } from './data/hoardMode';
+import { installHoardCopilot } from './hoard-copilot';
 import './index.css';
+
+// Faustus copilot (hoard build only): the launcher and what it asks the page for.
+installHoardCopilot();
 
 // Arranca auto-sync con GitHub Gist (solo hace algo si hay token + gistId configurados)
 startAutoSync();

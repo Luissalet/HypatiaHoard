@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '@/ui/store';
+import { reportEditor, reportView } from '@/hoard-copilot-state';
 import {
   Button, Card, Modal, Input, Tabs, Badge, TypeBadge, Difficulty,
   EmptyState, StatsSummary, Select,
@@ -347,6 +348,25 @@ export function SubjectView() {
   const [topicModal, setTopicModal] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [topicTitle, setTopicTitle] = useState('');
+  // The Faustus copilot: which tab and topic filter are on screen, and the topic form's unsaved title.
+  useEffect(() => {
+    reportView({ subjectTab: tab, filterTopicId: filterTopic });
+  }, [tab, filterTopic]);
+  useEffect(() => {
+    reportEditor(
+      'topic',
+      topicModal
+        ? { dirty: topicTitle.trim() !== (editingTopic?.title ?? ''), fields: { title: topicTitle, editing: editingTopic?.id ?? null } }
+        : null,
+    );
+  }, [topicModal, topicTitle, editingTopic]);
+  useEffect(
+    () => () => {
+      reportView({ subjectTab: undefined, filterTopicId: undefined });
+      reportEditor('topic', null);
+    },
+    [],
+  );
   const [questionModal, setQuestionModal] = useState(false);
   const [pageModal, setPageModal] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);

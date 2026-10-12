@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { reportEditor, reportView } from '@/hoard-copilot-state';
 import { db } from '@/data/db';
 import { questionRepo, sessionRepo, keyConceptRepo } from '@/data/repos';
 import { scoreAnswer } from '@/domain/scoring';
@@ -97,6 +98,23 @@ export function PracticeSessionPage() {
   const currentQuestion = questions[currentIndex];
   const isFinished = currentIndex >= questions.length;
   const progress = questions.length === 0 ? 0 : currentIndex / questions.length;
+
+  // The Faustus copilot: the question on screen and the answer typed but not submitted.
+  useEffect(() => {
+    reportView({ questionId: currentQuestion?.id ?? null, submitted });
+    const typed = freeText.trim() !== '' || selectedOptions.length > 0 || Object.values(blankAnswers).some((v) => v.trim() !== '');
+    reportEditor(
+      'answer',
+      !submitted && typed ? { dirty: true, fields: { selected_options: selectedOptions, free_text: freeText, blanks: blankAnswers } } : null,
+    );
+  }, [currentQuestion?.id, submitted, freeText, selectedOptions, blankAnswers]);
+  useEffect(
+    () => () => {
+      reportView({ questionId: null, submitted: false });
+      reportEditor('answer', null);
+    },
+    [],
+  );
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);

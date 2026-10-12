@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from .api import ROUTERS
 from .agenda import agenda_items
 from .config import Config
 from .hoard_link import family, fam_agenda
+from .hoard_link.copilot import install_copilot
 from .hoard_link.guard import install_guard
 from .resources import index_for
 from .services import Services
@@ -95,6 +97,11 @@ def create_app(config: Config | None = None, services: Services | None = None) -
     fam_agenda.install_fastapi(app, agenda_provider)
     if notebook_router is not None:
         app.include_router(notebook_router)
+
+    # The Faustus copilot: relay + launcher (the panel itself lives in Faustus). HOARD_COPILOT=0 turns it off.
+    # Before the PWA catch-all below. The PWA adds the launcher tag itself too (its service worker serves a cached shell).
+    if os.environ.get("HOARD_COPILOT") != "0":
+        install_copilot(app, "hypatia", config.data_dir, app_name="Hypatia's Hoard")
 
     dist = config.dist_dir
 
