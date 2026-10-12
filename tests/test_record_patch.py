@@ -126,3 +126,12 @@ def test_teacher_patch_keeps_separate_sync_channel(services):
     assert store.changed_since(0)[0]["data"] == result["record"]
     assert services.store.count("exam") == 0
     assert sync.pull(services.store, 0, services.now_iso())["backup"]["exams"] == []
+
+
+def test_legacy_teacher_patch_response_matches_durable_record(services):
+    from hypatia.teacher.store import TeacherStore
+    store = TeacherStore(services)
+    store.put("teacherExam", {"id": "legacy", "title": "Legacy", "updatedAt": services.now_iso()}, touch=False)
+    result = records.patch_record(services, "teacherExam", "legacy", {"title": "Patched"})
+    assert result == store.get("teacherExam", "legacy") == store.changed_since(0)[0]["data"]
+    assert result["createdAt"] == services.now_iso()

@@ -89,4 +89,4 @@ def patch_record(services, kind: str, id: str, patch: dict[str, Any]) -> dict[st
         _validate(kind, updated)
         updated["updatedAt"] = services.now_iso()
         store.put(kind, updated)
-        return updated
+        return store.get(kind, id)
