@@ -187,7 +187,7 @@ export function FaustusCopilot() {
           if (!disposed && request.route === location.hash) await continueNotebook(panel, request);
         }
         if (!disposed) setError('');
-      } catch (problem) { if (!disposed) setError(String(problem)); }
+      } catch (problem) { if (!disposed) setError(((document.documentElement.lang || 'es') === 'es' ? 'Faustus no está disponible ahora mismo. Hypatia sigue funcionando y tu borrador se conserva; cierra y vuelve a abrir el panel cuando Faustus esté en marcha.' : 'Faustus is not available right now. Hypatia keeps working and your draft is kept; close and reopen the panel once Faustus is running.') + ' (' + String(problem) + ')'); }
     }
     void mount();
     return () => { saveDraft(); disposed = true; panel?.remove(); if (panelRef.current === panel) panelRef.current = undefined; };
