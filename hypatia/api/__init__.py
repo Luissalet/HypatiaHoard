@@ -8,6 +8,7 @@ from .status import router as status_router
 from .study import router as study_router
 from .sync import router as sync_router
 from .teacher import router as teacher_router
+from .math import router as math_router
 
 ROUTERS = [status_router, sync_router, bank_router, study_router, ai_router, agent_router, resources_router,
-           teacher_router]
+           teacher_router, math_router]

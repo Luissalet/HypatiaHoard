@@ -2,6 +2,14 @@
 
 [English](README.md)
 
+## Calculadora exacta
+
+En el inicio, **Calculadora exacta** abre una herramienta de cuentas, ecuaciones polinómicas, derivadas, integrales y límites. Carga ejemplos editables y muestra el resultado exacto, su fórmula y la aproximación cuando procede. Funciona localmente sin modelo ni GPU y no lee ni modifica el banco de estudio.
+
+La misma capacidad está en `math_compute` por MCP y en `POST /api/math/compute`. Para `operation: "integrate"`, omite ambos extremos para una primitiva con constante arbitraria C, o envía `lower` y `upper` como cadenas. Admite fracciones, constantes reales, `pi`, `E`, `oo` y `-oo`. Por ejemplo, `exp(-x)` entre `0` y `oo` devuelve exactamente `1`. Para `operation: "limit"`, envía `point`; `side` es `both`, `left` o `right`. Por defecto compara los dos laterales: `1/x` al llegar a `0` indica que el límite no existe y conserva ambos resultados.
+
+Las respuestas distinguen resultados calculados, infinitos, integrales divergentes, límites inexistentes y expresiones sin resolver. Una oscilación no se presenta como número, ni se confunde una integral divergente con su valor principal de Cauchy. El cálculo simbólico se detiene tras 15 segundos si no termina, para que puedas simplificar la expresión y seguir usando la app. No es una demostración paso a paso ni un sistema algebraico completo. Usa el SymPy 1.14 ya incluido, siguiendo su [documentación de cálculo](https://docs.sympy.org/1.14.0/tutorials/intro-tutorial/calculus.html), sin dependencias nuevas de producto.
+
 Hypatia's Hoard es la segunda versión de [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), pensada para correr en tu PC y para que la maneje un asistente. Exam Coach se queda como estaba: una PWA pública que usaron alumnos. Hypatia lo incluye entero y añade:
 
 - **Un servidor local** (Python, `hypatia/`) que sirve la app en `http://127.0.0.1:5187`, guarda tus datos de estudio en SQLite y los sincroniza con el IndexedDB de la app.

@@ -6,6 +6,10 @@ import ast
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 import re
+import json
+from pathlib import Path
+import subprocess
+import sys
 
 import sympy as sp
 
@@ -67,9 +71,33 @@ def parse_expression(source: str, variable: str) -> sp.Expr:
     return expression
 
 
-def compute(operation: str, expression: str, variable: str = "x") -> dict:
+def _point(source: str, variable: str) -> sp.Expr:
+    """Real constants only; infinity is allowed at calculus endpoints."""
+    if source.strip() in ("oo", "+oo", "-oo"):
+        return -sp.oo if source.strip() == "-oo" else sp.oo
+    value = parse_expression(source, variable)
+    if value.free_symbols or value.is_real is not True:
+        raise ValueError("Bounds and limit points must be real constants (or oo/-oo).")
+    return value
+
+
+def _value(result: sp.Expr) -> dict:
+    return {"exact": str(result),
+            "approx": str(sp.N(result, 12)) if not result.free_symbols and result.is_finite is True and not result.has(sp.AccumBounds) else None,
+            "latex": sp.latex(result)}
+
+
+def _compute(operation: str, expression: str, variable: str = "x", *,
+            lower: str | None = None, upper: str | None = None,
+            point: str | None = None, side: str = "both") -> dict:
     if variable not in ("x", "y", "t"):
         raise ValueError("Variable must be x, y or t.")
+    if side not in ("both", "left", "right"):
+        raise ValueError("Side must be both, left or right.")
+    if operation != "integrate" and (lower is not None or upper is not None):
+        raise ValueError("Bounds are only used for integration.")
+    if operation != "limit" and (point is not None or side != "both"):
+        raise ValueError("Point and side are only used for limits.")
     symbol = sp.Symbol(variable)
     if operation == "solve":
         parts = expression.split("=")
@@ -96,11 +124,80 @@ def compute(operation: str, expression: str, variable: str = "x") -> dict:
         result = sp.simplify(expr)
     elif operation == "differentiate":
         result = sp.diff(expr, symbol)
+    elif operation == "integrate":
+        if (lower is None) != (upper is None):
+            raise ValueError("Provide both integration bounds, or omit both for a primitive.")
+        bounds = (_point(lower, variable), _point(upper, variable)) if lower is not None else None
+        integral = sp.Integral(expr, (symbol, *bounds) if bounds else symbol)
+        try:
+            result = integral.doit()
+        except (NotImplementedError, ValueError):
+            result = integral
+        status = "unevaluated" if result.has(sp.Integral) else "divergent" if result.has(sp.oo, -sp.oo, sp.zoo, sp.nan, sp.AccumBounds) else "evaluated"
+        value = _value(result)
+        if status != "evaluated":
+            value["approx"] = None
+        return {"operation": operation, "expression": expression, "variable": variable,
+                "lower": lower, "upper": upper, "status": status,
+                "integration_constant": "C" if bounds is None else None,
+                **value}
+    elif operation == "limit":
+        if point is None:
+            raise ValueError("Provide a limit point, such as 0, pi, oo or -oo.")
+        target = _point(point, variable)
+
+        def at(direction: str) -> sp.Expr:
+            limit = sp.Limit(expr, symbol, target, dir=direction)
+            try:
+                return limit.doit()
+            except (NotImplementedError, ValueError):
+                return limit
+
+        out = {"operation": operation, "expression": expression, "variable": variable,
+               "point": point, "side": side}
+        if target.is_infinite:
+            result = at("-" if target == sp.oo else "+")
+        elif side == "both":
+            left, right = at("-"), at("+")
+            out.update(left=_value(left), right=_value(right))
+            if left.has(sp.Limit) or right.has(sp.Limit):
+                return {**out, "status": "unevaluated", "exact": None, "approx": None, "latex": None}
+            if left != right or left.has(sp.AccumBounds) or right.has(sp.AccumBounds):
+                return {**out, "status": "nonexistent", "exact": None, "approx": None, "latex": None}
+            result = left
+        else:
+            result = at("-" if side == "left" else "+")
+        status = "unevaluated" if result.has(sp.Limit) else "nonexistent" if result.has(sp.AccumBounds, sp.zoo, sp.nan) else "infinite" if result.is_infinite else "evaluated"
+        value = _value(result)
+        if status != "evaluated":
+            value["approx"] = None
+        return {**out, "status": status, **value}
     else:
-        raise ValueError("Operation must be evaluate, solve or differentiate.")
+        raise ValueError("Operation must be evaluate, solve, differentiate, integrate or limit.")
     return {"operation": operation, "expression": expression, "variable": variable,
             "exact": str(result), "approx": str(sp.N(result, 12)) if not result.has(symbol) else None,
             "latex": sp.latex(result)}
+
+
+def compute(operation: str, expression: str, variable: str = "x", *,
+            lower: str | None = None, upper: str | None = None,
+            point: str | None = None, side: str = "both") -> dict:
+    arguments = dict(operation=operation, expression=expression, variable=variable,
+                     lower=lower, upper=upper, point=point, side=side)
+    if operation not in ("integrate", "limit"):
+        return _compute(**arguments)
+    # Symbolic calculus can fail to finish even on a short formula. A separate
+    # process keeps the server responsive and can actually be stopped on Windows.
+    try:
+        worker = subprocess.run([sys.executable, str(Path(__file__).resolve())],
+                                input=json.dumps(arguments), capture_output=True, text=True,
+                                timeout=15, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=True)
+    except subprocess.TimeoutExpired as error:
+        raise ValueError("Calculation did not finish in 15 seconds. Simplify the expression and try again.") from error
+    payload = json.loads(worker.stdout)
+    if "error" in payload:
+        raise ValueError(payload["error"])
+    return payload
 
 
 def _rational_literal(value: str) -> sp.Rational:
@@ -163,3 +260,10 @@ def linear_system(coefficients: list[list[str]], constants: list[str], variables
         out["residuals_exact"] = [str(sp.simplify(v)) for v in residuals]
         out["verified"] = all(v == "0" for v in out["residuals_exact"])
     return out
+
+
+if __name__ == "__main__":
+    try:
+        print(json.dumps(_compute(**json.load(sys.stdin))))
+    except ValueError as error:
+        print(json.dumps({"error": str(error)}))

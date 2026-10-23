@@ -19,6 +19,8 @@ import { RoleSwitch } from '@/ui/components/RoleSwitch';
 
 // Chip de sincronización con Hypatia's Hoard: solo se descarga en modo hoard.
 const HoardChip = import.meta.env.VITE_HOARD === '1' ? lazy(() => import('@/ui/components/HoardChip')) : null;
+const ExactMathPanel = import.meta.env.VITE_HOARD === '1'
+  ? lazy(() => import('@/ui/components/ExactMathPanel').then(m => ({ default: m.ExactMathPanel }))) : null;
 
 const SUBJECT_COLORS = [
   '#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#06b6d4', '#ec4899',
@@ -637,6 +639,8 @@ export function Dashboard() {
                 </button>
               )}
             </div>
+
+            {hoard && ExactMathPanel && <Suspense fallback={null}><ExactMathPanel /></Suspense>}
 
             {/* Study streak */}
             {streak > 0 && (
