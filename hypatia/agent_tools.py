@@ -620,7 +620,7 @@ STUDY_TOOLS: list[Tool] = [
          "Statuses distinguish evaluated, complex, undefined, invalid_point and unevaluated. Complex values use the native principal branches. "
          "No study bank is read or changed. Syntax and variable x/y/t are the same as math_compute."
          + SYN + "evaluar función, sustituir valores, tabla de valores, valores exactos.", MathValuesArgs, ann(True), run_math_values),
-    Tool("math_compute", "Calculate exact arithmetic, expand/factor polynomials, polynomial roots, derivatives, integrals and limits. Keywords: matemáticas."
+    Tool("math_compute", "Exact arithmetic, polynomials, roots, derivatives, integrals and limits. Keywords: matemáticas."
          "\nUses local symbolic calculation; no study data is read or changed. Syntax: ** for powers, one variable x/y/t, "
          "sqrt/sin/cos/exp/log. Solving supports polynomial degree up to 4. Integrate with lower+upper or neither; "
          "limit requires point and defaults to side=both. Endpoints accept oo/-oo. Returns exact/LaTeX, constant C for primitives, "
