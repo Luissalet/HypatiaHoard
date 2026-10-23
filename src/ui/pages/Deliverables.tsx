@@ -20,6 +20,8 @@ import type {
   SubjectGradingConfig,
 } from '@/domain/models';
 import { isDeliverableCompleted, DeliverableType } from '@/domain/models';
+import { useHoardMode } from '@/data/hoardMode';
+import { StudyCalendarPanel } from '@/ui/components/StudyCalendarPanel';
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -728,6 +730,7 @@ function AddDeliverableForm({ subjectId, defaultTestPoints, onAdd, onClose, init
 import { db } from '@/data/db';
 
 export function DeliverablesPage() {
+  const hoard = useHoardMode();
   const navigate = useNavigate();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -929,6 +932,8 @@ export function DeliverablesPage() {
                 ))}
               </select>
             </div>
+            {hoard && <StudyCalendarPanel key={selectedSubjectId} subjectId={selectedSubjectId}
+              subjectName={subjects.find(s=>s.id===selectedSubjectId)?.name??'Asignatura seleccionada'} />}
             {/* Grade calculator */}
             <GradeCalculator
               config={config}

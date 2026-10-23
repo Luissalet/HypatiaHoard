@@ -5,7 +5,7 @@
 Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
 - **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
-- **Assistant control**: 57 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
+- **Assistant control**: 58 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
 - **A teacher role** (Profesor): classes, exams generated from your bank and your own material with citations, versions A/B, rubrics, batch correction with model proposals you confirm, grades and class analysis. Student data stays on your PC.
 - **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
 - **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard, the notebook's embeddings come from Borges's Hoard and scanned PDFs are read by Kafka's Hoard, all through the family hub (see *In the family*). With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
@@ -62,6 +62,25 @@ The dashboard's **Calculadora exacta** uses the same engine as `math_compute` th
 - Results include exact and LaTeX forms, a separate approximation when applicable, and an explicit `status` (`evaluated`, `infinite`, `divergent`, `nonexistent` or `unevaluated`). Oscillation is not reported as a numeric answer; divergent integrals are not Cauchy principal values. Symbolic calculus runs in a separate process and stops after 15 seconds with an error that asks you to simplify the expression. This is a calculator, not a step-by-step proof or a complete computer algebra system.
 
 The calculus capability follows [SymPy 1.14's calculus documentation](https://docs.sympy.org/1.14.0/tutorials/intro-tutorial/calculus.html), using the existing BSD-licensed dependency. No model, GPU, new service or new dependency is needed.
+
+**Study calendar:** in the local Hoard app, Actividades y entregas → Llevar
+fechas al calendario previews and downloads an ICS snapshot of saved deliverables
+(including exams). Choose a date range, the selected/all subjects, and whether to
+include completed items. Showing the calendar runs the existing local sync first;
+any sync error is shown and the snapshot still describes the server's study bank.
+The downloaded text is the same snapshot as the preview. Date-only deadlines are
+all-day events; saved times remain floating local times with no invented timezone
+or duration. Stable UIDs follow the record. Missing/invalid dates or times are
+listed separately. No teacher records, grades, legacy subject exam dates, alarms
+or inferred study sessions are included. Importing an ICS does not establish live
+sync with Hypatia.
+
+`study_calendar_export` and `POST /api/study/calendar/export` share one native
+read-only calculation: required `date_from`/`date_to` (`YYYY-MM-DD`), optional
+`subject` (id/name; omit for all), and `include_completed` (default false).
+Returns events, excluded items/reasons, filter counts, filename, generated_at and
+ICS text. It uses the existing vendored [RFC5545 iCalendar](https://datatracker.ietf.org/doc/html/rfc5545)
+builder without a new dependency, model, service or change to the study bank.
 Teacher tools: see [Teacher role](#teacher-role-profesor).
 Notebook tools: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` promotes a completed FAQ to the practice bank and skips duplicates on repeated calls.
 Aliases kept from Hypatia 1 (flashcards): `cards_add`, `decks_list`. `cards_add` takes `{deck, cards: [{front, back, tags, source, source_ref}]}`; `source_ref` (for example `hoard://links/highlight/<id>`, sent by Links Hoard for a highlight) is stored with the card as `sourceRef`, is not part of the card's content hash (the same card from another place is still the same card; a duplicate that had no reference takes it), travels through sync and shows as an *Origen* chip in the question editor.

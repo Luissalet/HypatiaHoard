@@ -19,6 +19,11 @@ def _run(fn, request: Request, args):
         raise HTTPException(400, str(error)) from error
 
 
+@router.post("/calendar/export")
+def calendar_export(request: Request, body: tools.StudyCalendarArgs):
+    return _run(tools.run_study_calendar_export, request, body)
+
+
 @router.post("/due")
 def due(request: Request, body: tools.CardsDueArgs):
     return _run(tools.run_cards_due, request, body)

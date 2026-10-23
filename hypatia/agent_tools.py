@@ -5,10 +5,11 @@ two Hypatia-compatibility aliases used by Faustus's `hoard-study-cards` skill.""
 from __future__ import annotations
 
 from typing import Any, Literal, Union
+from datetime import date
 
 from pydantic import BaseModel, Field
 
-from . import bank, grading, lessons, pages, records, study, suggest
+from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
 from .math_tool import linear_system
 from .services import Services
@@ -246,6 +247,13 @@ class QuestionsSuggestAcceptArgs(BaseModel):
 class DeliverablesArgs(BaseModel):
     subject: str | None = Field(None, max_length=200)
     days: int = Field(30, ge=1, le=365)
+
+
+class StudyCalendarArgs(BaseModel):
+    date_from: date
+    date_to: date
+    subject: str | None = Field(None, description="Subject id/name; omit for all subjects.")
+    include_completed: bool = False
 
 
 class CardIn(BaseModel):
@@ -491,6 +499,12 @@ def run_deliverables_upcoming(services: Services, args: DeliverablesArgs) -> dic
     return {"days": args.days, "count": len(rows), "deliverables": rows}
 
 
+def run_study_calendar_export(services: Services, args: StudyCalendarArgs) -> dict:
+    subject = _subject(services, args.subject)
+    return study_calendar.export_calendar(services, date_from=args.date_from, date_to=args.date_to,
+                                         subject_id=subject["id"] if subject else None, include_completed=args.include_completed)
+
+
 def run_page_card_add(services: Services, args: PageCardAddArgs) -> dict:
     if bool(args.html) == bool(args.markdown):
         raise ValueError("Give exactly one of html or markdown.")
@@ -687,6 +701,11 @@ STUDY_TOOLS: list[Tool] = [
     Tool("lesson_delete", "Delete a lesson (write, destructive); its questions stay unless delete_questions. Keywords: borrar lección.\n"
          "Lets you rebuild a lesson from the same document.\nSinónimos: eliminar lección, rehacer lección.",
          LessonDeleteArgs, ann(False, True, True), run_lesson_delete),
+    Tool("study_calendar_export", "Export saved study deadlines as iCalendar. Keywords: calendario, ICS, entregas, exámenes."
+         "\nPreview an explicit date range. Read-only; exact dates and saved local times, stable UIDs, excluded items with reasons. "
+         "No teacher records, grades, reminders or inferred study sessions."
+         + SYN + "exportar calendario, fechas de entrega, agenda de exámenes, descargar ICS.",
+         StudyCalendarArgs, ann(True), run_study_calendar_export),
     Tool("deliverables_upcoming", "Upcoming deliverables (activities, tests, exams) with due dates. Keywords: entregas, plazos."
          "\nPending items due within `days`, soonest first." + SYN + "entregas, qué tengo que entregar, plazos, fechas límite.",
          DeliverablesArgs, ann(True), run_deliverables_upcoming),

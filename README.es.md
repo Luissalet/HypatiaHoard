@@ -54,6 +54,23 @@ venv\Scripts\python -m hypatia import-package "C:\ruta\vision-artificial.examcoa
 
 ## Faustus
 
+En la app local, **Actividades y entregas → Llevar fechas al calendario** permite
+elegir periodo, asignatura actual o todas e incluir hechos/entregados. **Mostrar
+calendario** usa la sincronización local existente antes de mostrar el banco del
+servidor y declara cualquier error de sincronización. La descarga `.ics` contiene
+exactamente la vista previa: sólo entregas y exámenes propios guardados. Sin hora
+son días completos; con hora se conserva la hora local, sin inventar una zona ni
+duración. Los registros sin fecha u hora válida aparecen con su motivo. No exporta
+calificaciones, datos del profesor, fechas de examen heredadas de la asignatura ni
+recordatorios; importar el archivo no crea una sincronización automática.
+
+La herramienta MCP `study_calendar_export` y `POST /api/study/calendar/export`
+comparten el cálculo de solo lectura. Reciben `date_from`/`date_to` obligatorios,
+`subject` opcional (id/nombre) e `include_completed` (false por defecto). Devuelven
+eventos, exclusiones, recuentos, fecha de la instantánea, nombre y texto ICS. Los
+UID se conservan por registro. Se usa el constructor vendorizado según
+[RFC5545](https://datatracker.ietf.org/doc/html/rfc5545), sin nuevos servicios ni modelos.
+
 `faustus-plugin.json` es el manifiesto (`id: hypatia`, `HYPATIA_DIR` = esta carpeta). El puente MCP (`python mcp_server.py`) nunca abre la base de datos: reenvía cada llamada a `POST /api/agent/call` con el token de `data/mcp-token` y arranca el servidor si no responde nadie.
 
 Herramientas de estudio: `subjects_list`, `topics_list`, `questions_search`, `question_get`, `questions_add`, `question_update`, `question_delete`, `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, `key_concepts`, `key_concept_add`, `questions_suggest`, `questions_suggest_accept`, `deliverables_upcoming`, `page_card_add`, `pages_list`, `lesson_from_document`, `lesson_get`, `concept_mastery`, `lesson_delete`. Las tarjetas de página (una lección HTML, limpiada) salen en `cards_due` con `kind: "page"` y `pageHtml`, y se califican con `card_review` como cualquier tarjeta. Lecciones desde un documento: `lesson_from_document` divide un texto pegado o un fichero (PDF, DOCX, EPUB...) en secciones, extrae los conceptos clave de cada una con el modelo local (con reglas deterministas si ninguno responde) y guarda una pregunta por concepto en el banco; `lesson_get` da el recorrido (leer una sección y luego sus preguntas) y `concept_mastery` el dominio por concepto, calculado con el historial de repasos (REST: `/api/study/lessons*`). En la aplicación: Cuaderno → Lecciones, o el botón *Enséñame un documento* de la asignatura (build del Hoard).
