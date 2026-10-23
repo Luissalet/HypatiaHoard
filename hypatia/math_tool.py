@@ -274,6 +274,32 @@ def _rational_literal(value: str) -> sp.Rational:
     return sp.Rational(number.numerator, number.denominator)
 
 
+def integer_pair(a: str, b: str) -> dict:
+    """Extended Euclid for decimal integer strings; all integer output stays exact."""
+    for name, value in (("a", a), ("b", b)):
+        if not isinstance(value, str) or not re.fullmatch(r"[+-]?[0-9]+", value.strip()):
+            raise ValueError(f"{name}: write a decimal integer, with an optional sign.")
+    first, second = int(a.strip()), int(b.strip())
+    old_r, r, old_x, x, old_y, y = abs(first), abs(second), 1, 0, 0, 1
+    steps = []
+    while r:
+        quotient, remainder = divmod(old_r, r)
+        steps.append({"dividend": str(old_r), "divisor": str(r),
+                      "quotient": str(quotient), "remainder": str(remainder)})
+        old_r, r = r, remainder
+        old_x, x = x, old_x - quotient * x
+        old_y, y = y, old_y - quotient * y
+    coefficient_a = old_x * (-1 if first < 0 else 1) if old_r else 0
+    coefficient_b = old_y * (-1 if second < 0 else 1) if old_r else 0
+    common_multiple = abs(first // old_r * second) if old_r else 0
+    identity = first * coefficient_a + second * coefficient_b
+    return {"a": a, "b": b, "a_exact": str(first), "b_exact": str(second),
+            "gcd": str(old_r), "lcm": str(common_multiple),
+            "bezout": {"x": str(coefficient_a), "y": str(coefficient_b), "value": str(identity)},
+            "verified": identity == old_r, "steps": steps,
+            "both_zero": first == second == 0}
+
+
 def descriptive_statistics(values: list[str]) -> dict:
     """Describe written rational observations without floating-point rounding."""
     if not isinstance(values, list) or not values:

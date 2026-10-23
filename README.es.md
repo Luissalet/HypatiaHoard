@@ -4,6 +4,19 @@
 
 ## Calculadora exacta
 
+**MCD, MCM y Bézout** calcula dos enteros decimales con signo y muestra sus
+divisiones de Euclides sobre valores absolutos. Devuelve MCD/MCM no negativos,
+coeficientes enteros `x`/`y` y comprueba `a*x+b*y=MCD`; los coeficientes no son
+únicos. API `POST /api/math/integer-pair` y MCP `math_integer_pair` usan la misma
+función; el catálogo combinado tiene64 herramientas. Entradas y resultados
+enteros son cadenas y conservan cifras mayores que la precisión de JavaScript;
+se mantienen los límites de conversión del runtime. Si algún entero es cero,
+MCM es cero; para `(0,0)` se usan MCD/MCM y coeficientes cero por convención.
+El panel conserva errores para corregirlos, copia resultado y divisiones y
+comparte ambos textos de entrada con Faustus. No factoriza primos ni cambia el
+banco. Contrato matemático: [xgcd de SageMath](https://doc.sagemath.org/html/en/reference/rings_standard/sage/arith/misc.html#sage.arith.misc.xgcd),
+sin dependencia o código de SageMath.
+
 En el inicio, **Calculadora exacta** abre una herramienta de cuentas, ecuaciones polinómicas, derivadas, integrales y límites. Carga ejemplos editables y muestra el resultado exacto, su fórmula y la aproximación cuando procede. Funciona localmente sin modelo ni GPU y no lee ni modifica el banco de estudio.
 
 También ofrece **Desarrollar un polinomio** (`operation: "expand"`) y

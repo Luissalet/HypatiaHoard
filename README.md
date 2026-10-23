@@ -5,12 +5,24 @@
 Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
 - **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
-- **Assistant control**: 63 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
+- **Assistant control**: 64 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
 - **A teacher role** (Profesor): classes, exams generated from your bank and your own material with citations, versions A/B, rubrics, batch correction with model proposals you confirm, grades and class analysis. Student data stays on your PC.
 - **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
 - **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard, the notebook's embeddings come from Borges's Hoard and scanned PDFs are read by Kafka's Hoard, all through the family hub (see *In the family*). With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
 
 No course content lives in this repository. Subjects arrive as **password-protected packages** (`.examcoach.enc`) from the marketplace or from a file; their questions, PDFs and your progress stay in `data/` and `resources/` on your PC, both ignored by git.
+
+**Exact integer pairs:** Home → MCD, MCM y Bézout, `math_integer_pair` and
+`POST /api/math/integer-pair` accept two signed decimal integer strings `a`/`b`.
+They return nonnegative gcd/lcm, integer coefficients `x`/`y`, the checked
+identity `a*x+b*y=gcd`, and Euclidean divisions of the absolute values. Inputs
+and integer results stay strings, preserving digits beyond JavaScript precision;
+normal runtime integer conversion limits apply. Coefficients are not unique.
+With either input zero, lcm is zero; for `(0,0)`, gcd/lcm and both coefficients
+are zero by convention. The panel keeps invalid input for correction and copies
+the exact result and divisions. It neither factors primes nor changes study data.
+The mathematical contract follows [SageMath's xgcd documentation](https://doc.sagemath.org/html/en/reference/rings_standard/sage/arith/misc.html#sage.arith.misc.xgcd);
+the native Euclidean implementation needs no additional dependency.
 
 ## Everything Exam Coach did
 
