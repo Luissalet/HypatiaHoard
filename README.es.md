@@ -6,6 +6,21 @@
 
 En el inicio, **Calculadora exacta** abre una herramienta de cuentas, ecuaciones polinómicas, derivadas, integrales y límites. Carga ejemplos editables y muestra el resultado exacto, su fórmula y la aproximación cuando procede. Funciona localmente sin modelo ni GPU y no lee ni modifica el banco de estudio.
 
+También ofrece **Desarrollar un polinomio** (`operation: "expand"`) y
+**Factorizar un polinomio** (`operation: "factor"`), con coeficientes racionales
+exactos en `x`, `y` o `t`, incluidos decimales y fracciones. Por ejemplo,
+`(x+2)*(x-3)` da `x**2-x-6` y `x**3-x**2+x-1` da `(x-1)*(x**2+1)`.
+La factorización es sobre los racionales: `x**2-2` permanece igual. Los
+denominadores son constantes y las potencias de la variable, enteras no negativas.
+Los denominadores y las funciones que dependen de la variable, y sus potencias
+negativas, se rechazan antes de cancelarlos y obtener un aparente polinomio.
+El resultado conserva expresión y variable y permite copiarlas junto
+al resultado; editar el formulario limpia el resultado anterior. Usa las
+[transformaciones polinómicas de SymPy](https://docs.sympy.org/latest/tutorials/intro-tutorial/simplification.html#polynomial-rational-function-simplification)
+ya integrado, con el mismo motor API/MCP, sin modelo, dependencias nuevas ni
+escrituras en el banco. Son transformaciones algebraicas, sin demostración paso
+a paso ni búsqueda de soluciones de una ecuación.
+
 La misma capacidad está en `math_compute` por MCP y en `POST /api/math/compute`. Para `operation: "integrate"`, omite ambos extremos para una primitiva con constante arbitraria C, o envía `lower` y `upper` como cadenas. Admite fracciones, constantes reales, `pi`, `E`, `oo` y `-oo`. Por ejemplo, `exp(-x)` entre `0` y `oo` devuelve exactamente `1`. Para `operation: "limit"`, envía `point`; `side` es `both`, `left` o `right`. Por defecto compara los dos laterales: `1/x` al llegar a `0` indica que el límite no existe y conserva ambos resultados.
 
 Las respuestas distinguen resultados calculados, infinitos, integrales divergentes, límites inexistentes y expresiones sin resolver. Una oscilación no se presenta como número, ni se confunde una integral divergente con su valor principal de Cauchy. El cálculo simbólico se detiene tras 15 segundos si no termina, para que puedas simplificar la expresión y seguir usando la app. No es una demostración paso a paso ni un sistema algebraico completo. Usa el SymPy 1.14 ya incluido, siguiendo su [documentación de cálculo](https://docs.sympy.org/1.14.0/tutorials/intro-tutorial/calculus.html), sin dependencias nuevas de producto.

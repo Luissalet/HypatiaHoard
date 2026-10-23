@@ -4,10 +4,12 @@ import { MdContent } from '@/ui/components/MdContent';
 import { hoardJson } from '@/data/hoardClient';
 import { LinearSystemPanel } from '@/ui/components/LinearSystemPanel';
 
-type Operation = 'evaluate' | 'solve' | 'differentiate' | 'integrate' | 'limit';
+type Operation = 'evaluate' | 'expand' | 'factor' | 'solve' | 'differentiate' | 'integrate' | 'limit';
 type Value = { exact: string; latex: string; approx: string | null };
 type Result = Partial<Value> & {
   operation: Operation;
+  expression: string;
+  variable: string;
   status?: 'evaluated' | 'infinite' | 'divergent' | 'nonexistent' | 'unevaluated';
   integration_constant?: string | null;
   solutions?: Value[];
@@ -18,6 +20,8 @@ type Result = Partial<Value> & {
 
 const EXAMPLES: Record<Operation, { expression: string; lower?: string; upper?: string; point?: string }> = {
   evaluate: { expression: '1/3 + 1/6' },
+  expand: { expression: '(x+2)*(x-3)' },
+  factor: { expression: 'x**3-x**2+x-1' },
   solve: { expression: 'x**2 - 2 = 0' },
   differentiate: { expression: 'sin(x) + x**3' },
   integrate: { expression: 'exp(-x)', lower: '0', upper: 'oo' },
@@ -44,8 +48,9 @@ export function ExactMathPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Result | null>(null);
+  const [copied, setCopied] = useState('');
 
-  function clearResult() { setResult(null); setError(''); }
+  function clearResult() { setResult(null); setError(''); setCopied(''); }
 
   function example() {
     const sample = EXAMPLES[operation];
@@ -72,18 +77,31 @@ export function ExactMathPanel() {
   const statusText = result?.status === 'divergent' ? 'La integral no converge.'
     : result?.status === 'nonexistent' ? 'El límite no existe.'
     : result?.status === 'unevaluated' ? 'El motor no ha resuelto esta expresión.'
-    : result?.status === 'infinite' ? 'El límite es infinito.' : 'Resultado exacto';
+    : result?.status === 'infinite' ? 'El límite es infinito.'
+    : result?.operation === 'expand' ? 'Polinomio desarrollado'
+    : result?.operation === 'factor' ? 'Polinomio factorizado' : 'Resultado exacto';
+  const algebra = operation === 'expand' || operation === 'factor';
+  const algebraResult = result?.operation === 'expand' || result?.operation === 'factor';
+
+  async function copyResult() {
+    if (!result || result.exact == null) return;
+    const text = [statusText, `Expresión: ${result.expression}`, `Variable: ${result.variable}`,
+      `Resultado: ${result.exact}`, ...(result.operation === 'factor' ? ['Factorización sobre los racionales.'] : [])].join('\n');
+    try { await navigator.clipboard.writeText(text); setCopied('Resultado copiado.'); }
+    catch { setCopied('No se pudo copiar. Puedes seleccionar el resultado y copiarlo manualmente.'); }
+  }
 
   return <><details className="mb-6 border-y border-ink-700 py-3">
     <summary className="cursor-pointer text-sm text-amber-400 font-medium rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
       Calculadora exacta
-      <span className="block mt-1 text-ink-300 font-normal">Cuentas, ecuaciones, derivadas, integrales y límites</span>
+      <span className="block mt-1 text-ink-300 font-normal">Cuentas, polinomios, ecuaciones, derivadas, integrales y límites</span>
     </summary>
     <form className="mt-5 space-y-4" onSubmit={calculate} onChange={clearResult}>
       <fieldset disabled={busy} className="space-y-4 min-w-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Select id="math-operation" label="Operación" value={operation} onChange={e => setOperation(e.target.value as Operation)}>
-            <option value="evaluate">Calcular una cuenta</option><option value="solve">Resolver una ecuación</option>
+            <option value="evaluate">Calcular una cuenta</option><option value="expand">Desarrollar un polinomio</option>
+            <option value="factor">Factorizar un polinomio</option><option value="solve">Resolver una ecuación</option>
             <option value="differentiate">Derivar</option><option value="integrate">Integrar</option><option value="limit">Calcular un límite</option>
           </Select>
           <Select id="math-variable" label="Variable" value={variable} onChange={e => setVariable(e.target.value)}>
@@ -91,8 +109,14 @@ export function ExactMathPanel() {
           </Select>
         </div>
         <Input id="math-expression" label="Expresión" required maxLength={200} value={expression} onChange={e => setExpression(e.target.value)}
-          placeholder={operation === 'solve' ? 'x**2 - 2 = 0' : '1/3 + 1/6'} aria-describedby="math-syntax" />
-        <p id="math-syntax" className="text-sm text-ink-300">Usa ** para potencias y punto decimal. Funciones: sqrt, sin, cos, exp y log; constantes: pi y E.</p>
+          placeholder={EXAMPLES[operation].expression.replace(/\bx\b/g, variable)} aria-describedby={algebra ? 'math-syntax math-polynomial' : 'math-syntax'} />
+        <p id="math-syntax" className="text-sm text-ink-300">{algebra
+          ? 'Usa ** para potencias, punto decimal y fracciones como 1/3.'
+          : 'Usa ** para potencias y punto decimal. Funciones: sqrt, sin, cos, exp y log; constantes: pi y E.'}</p>
+        {algebra && <p id="math-polynomial" className="text-sm text-ink-200">
+          Polinomios con coeficientes enteros, decimales o fracciones; usa denominadores constantes y potencias enteras no negativas.
+          {operation === 'factor' && ' La factorización es sobre los racionales: x**2-2 permanece igual.'}
+        </p>}
         {operation === 'integrate' && <>
           <label className="flex gap-2 items-center text-sm text-ink-200">
             <input type="checkbox" checked={definite} onChange={e => setDefinite(e.target.checked)} className="accent-amber-500" /> Integral definida
@@ -117,7 +141,14 @@ export function ExactMathPanel() {
       {error && <p role="alert" className="text-sm text-rose-400">{error}</p>}
       <div role="status" aria-live="polite" aria-atomic="true" className="space-y-3">
         {result && <>
-          <h2 className="font-display text-lg text-ink-100">{statusText}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-display text-lg text-ink-100">{statusText}</h2>
+            {algebraResult && <Button type="button" variant="secondary" onClick={copyResult}>Copiar resultado</Button>}
+          </div>
+          {algebraResult && <dl className="text-sm text-ink-300 space-y-1">
+            <dt>Expresión original · variable {result.variable}</dt>
+            <dd className="font-mono text-ink-200 break-words">{result.expression}</dd>
+          </dl>}
           {result.all_values ? <p className="text-ink-200">La ecuación es una identidad: se cumple para cualquier valor de {variable}.</p>
             : result.solutions ? result.solutions.length ? result.solutions.map((value, i) => <MathValue key={i} value={value} />)
               : <p className="text-ink-200">La ecuación no tiene soluciones.</p>
@@ -128,6 +159,7 @@ export function ExactMathPanel() {
           </div>}
         </>}
       </div>
+      {copied && <p role="status" className="text-sm text-ink-200">{copied}</p>}
       <p className="text-sm text-ink-300">Cálculo simbólico local. Las integrales y límites sin resolver se indican como tales. No se guarda nada en tu banco de estudio.</p>
     </form>
   </details><LinearSystemPanel /></>;

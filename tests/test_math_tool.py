@@ -5,6 +5,51 @@ import pytest
 from hypatia.agent_tools import call_tool, tool_catalog
 
 
+def test_polynomial_forms_are_exact_and_equivalent(services):
+    import sympy as sp
+
+    cases = [
+        ("expand", "(x+2)*(x-3)", "x", "x**2 - x - 6"),
+        ("factor", "x**3-x**2+x-1", "x", "(x - 1)*(x**2 + 1)"),
+        ("expand", "(t+0.1)*(t-1/3)", "t", "t**2 - 7*t/30 - 1/30"),
+        ("factor", "y**2/2-y/2", "y", "y*(y - 1)/2"),
+        ("factor", "x**2-2", "x", "x**2 - 2"),
+        ("factor", "0", "x", "0"),
+    ]
+    for operation, expression, variable, expected in cases:
+        value = call_tool(services, "math_compute", dict(operation=operation, expression=expression, variable=variable))
+        assert value["exact"] == expected and value["expression"] == expression
+        assert sp.expand(sp.sympify(value["exact"]) - sp.sympify(expression, rational=True)) == 0
+        assert value["latex"] and (value["approx"] is None or expected == "0")
+
+
+def test_polynomial_scope_preserves_original_domain(services):
+    for expression in ("sin(x)", "pi*x", "(x-1)/(x-1)", "x*x**-1", "log(x)-log(x)"):
+        with pytest.raises(ValueError, match="[Pp]olynomial|rational"):
+            call_tool(services, "math_compute", {"operation": "factor", "expression": expression})
+    # This scope belongs to the new polynomial operations; existing calculus keeps its syntax.
+    assert call_tool(services, "math_compute", {"operation": "differentiate", "expression": "1/x"})["exact"] == "-1/x**2"
+
+
+def test_polynomial_ui_agent_contract_and_study_bank(client):
+    client.services.store.put("subject", {"id": "qa-polynomial", "name": "Synthetic polynomials"})
+    def snapshot():
+        with client.services.db.lock:
+            return {name: [tuple(row) for row in client.services.db.conn.execute("SELECT * FROM " + name)]
+                    for name in ("records", "reviews", "tombstones", "kv")}
+    before = snapshot()
+    for operation, expression in [("expand", "(x+2)*(x-3)"), ("factor", "x**3-x**2+x-1")]:
+        args = {"operation": operation, "expression": expression}
+        ui = client.post("/api/math/compute", json=args)
+        agent = client.post("/api/agent/call", headers={"Authorization": "Bearer " + client.services.token},
+                            json={"name": "math_compute", "arguments": args})
+        assert ui.status_code == agent.status_code == 200
+        assert ui.json() == agent.json() == call_tool(client.services, "math_compute", args)
+    assert snapshot() == before
+    catalog = {entry["name"]: entry for entry in tool_catalog()}
+    assert {"expand", "factor"} <= set(catalog["math_compute"]["inputSchema"]["properties"]["operation"]["enum"])
+
+
 def test_exact_arithmetic_equations_and_derivatives(services):
     arithmetic = call_tool(services, "math_compute", {"operation": "evaluate", "expression": "1/3 + 1/6"})
     assert arithmetic["exact"] == "1/2"

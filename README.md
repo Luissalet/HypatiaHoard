@@ -57,6 +57,20 @@ Decimal literals in `math_compute` preserve the written digits, including scient
 
 The dashboard's **Calculadora exacta** uses the same engine as `math_compute` through `POST /api/math/compute`. It evaluates arithmetic, solves polynomial equations, differentiates, integrates and calculates limits without reading or changing your study bank. Examples load into the editable form; calculation is explicit.
 
+It also offers **Desarrollar un polinomio** (`operation: "expand"`) and
+**Factorizar un polinomio** (`operation: "factor"`). Both use exact rational
+coefficients in `x`, `y` or `t`, including written decimals and fractions.
+`(x+2)*(x-3)` expands to `x**2-x-6`; `x**3-x**2+x-1` factors to
+`(x-1)*(x**2+1)`. Factoring is over the rationals, so `x**2-2` stays unchanged.
+Denominators must be constant and variable powers nonnegative integers. Variable
+denominators, inverse variable powers and functions of the variable are rejected
+before cancellation, instead of turning them into apparently valid polynomials.
+The result shows the submitted expression/variable and can be copied with that
+context. Editing the form clears the previous result. Same native API/MCP engine,
+existing [SymPy polynomial transformations](https://docs.sympy.org/latest/tutorials/intro-tutorial/simplification.html#polynomial-rational-function-simplification),
+no model, new dependency or study-bank writes. These are transformations, not
+step-by-step proofs or an equation-solving mode.
+
 Next to it, **Sistemas lineales exactos** edits the augmented matrix `[A | b]`,
 equation/unknown counts and variable names. Hidden entries survive shrinking and
 expanding dimensions; folding the editor retains the draft. Three editable

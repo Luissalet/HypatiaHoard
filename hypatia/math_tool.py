@@ -18,7 +18,7 @@ FUNCTIONS = {"sqrt": sp.sqrt, "sin": sp.sin, "cos": sp.cos, "exp": sp.exp, "log"
 CONSTANTS = {"pi": sp.pi, "E": sp.E}
 
 
-def parse_expression(source: str, variable: str) -> sp.Expr:
+def parse_expression(source: str, variable: str, *, polynomial: bool = False) -> sp.Expr:
     source = source.strip()
     if not source or len(source) > 200:
         raise ValueError("Expression must have 1-200 characters.")
@@ -58,11 +58,19 @@ def parse_expression(source: str, variable: str) -> sp.Expr:
             if isinstance(node.op, ast.Add): return left + right
             if isinstance(node.op, ast.Sub): return left - right
             if isinstance(node.op, ast.Mult): return left * right
-            if isinstance(node.op, ast.Div): return left / right
+            if isinstance(node.op, ast.Div):
+                if polynomial and right.has(sp.Symbol(variable)):
+                    raise ValueError("Polynomial operations need constant denominators.")
+                return left / right
             if isinstance(node.op, ast.Pow) and right.is_Integer and abs(right) <= 8:
+                if polynomial and right < 0 and left.has(sp.Symbol(variable)):
+                    raise ValueError("Polynomial operations need nonnegative variable powers.")
                 return left ** right
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in FUNCTIONS and not node.keywords and len(node.args) == 1:
-            return FUNCTIONS[node.func.id](build(node.args[0], depth + 1))
+            value = build(node.args[0], depth + 1)
+            if polynomial and value.has(sp.Symbol(variable)):
+                raise ValueError("Polynomial operations do not use functions of the variable.")
+            return FUNCTIONS[node.func.id](value)
         raise ValueError("Only arithmetic, one variable and sqrt/sin/cos/exp/log are supported.")
 
     expression = build(tree.body)
@@ -117,11 +125,17 @@ def _compute(operation: str, expression: str, variable: str = "x", *,
         roots = sp.solve(polynomial.as_expr(), symbol)
         return {"operation": operation, "expression": expression, "variable": variable,
                 "solutions": [{"exact": str(root), "approx": str(sp.N(root, 12)), "latex": sp.latex(root)} for root in roots]}
-    expr = parse_expression(expression, variable)
+    expr = parse_expression(expression, variable, polynomial=operation in ("expand", "factor"))
     if operation == "evaluate":
         if expr.has(symbol):
             raise ValueError("Evaluation needs an expression without the variable.")
         result = sp.simplify(expr)
+    elif operation in ("expand", "factor"):
+        try:
+            polynomial = sp.Poly(expr, symbol, domain=sp.QQ)
+        except (sp.PolynomialError, sp.polys.polyerrors.CoercionFailed) as error:
+            raise ValueError("Developing and factoring need a polynomial with rational coefficients.") from error
+        result = sp.expand(polynomial.as_expr()) if operation == "expand" else sp.factor(polynomial.as_expr())
     elif operation == "differentiate":
         result = sp.diff(expr, symbol)
     elif operation == "integrate":
@@ -173,7 +187,7 @@ def _compute(operation: str, expression: str, variable: str = "x", *,
             value["approx"] = None
         return {**out, "status": status, **value}
     else:
-        raise ValueError("Operation must be evaluate, solve, differentiate, integrate or limit.")
+        raise ValueError("Operation must be evaluate, expand, factor, solve, differentiate, integrate or limit.")
     return {"operation": operation, "expression": expression, "variable": variable,
             "exact": str(result), "approx": str(sp.N(result, 12)) if not result.has(symbol) else None,
             "latex": sp.latex(result)}

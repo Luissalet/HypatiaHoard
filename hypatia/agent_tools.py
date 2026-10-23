@@ -29,7 +29,7 @@ Teach a document: lesson_from_document turns pasted text or a file (PDF, DOCX...
 Never reveal the answer before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent questions, grades or sources.
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
 Notebook: cite passages with [n] exactly as the tools number them, never cite a source you were not given, and prefer notebook_search (cheap, passages with citations) when you can compose the answer yourself; use notebook_ask/studio_generate when the user wants the app to generate it.
-For exact arithmetic, polynomial equations, derivatives, integrals or limits, use math_compute and report its result. Integration takes both lower/upper strings or neither (a primitive with arbitrary constant C). Limits require point; side defaults to both and compares the two sides. oo/-oo are infinite endpoints. Report divergent, nonexistent and unevaluated outcomes as such, never as numerical answers. For systems of linear equations use math_linear_system, with number strings and variables in column order. Both are independent of the study bank.
+For exact arithmetic, polynomial expansion/factorization, polynomial equations, derivatives, integrals or limits, use math_compute and report its result. expand and factor work on polynomials with rational coefficients in one variable; factor works over the rationals, so x**2-2 remains unchanged. Constant denominators are allowed; variable denominators and negative variable powers are not polynomials. Integration takes both lower/upper strings or neither (a primitive with arbitrary constant C). Limits require point; side defaults to both and compares the two sides. oo/-oo are infinite endpoints. Report divergent, nonexistent and unevaluated outcomes as such, never as numerical answers. For systems of linear equations use math_linear_system, with number strings and variables in column order. Both are independent of the study bank.
 Teacher role (classes, exams for students, rubrics, batch correction): exam_generate builds an exam from the bank and/or drafts questions from the teacher's sources with citations (drafts need exam_drafts_review); grading_run only PROPOSES grades for open answers against the rubric: show grading_review to the teacher and call grading_confirm only with what the teacher accepts. Student names, answers and grades stay on this PC: never send them anywhere else.
 Never read the data folder or the database directly; use these tools only."""
 
@@ -62,7 +62,7 @@ def run_record_patch(services: Services, args: RecordPatchArgs) -> dict:
 
 
 class MathComputeArgs(BaseModel):
-    operation: Literal["evaluate", "solve", "differentiate", "integrate", "limit"]
+    operation: Literal["evaluate", "expand", "factor", "solve", "differentiate", "integrate", "limit"]
     expression: str = Field(..., min_length=1, max_length=200, description="Arithmetic expression or equation; use ** for powers, e.g. x**2-2=0.")
     variable: Literal["x", "y", "t"] = "x"
     lower: str | None = Field(None, min_length=1, max_length=200, description="Integration lower bound; provide upper too. Real constant expression or -oo/oo. Omit both for a primitive.")
@@ -604,12 +604,13 @@ STUDY_TOOLS: list[Tool] = [
          "No study data is read or changed; inconsistent systems have no solution. Decimal points use '.'; 1/3 stays exact."
          + SYN + "sistema lineal, resolver sistemas de ecuaciones, Gauss, álgebra lineal, matriz ampliada.",
          MathLinearSystemArgs, ann(True), run_math_linear_system),
-    Tool("math_compute", "Calculate exact arithmetic, polynomial roots, derivatives, integrals and limits. Keywords: matemáticas."
+    Tool("math_compute", "Calculate exact arithmetic, expand/factor polynomials, polynomial roots, derivatives, integrals and limits. Keywords: matemáticas."
          "\nUses local symbolic calculation; no study data is read or changed. Syntax: ** for powers, one variable x/y/t, "
          "sqrt/sin/cos/exp/log. Solving supports polynomial degree up to 4. Integrate with lower+upper or neither; "
          "limit requires point and defaults to side=both. Endpoints accept oo/-oo. Returns exact/LaTeX, constant C for primitives, "
          "and explicit divergent/nonexistent/unevaluated status; not a step-by-step proof."
-         + SYN + "calcular, resolver ecuación, derivar, integrar, integral definida, límite lateral, comprobar cuenta, matemáticas.", MathComputeArgs, ann(True), run_math_compute),
+         " expand/factor use polynomials with rational coefficients; factor is over the rationals, not a root finder."
+         + SYN + "calcular, desarrollar, expandir, factorizar, polinomios, resolver ecuación, derivar, integrar, integral definida, límite lateral, comprobar cuenta, matemáticas.", MathComputeArgs, ann(True), run_math_compute),
     Tool("subjects_list", "List the user's subjects with question counts, due today, exam date. Keywords: asignaturas, materias."
          "\nEvery subject of the exam-prep bank (same data as the Exam Coach PWA): questions, topics, due today, never seen, examDate."
          + SYN + "asignaturas, materias, qué estudio, listar asignaturas, mis asignaturas.", Empty, ann(True), run_subjects_list),
