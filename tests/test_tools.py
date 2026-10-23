@@ -41,7 +41,7 @@ def test_catalog_descriptions_and_schemas():
     names = [t.name for t in TOOLS]
     teacher = {t.name for t in agent_tools.TEACHER_TOOLS}
     # Exact linear systems and value tables join the page-card and lesson tools in the student catalog.
-    assert len(names) == len(set(names)) and len(names) - len(teacher) <= 42 and len(teacher) <= 20
+    assert len(names) == len(set(names)) and len(names) - len(teacher) <= 43 and len(teacher) <= 20
     for name in ("subjects_list", "cards_due", "card_review", "answer_grade", "exam_mock", "questions_suggest",
                  "cards_add", "decks_list", "deliverables_upcoming", "key_concept_add"):
         assert name in names

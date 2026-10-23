@@ -274,6 +274,32 @@ def _rational_literal(value: str) -> sp.Rational:
     return sp.Rational(number.numerator, number.denominator)
 
 
+def convert_base(number: str, source_base: int = 10, target_base: int = 2) -> dict:
+    """Convert a signed integer exactly; signs are not two's-complement words."""
+    if type(source_base) is not int or type(target_base) is not int or not 2 <= source_base <= 36 or not 2 <= target_base <= 36:
+        raise ValueError("Source and target bases must be integers from 2 to 36.")
+    if not isinstance(number, str) or not number.strip():
+        raise ValueError("Provide an integer as a string.")
+    try:
+        value = int(number.strip(), source_base)
+    except ValueError as error:
+        raise ValueError(f"The integer is not valid in base {source_base}: {error}") from error
+    alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    def encode(base: int) -> str:
+        remaining, digits = abs(value), []
+        while remaining:
+            remaining, digit = divmod(remaining, base)
+            digits.append(alphabet[digit])
+        return ("-" if value < 0 else "") + ("".join(reversed(digits)) or "0")
+
+    result = encode(target_base)
+    return {"number": number, "source_base": source_base, "target_base": target_base,
+            "source_normalized": encode(source_base), "result": result, "decimal": str(value),
+            "equivalents": [{"base": base, "value": encode(base)} for base in (2, 8, 10, 16)],
+            "verified": int(result, target_base) == value}
+
+
 def interpolate(points: list[list[str]], variable: str = "x") -> dict:
     """Interpolate rational pairs and check the polynomial at every input."""
     if variable not in ("x", "y", "t"):

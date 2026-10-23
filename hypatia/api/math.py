@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathComputeArgs, MathInterpolateArgs, MathLinearSystemArgs, MathValuesArgs
-from ..math_tool import compute, interpolate, linear_system, values
+from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathInterpolateArgs, MathLinearSystemArgs, MathValuesArgs
+from ..math_tool import compute, convert_base, interpolate, linear_system, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/base-convert")
+def convert_integer_base(body: MathBaseConvertArgs):
+    try:
+        return convert_base(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/interpolate")
