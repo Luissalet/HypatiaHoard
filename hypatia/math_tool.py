@@ -300,6 +300,33 @@ def integer_pair(a: str, b: str) -> dict:
             "both_zero": first == second == 0}
 
 
+def linear_congruence(a: str, b: str, modulus: str) -> dict:
+    """Solve a*x = b modulo a nonzero integer without enumerating residues."""
+    for name, value in (("a", a), ("b", b), ("modulus", modulus)):
+        if not isinstance(value, str) or not re.fullmatch(r"[+-]?[0-9]+", value.strip()):
+            raise ValueError(f"{name}: write a decimal integer, with an optional sign.")
+    first, target, written_modulus = int(a.strip()), int(b.strip()), int(modulus.strip())
+    positive_modulus = abs(written_modulus)
+    if not positive_modulus:
+        raise ValueError("modulus: zero is not a valid congruence modulus. Use a nonzero integer.")
+    euclid = integer_pair(str(first), str(positive_modulus))
+    common = int(euclid["gcd"])
+    remainder = target % common
+    result = {"a": a, "b": b, "modulus": modulus, "a_exact": str(first),
+              "b_exact": str(target), "modulus_exact": str(positive_modulus),
+              "gcd": str(common), "compatibility_remainder": str(remainder),
+              "bezout": euclid["bezout"]}
+    if remainder:
+        return {**result, "status": "no_solution", "residue": None, "period": None,
+                "residue_count": "0", "all_integers": False, "verified": True}
+    period = positive_modulus // common
+    residue = (int(euclid["bezout"]["x"]) * (target // common)) % period
+    return {**result, "status": "solved", "residue": str(residue), "period": str(period),
+            "residue_count": str(common), "all_integers": period == 1,
+            "verified": (first * residue - target) % positive_modulus == 0
+                        and (first * period) % positive_modulus == 0}
+
+
 def descriptive_statistics(values: list[str]) -> dict:
     """Describe written rational observations without floating-point rounding."""
     if not isinstance(values, list) or not values:

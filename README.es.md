@@ -4,11 +4,24 @@
 
 ## Calculadora exacta
 
+**Congruencias lineales** resuelve `a*x ≡ b (mod m)` con la misma función nativa
+en el panel del inicio, API `POST /api/math/linear-congruence` y MCP
+`math_linear_congruence`. Introduce `a`, `b`, `modulus` como cadenas decimales
+con signo; un módulo negativo se normaliza a su valor absoluto y cero da error.
+Para35,14,28 devuelve toda la familia `x=2+k*4`, siete residuos distintos módulo28,
+el MCD, su identidad de Bézout y el resto de compatibilidad. Si el MCD no divide
+b, devuelve `no_solution`; período1 significa cualquier entero. Con b=1 obtiene
+un inverso modular cuando existe. Conserva cifras mayores que la precisión de
+JavaScript y los límites de conversión del runtime. Permite copiar solución y
+comprobación y corregir entradas tras un error. No enumera listas enormes,
+resuelve sistemas CRT ni modifica el banco. Referencia matemática:
+[MIT18.781, lección5](https://ocw.mit.edu/courses/18-781-theory-of-numbers-spring-2012/7b36e2ada32c5ed0638783d4e66af60c_MIT18_781S12_lec5.pdf).
+
 **MCD, MCM y Bézout** calcula dos enteros decimales con signo y muestra sus
 divisiones de Euclides sobre valores absolutos. Devuelve MCD/MCM no negativos,
 coeficientes enteros `x`/`y` y comprueba `a*x+b*y=MCD`; los coeficientes no son
 únicos. API `POST /api/math/integer-pair` y MCP `math_integer_pair` usan la misma
-función; el catálogo combinado tiene64 herramientas. Entradas y resultados
+función; el catálogo combinado tiene65 herramientas. Entradas y resultados
 enteros son cadenas y conservan cifras mayores que la precisión de JavaScript;
 se mantienen los límites de conversión del runtime. Si algún entero es cero,
 MCM es cero; para `(0,0)` se usan MCD/MCM y coeficientes cero por convención.

@@ -45,5 +45,5 @@ def test_values_api_agent_parity_and_study_bank_unchanged(client):
     assert snapshot() == before
     catalog = {item["name"]: item for item in tool_catalog()}
     assert catalog["math_values"]["annotations"]["readOnlyHint"] is True
-    assert len(catalog) == 64
+    assert len(catalog) == 65
     assert client.post("/api/math/values", json={"expression": "x**99", "points": ["0"]}).status_code == 400

@@ -42,4 +42,4 @@ def test_statistics_http_agent_and_native_contract_preserve_bank(client):
     assert bad.status_code == 400 and 'Observation 2' in bad.json()['error']
     assert snapshot() == before
     catalog = {t['name']:t for t in tool_catalog()}
-    assert len(catalog) == 64 and catalog['math_statistics']['annotations']['readOnlyHint']
+    assert len(catalog) == 65 and catalog['math_statistics']['annotations']['readOnlyHint']

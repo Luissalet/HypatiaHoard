@@ -43,5 +43,5 @@ def test_interpolation_ui_agent_contract_preserves_study_bank(client):
     assert snapshot() == before
     catalog = {item["name"]: item for item in tool_catalog()}
     assert catalog["math_interpolate"]["annotations"]["readOnlyHint"] is True
-    assert len(catalog) == 64
+    assert len(catalog) == 65
     assert client.post("/api/math/interpolate", json={"points": [[".5", "1"], ["1/2", "2"]]}).status_code == 400
