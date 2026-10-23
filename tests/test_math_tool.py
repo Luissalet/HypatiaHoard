@@ -109,4 +109,12 @@ def test_linear_http_contract_does_not_modify_bank(client):
     assert response.status_code == 200, response.text
     result = response.json()
     assert result["solutions"]["x"]["exact"] == "2"
+    direct = client.post("/api/math/linear-system", json={"coefficients": [["1", "1"], ["1", "-1"]],
+        "constants": ["3", "1"], "variables": ["x", "y"]})
+    assert direct.status_code == 200 and direct.json() == result
+    for constants, expected in [(["1", "2"], "infinite"), (["1", "3"], "inconsistent")]:
+        args = {"coefficients": [["1", "1"], ["2", "2"]], "constants": constants, "variables": ["x", "y"]}
+        response = client.post("/api/math/linear-system", json=args)
+        assert response.status_code == 200 and response.json()["classification"] == expected
+        assert response.json() == call_tool(client.services, "math_linear_system", args)
     assert before == snapshot()

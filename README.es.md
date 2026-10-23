@@ -78,6 +78,16 @@ Matemáticas exactas: `math_compute` evalúa operaciones, resuelve ecuaciones po
 
 `math_linear_system` resuelve `A*x=b` con hasta 12 ecuaciones y 8 variables nombradas, incluidos sistemas rectangulares. Envía coeficientes y constantes como textos (`"1/3"`, `"0.1"`), con las variables en el orden de las columnas. Devuelve `unique`, `infinite` o `inconsistent`, soluciones exactas, nombres originales de las variables libres, rangos de las matrices, matriz ampliada reducida y residuos de sustitución. Por ejemplo, `{"coefficients":[["1/3","1/2"],["1","-1"]],"constants":["1","0"],"variables":["x","y"]}` da `x=y=6/5` y dos residuos cero. No accede al banco. Admite textos numéricos finitos de hasta 100 caracteres y exponentes decimales entre -100 y 100. Los nombres etiquetan incógnitas, no constantes.
 
+En el Dashboard local, **Sistemas lineales exactos** permite editar `[A | b]`,
+elegir ecuaciones/incógnitas y renombrarlas. Conserva las entradas al reducir y
+ampliar dimensiones o plegar el editor. Tres ejemplos editables cubren solución
+única, infinitas soluciones e incompatibilidad; **Resolver sistema** muestra la
+clasificación, soluciones exactas y aproximaciones separadas, variables libres,
+rangos, verificación por sustitución y RREF desplegable. El resultado se puede
+copiar y se borra al cambiar un dato. Las matrices anchas se desplazan dentro del
+editor. `POST /api/math/linear-system` usa `MathLinearSystemArgs` y el mismo motor
+que MCP `math_linear_system`, sin un nuevo cálculo ni guardar datos de estudio.
+
 Los decimales de `math_compute` conservan los dígitos escritos, incluida la notación científica con exponentes de -100 a 100. El resultado exacto usa fracciones; la aproximación se redondea por separado. El solucionador sigue las [operaciones exactas de matrices documentadas por SymPy](https://docs.sympy.org/latest/modules/matrices/matrices.html), usando la dependencia existente sin añadir modelos ni servicios.
 Profesor: ver [Rol Profesor](#rol-profesor).
 Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`. `studio_to_questions` pasa una FAQ terminada al banco de práctica y omite duplicados si se repite.

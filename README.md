@@ -57,6 +57,17 @@ Decimal literals in `math_compute` preserve the written digits, including scient
 
 The dashboard's **Calculadora exacta** uses the same engine as `math_compute` through `POST /api/math/compute`. It evaluates arithmetic, solves polynomial equations, differentiates, integrates and calculates limits without reading or changing your study bank. Examples load into the editable form; calculation is explicit.
 
+Next to it, **Sistemas lineales exactos** edits the augmented matrix `[A | b]`,
+equation/unknown counts and variable names. Hidden entries survive shrinking and
+expanding dimensions; folding the editor retains the draft. Three editable
+examples cover unique, infinite and inconsistent systems. Resolving explicitly
+shows the native classification, exact solutions/separate approximations, free
+variables, ranks, substitution verification and an expandable RREF; results can
+be copied. Editing an input clears the previous result. Wide matrices scroll
+inside their editor. `POST /api/math/linear-system` takes the same
+`MathLinearSystemArgs` as MCP `math_linear_system` and calls the same existing
+engine. No new solver, proof steps, stored study records or runtime dependency.
+
 - `operation: "integrate"`: omit `lower`/`upper` for a primitive (the returned `integration_constant: "C"` is arbitrary), or supply both as strings for a definite integral. Bounds accept exact real constants, fractions, `pi`, `E`, `oo` and `-oo`. For example, `exp(-x)` from `0` to `oo` returns exactly `1`.
 - `operation: "limit"`: supply `point` and optionally `side: "both" | "left" | "right"`. Both is the default: the two sides are compared at a finite point; at infinity there is a single approach. `sin(x)/x` at `0` is `1`; `1/x` at `0` is `nonexistent` with both actual lateral results.
 - Results include exact and LaTeX forms, a separate approximation when applicable, and an explicit `status` (`evaluated`, `infinite`, `divergent`, `nonexistent` or `unevaluated`). Oscillation is not reported as a numeric answer; divergent integrals are not Cauchy principal values. Symbolic calculus runs in a separate process and stops after 15 seconds with an error that asks you to simplify the expression. This is a calculator, not a step-by-step proof or a complete computer algebra system.

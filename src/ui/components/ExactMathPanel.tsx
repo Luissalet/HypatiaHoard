@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Button, Input, Select } from '@/ui/components';
 import { MdContent } from '@/ui/components/MdContent';
 import { hoardJson } from '@/data/hoardClient';
+import { LinearSystemPanel } from '@/ui/components/LinearSystemPanel';
 
 type Operation = 'evaluate' | 'solve' | 'differentiate' | 'integrate' | 'limit';
 type Value = { exact: string; latex: string; approx: string | null };
@@ -73,7 +74,7 @@ export function ExactMathPanel() {
     : result?.status === 'unevaluated' ? 'El motor no ha resuelto esta expresión.'
     : result?.status === 'infinite' ? 'El límite es infinito.' : 'Resultado exacto';
 
-  return <details className="mb-6 border-y border-ink-700 py-3">
+  return <><details className="mb-6 border-y border-ink-700 py-3">
     <summary className="cursor-pointer text-sm text-amber-400 font-medium rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
       Calculadora exacta
       <span className="block mt-1 text-ink-300 font-normal">Cuentas, ecuaciones, derivadas, integrales y límites</span>
@@ -129,5 +130,5 @@ export function ExactMathPanel() {
       </div>
       <p className="text-sm text-ink-300">Cálculo simbólico local. Las integrales y límites sin resolver se indican como tales. No se guarda nada en tu banco de estudio.</p>
     </form>
-  </details>;
+  </details><LinearSystemPanel /></>;
 }
