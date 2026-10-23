@@ -274,6 +274,37 @@ def _rational_literal(value: str) -> sp.Rational:
     return sp.Rational(number.numerator, number.denominator)
 
 
+def interpolate(points: list[list[str]], variable: str = "x") -> dict:
+    """Interpolate rational pairs and check the polynomial at every input."""
+    if variable not in ("x", "y", "t"):
+        raise ValueError("Variable must be x, y or t.")
+    if not isinstance(points, list) or not points:
+        raise ValueError("Provide at least one pair of number strings.")
+    normalized, seen = [], {}
+    for index, pair in enumerate(points, 1):
+        if not isinstance(pair, list) or len(pair) != 2:
+            raise ValueError(f"Row {index}: provide exactly two number strings.")
+        try:
+            abscissa, ordinate = (_rational_literal(value) for value in pair)
+        except ValueError as error:
+            raise ValueError(f"Row {index}: {error}") from error
+        if abscissa in seen:
+            raise ValueError(f"Row {index}: abscissa {abscissa} repeats row {seen[abscissa]}; use distinct abscissas.")
+        seen[abscissa] = index
+        normalized.append((abscissa, ordinate))
+    symbol = sp.Symbol(variable)
+    polynomial = sp.Poly(sp.interpolate(normalized, symbol), symbol)
+    rows = []
+    for written, (abscissa, ordinate) in zip(points, normalized):
+        evaluated = polynomial.eval(abscissa)
+        rows.append({"point": written, "x_exact": str(abscissa), "y_exact": str(ordinate),
+                     "evaluated_exact": str(evaluated), "residual_exact": str(evaluated - ordinate)})
+    return {"variable": variable, "points": points, **_value(polynomial.as_expr()),
+            "degree": None if polynomial.is_zero else int(polynomial.degree()), "is_zero": bool(polynomial.is_zero),
+            "coefficients_exact": [str(value) for value in polynomial.all_coeffs()],
+            "rows": rows, "verified": all(row["residual_exact"] == "0" for row in rows)}
+
+
 def linear_system(coefficients: list[list[str]], constants: list[str], variables: list[str]) -> dict:
     """Solve A*x=b over exact rationals, exposing a checkable row reduction.
 

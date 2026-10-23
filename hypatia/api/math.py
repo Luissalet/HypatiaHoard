@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathComputeArgs, MathLinearSystemArgs, MathValuesArgs
-from ..math_tool import compute, linear_system, values
+from ..agent_tools import MathComputeArgs, MathInterpolateArgs, MathLinearSystemArgs, MathValuesArgs
+from ..math_tool import compute, interpolate, linear_system, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/interpolate")
+def interpolate_points(body: MathInterpolateArgs):
+    try:
+        return interpolate(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/values")
