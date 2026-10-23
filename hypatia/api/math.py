@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathInterpolateArgs, MathLinearSystemArgs, MathMatrixArgs, MathValuesArgs
-from ..math_tool import compute, convert_base, interpolate, linear_system, matrix_calculate, values
+from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathInterpolateArgs, MathLinearSystemArgs, MathMatrixArgs, MathStatisticsArgs, MathValuesArgs
+from ..math_tool import compute, convert_base, descriptive_statistics, interpolate, linear_system, matrix_calculate, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/statistics")
+def calculate_statistics(body: MathStatisticsArgs):
+    try:
+        return descriptive_statistics(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/matrix")

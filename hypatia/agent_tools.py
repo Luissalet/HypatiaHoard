@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import convert_base, interpolate, linear_system, matrix_calculate, values as math_values
+from .math_tool import convert_base, descriptive_statistics, interpolate, linear_system, matrix_calculate, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -89,6 +89,10 @@ class MathValuesArgs(BaseModel):
 class MathMatrixArgs(BaseModel):
     matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
     operation: Literal["determinant", "inverse", "rref"] = "inverse"
+
+
+class MathStatisticsArgs(BaseModel):
+    values: list[str] = Field(..., min_length=1, description="Observations as integer, decimal or fraction strings, preserving order and repeats. No missing values, expressions or weights. Returns exact descriptive statistics, with population N and sample N-1 denominators; sample is null for one observation.")
 
 
 class MathBaseConvertArgs(BaseModel):
@@ -403,6 +407,10 @@ def run_math_matrix(_: Services, args: MathMatrixArgs) -> dict:
     return matrix_calculate(**args.model_dump())
 
 
+def run_math_statistics(_: Services, args: MathStatisticsArgs) -> dict:
+    return descriptive_statistics(**args.model_dump())
+
+
 # ---------- study tools ----------
 
 def run_subjects_list(services: Services, _: Empty) -> dict:
@@ -658,6 +666,11 @@ STUDY_TOOLS: list[Tool] = [
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
          + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan.", MathMatrixArgs, ann(True), run_math_matrix),
+    Tool("math_statistics", "Calculate exact descriptive statistics of rational observations. Keywords: media, mediana, varianza."
+         "\nNumber strings preserve decimals, fractions, order and repeats. Returns count, sum, mean, median, min/max/range, "
+         "sum of squared deviations, population variance/stddev (divide by N) and sample variance/stddev (divide by N-1). "
+         "One observation has no sample variance/stddev: sample is null. No missing data, weights, inference or study bank changes."
+         + SYN + "estadística descriptiva, promedio, mediana, dispersión, desviación típica, población, muestra.", MathStatisticsArgs, ann(True), run_math_statistics),
     Tool("math_values", "Evaluate an expression at ordered finite real constant points. Keywords: tabla de valores."
          "\nReturns each written point, its exact value and the expression's exact/approximate value. Repeated points retain order. "
          "Evaluates the original arithmetic tree before cancellation; x/x at zero is undefined, not a limit. "

@@ -5,7 +5,7 @@
 Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
 - **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
-- **Assistant control**: 62 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
+- **Assistant control**: 63 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
 - **A teacher role** (Profesor): classes, exams generated from your bank and your own material with citations, versions A/B, rubrics, batch correction with model proposals you confirm, grades and class analysis. Student data stays on your PC.
 - **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
 - **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard, the notebook's embeddings come from Borges's Hoard and scanned PDFs are read by Kafka's Hoard, all through the family hub (see *In the family*). With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
@@ -89,6 +89,22 @@ engine. No new solver, proof steps, stored study records or runtime dependency.
 - Results include exact and LaTeX forms, a separate approximation when applicable, and an explicit `status` (`evaluated`, `infinite`, `divergent`, `nonexistent` or `unevaluated`). Oscillation is not reported as a numeric answer; divergent integrals are not Cauchy principal values. Symbolic calculus runs in a separate process and stops after 15 seconds with an error that asks you to simplify the expression. This is a calculator, not a step-by-step proof or a complete computer algebra system.
 
 The calculus capability follows [SymPy 1.14's calculus documentation](https://docs.sympy.org/1.14.0/tutorials/intro-tutorial/calculus.html), using the existing BSD-licensed dependency. No model, GPU, new service or new dependency is needed.
+
+**Exact descriptive statistics:** the home calculator's Estadística exacta panel
+and `math_statistics` / `POST /api/math/statistics` describe a list of integer,
+decimal or fraction strings. Order and repeats are retained. Results include
+count, sum, mean, median, minimum/maximum/range, sum of squared deviations and
+population/sample variance and standard deviation, with exact radicals and
+separate numerical approximations. Population variance divides by N; sample
+variance divides by N−1. With one observation population dispersion is zero and
+the sample result is null, explicitly undefined. The UI takes one number per
+line (blank lines are ignored), provides editable examples, copies inputs and
+exact results, and exposes the draft to Faustus. Invalid observations identify
+their position without discarding the input. No weights, missing-value inference,
+quantiles, predictions or study records are involved. The definitions follow the
+[Python statistics documentation](https://docs.python.org/3/library/statistics.html);
+the implementation uses the existing exact rational SymPy engine, with no new
+dependency, model or service.
 
 **Study calendar:** in the local Hoard app, Actividades y entregas → Llevar
 fechas al calendario previews and downloads an ICS snapshot of saved deliverables

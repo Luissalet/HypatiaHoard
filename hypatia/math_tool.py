@@ -274,6 +274,34 @@ def _rational_literal(value: str) -> sp.Rational:
     return sp.Rational(number.numerator, number.denominator)
 
 
+def descriptive_statistics(values: list[str]) -> dict:
+    """Describe written rational observations without floating-point rounding."""
+    if not isinstance(values, list) or not values:
+        raise ValueError("Provide at least one number string.")
+    numbers = []
+    for index, value in enumerate(values, 1):
+        try:
+            numbers.append(_rational_literal(value))
+        except ValueError as error:
+            raise ValueError(f"Observation {index}: {error}") from error
+    count = len(numbers)
+    total = sum(numbers, sp.S.Zero)
+    mean = total / count
+    ordered = sorted(numbers)
+    median = ordered[count // 2] if count % 2 else (ordered[count // 2 - 1] + ordered[count // 2]) / 2
+    squared_deviations = sum(((number - mean) ** 2 for number in numbers), sp.S.Zero)
+    population_variance = squared_deviations / count
+    sample_variance = squared_deviations / (count - 1) if count > 1 else None
+    return {"values": values, "values_exact": [str(number) for number in numbers], "count": count,
+            "sum": _value(total), "mean": _value(mean), "median": _value(median),
+            "minimum": _value(ordered[0]), "maximum": _value(ordered[-1]),
+            "range": _value(ordered[-1] - ordered[0]), "squared_deviations": _value(squared_deviations),
+            "population": {"denominator": count, "variance": _value(population_variance),
+                           "standard_deviation": _value(sp.sqrt(population_variance))},
+            "sample": {"denominator": count - 1, "variance": _value(sample_variance),
+                       "standard_deviation": _value(sp.sqrt(sample_variance))} if count > 1 else None}
+
+
 def matrix_calculate(matrix: list[list[str]], operation: str = "inverse") -> dict:
     """Exact rational determinant, inverse with substitution check, or RREF."""
     if operation not in ("determinant", "inverse", "rref"):
