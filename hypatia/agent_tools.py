@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import convert_base, interpolate, linear_system, values as math_values
+from .math_tool import convert_base, interpolate, linear_system, matrix_calculate, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -29,7 +29,7 @@ Teach a document: lesson_from_document turns pasted text or a file (PDF, DOCX...
 Never reveal the answer before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent questions, grades or sources.
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
 Notebook: cite passages with [n] exactly as the tools number them, never cite a source you were not given, and prefer notebook_search (cheap, passages with citations) when you can compose the answer yourself; use notebook_ask/studio_generate when the user wants the app to generate it.
-For exact arithmetic, polynomial expansion/factorization, polynomial equations, derivatives, integrals or limits, use math_compute and report its result. expand and factor work on polynomials with rational coefficients in one variable; factor works over the rationals, so x**2-2 remains unchanged. Constant denominators are allowed; variable denominators and negative variable powers are not polynomials. Integration takes both lower/upper strings or neither (a primitive with arbitrary constant C). Limits require point; side defaults to both and compares the two sides. oo/-oo are infinite endpoints. Report divergent, nonexistent and unevaluated outcomes as such, never as numerical answers. For systems of linear equations use math_linear_system, with number strings and variables in column order. For value tables use math_values with ordered finite real constant points; report undefined/invalid/complex rows explicitly. Point evaluation preserves the original arithmetic tree and is not a limit. For polynomial interpolation from rational point pairs use math_interpolate; preserve the number strings and report the exact polynomial, degree and residual check. This is interpolation, not regression or prediction. For integer base conversion use math_base_convert with the original number string and explicit source/target bases2–36. Results are signed integers, not fixed-width words or two's complement. These calculators are independent of the study bank.
+For exact arithmetic, polynomial expansion/factorization, polynomial equations, derivatives, integrals or limits, use math_compute and report its result. expand and factor work on polynomials with rational coefficients in one variable; factor works over the rationals, so x**2-2 remains unchanged. Constant denominators are allowed; variable denominators and negative variable powers are not polynomials. Integration takes both lower/upper strings or neither (a primitive with arbitrary constant C). Limits require point; side defaults to both and compares the two sides. oo/-oo are infinite endpoints. Report divergent, nonexistent and unevaluated outcomes as such, never as numerical answers. For systems of linear equations use math_linear_system, with number strings and variables in column order. For value tables use math_values with ordered finite real constant points; report undefined/invalid/complex rows explicitly. Point evaluation preserves the original arithmetic tree and is not a limit. For polynomial interpolation from rational point pairs use math_interpolate; preserve the number strings and report the exact polynomial, degree and residual check. This is interpolation, not regression or prediction. For integer base conversion use math_base_convert with the original number string and explicit source/target bases2–36. Results are signed integers, not fixed-width words or two's complement. For exact rational matrix determinants, inverses or reduced row echelon forms use math_matrix. Singular matrices have no inverse; pivot columns are counted from1. Inverse residuals check A*inverse-I, not a step-by-step proof. These calculators are independent of the study bank.
 Teacher role (classes, exams for students, rubrics, batch correction): exam_generate builds an exam from the bank and/or drafts questions from the teacher's sources with citations (drafts need exam_drafts_review); grading_run only PROPOSES grades for open answers against the rubric: show grading_review to the teacher and call grading_confirm only with what the teacher accepts. Student names, answers and grades stay on this PC: never send them anywhere else.
 Never read the data folder or the database directly; use these tools only."""
 
@@ -84,6 +84,11 @@ class MathValuesArgs(BaseModel):
     expression: str = Field(..., min_length=1, max_length=200, description="Expression in one variable; use ** for powers.")
     variable: Literal["x", "y", "t"] = "x"
     points: list[str] = Field(..., min_length=1, description="Ordered real finite constant strings, e.g. ['-1','0','1/3','pi']. Repeats are preserved. Variables and infinity are not points. Invalid points are reported per row.")
+
+
+class MathMatrixArgs(BaseModel):
+    matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
+    operation: Literal["determinant", "inverse", "rref"] = "inverse"
 
 
 class MathBaseConvertArgs(BaseModel):
@@ -394,6 +399,10 @@ def run_math_base_convert(_: Services, args: MathBaseConvertArgs) -> dict:
     return convert_base(**args.model_dump())
 
 
+def run_math_matrix(_: Services, args: MathMatrixArgs) -> dict:
+    return matrix_calculate(**args.model_dump())
+
+
 # ---------- study tools ----------
 
 def run_subjects_list(services: Services, _: Empty) -> dict:
@@ -644,6 +653,11 @@ STUDY_TOOLS: list[Tool] = [
          "Standard Python integer input syntax, case-insensitive digits, optional base2/8/16 prefixes and underscores. "
          "Existing runtime integer conversion limits apply. No study data read or changed."
          + SYN + "convertir bases, base numérica, binario, octal, decimal, hexadecimal.", MathBaseConvertArgs, ann(True), run_math_base_convert),
+    Tool("math_matrix", "Calculate exact rational determinants, inverses or RREF. Keywords: matrices, inversa."
+         "\nUse number-string rows with equal length. Determinant and inverse require square matrices; rref accepts rectangles. "
+         "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
+         "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
+         + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan.", MathMatrixArgs, ann(True), run_math_matrix),
     Tool("math_values", "Evaluate an expression at ordered finite real constant points. Keywords: tabla de valores."
          "\nReturns each written point, its exact value and the expression's exact/approximate value. Repeated points retain order. "
          "Evaluates the original arithmetic tree before cancellation; x/x at zero is undefined, not a limit. "

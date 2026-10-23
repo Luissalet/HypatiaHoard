@@ -6,6 +6,7 @@ import { LinearSystemPanel } from '@/ui/components/LinearSystemPanel';
 import { ValueTablePanel } from '@/ui/components/ValueTablePanel';
 import { InterpolationPanel } from '@/ui/components/InterpolationPanel';
 import { BaseConversionPanel } from '@/ui/components/BaseConversionPanel';
+import { MatrixPanel } from '@/ui/components/MatrixPanel';
 
 type Operation = 'evaluate' | 'expand' | 'factor' | 'solve' | 'differentiate' | 'integrate' | 'limit';
 type Value = { exact: string; latex: string; approx: string | null };
@@ -165,5 +166,5 @@ export function ExactMathPanel() {
       {copied && <p role="status" className="text-sm text-ink-200">{copied}</p>}
       <p className="text-sm text-ink-300">Cálculo simbólico local. Las integrales y límites sin resolver se indican como tales. No se guarda nada en tu banco de estudio.</p>
     </form>
-  </details><ValueTablePanel /><InterpolationPanel /><BaseConversionPanel /><LinearSystemPanel /></>;
+  </details><ValueTablePanel /><InterpolationPanel /><BaseConversionPanel /><MatrixPanel /><LinearSystemPanel /></>;
 }

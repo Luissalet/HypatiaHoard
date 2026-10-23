@@ -274,6 +274,49 @@ def _rational_literal(value: str) -> sp.Rational:
     return sp.Rational(number.numerator, number.denominator)
 
 
+def matrix_calculate(matrix: list[list[str]], operation: str = "inverse") -> dict:
+    """Exact rational determinant, inverse with substitution check, or RREF."""
+    if operation not in ("determinant", "inverse", "rref"):
+        raise ValueError("Operation must be determinant, inverse or rref.")
+    if not isinstance(matrix, list) or not matrix or any(not isinstance(row, list) or not row for row in matrix):
+        raise ValueError("Provide a nonempty matrix of number strings.")
+    columns = len(matrix[0])
+    normalized = []
+    for row_index, row in enumerate(matrix, 1):
+        if len(row) != columns:
+            raise ValueError(f"Row {row_index}: all rows must have {columns} columns.")
+        parsed = []
+        for column_index, value in enumerate(row, 1):
+            try:
+                parsed.append(_rational_literal(value))
+            except ValueError as error:
+                raise ValueError(f"Row {row_index}, column {column_index}: {error}") from error
+        normalized.append(parsed)
+    source = sp.Matrix(normalized)
+
+    def strings(value: sp.Matrix) -> list[list[str]]:
+        return [[str(cell) for cell in row] for row in value.tolist()]
+
+    result = {"operation": operation, "original_matrix": matrix, "matrix_exact": strings(source),
+              "rows": source.rows, "columns": source.cols, "status": "computed"}
+    if operation == "rref":
+        reduced, pivots = source.rref()
+        return {**result, "rref_exact": strings(reduced), "rank": len(pivots),
+                "pivot_columns_one_based": [index + 1 for index in pivots]}
+    if source.rows != source.cols:
+        raise ValueError("Determinant and inverse need a square matrix; use rref for rectangular matrices.")
+    determinant = source.det()
+    result["determinant_exact"] = str(determinant)
+    if operation == "determinant":
+        return result
+    if determinant == 0:
+        return {**result, "status": "singular", "inverse_exact": None, "verified": None}
+    inverse = source.inv()
+    residuals = source * inverse - sp.eye(source.rows)
+    return {**result, "inverse_exact": strings(inverse), "residuals_exact": strings(residuals),
+            "verified": residuals == sp.zeros(source.rows)}
+
+
 def convert_base(number: str, source_base: int = 10, target_base: int = 2) -> dict:
     """Convert a signed integer exactly; signs are not two's-complement words."""
     if type(source_base) is not int or type(target_base) is not int or not 2 <= source_base <= 36 or not 2 <= target_base <= 36:
