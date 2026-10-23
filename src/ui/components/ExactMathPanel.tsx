@@ -3,6 +3,7 @@ import { Button, Input, Select } from '@/ui/components';
 import { MdContent } from '@/ui/components/MdContent';
 import { hoardJson } from '@/data/hoardClient';
 import { LinearSystemPanel } from '@/ui/components/LinearSystemPanel';
+import { ValueTablePanel } from '@/ui/components/ValueTablePanel';
 
 type Operation = 'evaluate' | 'expand' | 'factor' | 'solve' | 'differentiate' | 'integrate' | 'limit';
 type Value = { exact: string; latex: string; approx: string | null };
@@ -162,5 +163,5 @@ export function ExactMathPanel() {
       {copied && <p role="status" className="text-sm text-ink-200">{copied}</p>}
       <p className="text-sm text-ink-300">Cálculo simbólico local. Las integrales y límites sin resolver se indican como tales. No se guarda nada en tu banco de estudio.</p>
     </form>
-  </details><LinearSystemPanel /></>;
+  </details><ValueTablePanel /><LinearSystemPanel /></>;
 }

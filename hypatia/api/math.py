@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathComputeArgs, MathLinearSystemArgs
-from ..math_tool import compute, linear_system
+from ..agent_tools import MathComputeArgs, MathLinearSystemArgs, MathValuesArgs
+from ..math_tool import compute, linear_system, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/values")
+def evaluate_values(body: MathValuesArgs):
+    try:
+        return values(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/compute")

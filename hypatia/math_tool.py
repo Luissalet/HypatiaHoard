@@ -18,7 +18,8 @@ FUNCTIONS = {"sqrt": sp.sqrt, "sin": sp.sin, "cos": sp.cos, "exp": sp.exp, "log"
 CONSTANTS = {"pi": sp.pi, "E": sp.E}
 
 
-def parse_expression(source: str, variable: str, *, polynomial: bool = False) -> sp.Expr:
+def parse_expression(source: str, variable: str, *, polynomial: bool = False,
+                     binding: sp.Expr | None = None, constant: bool = False) -> sp.Expr:
     source = source.strip()
     if not source or len(source) > 200:
         raise ValueError("Expression must have 1-200 characters.")
@@ -31,6 +32,14 @@ def parse_expression(source: str, variable: str, *, polynomial: bool = False) ->
     symbol = sp.Symbol(variable)
 
     def build(node: ast.AST, depth: int = 0) -> sp.Expr:
+        value = build_node(node, depth)
+        # In point evaluation an undefined inner operation must not disappear
+        # through cancellation, multiplication by zero or a later power.
+        if (binding is not None or constant) and (value.has(sp.zoo, sp.nan) or value.is_finite is False):
+            raise ValueError("Expression is undefined at this point.")
+        return value
+
+    def build_node(node: ast.AST, depth: int = 0) -> sp.Expr:
         if depth > 20:
             raise ValueError("Expression is too deeply nested.")
         if isinstance(node, ast.Constant) and type(node.value) in (int, float):
@@ -47,7 +56,9 @@ def parse_expression(source: str, variable: str, *, polynomial: bool = False) ->
             return sp.Rational(str(node.value))
         if isinstance(node, ast.Name):
             if node.id == variable:
-                return symbol
+                if constant:
+                    raise ValueError("Points must not contain a variable, even if it cancels.")
+                return symbol if binding is None else binding
             if node.id in CONSTANTS:
                 return CONSTANTS[node.id]
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
@@ -93,6 +104,35 @@ def _value(result: sp.Expr) -> dict:
     return {"exact": str(result),
             "approx": str(sp.N(result, 12)) if not result.free_symbols and result.is_finite is True and not result.has(sp.AccumBounds) else None,
             "latex": sp.latex(result)}
+
+
+def values(expression: str, points: list[str], variable: str = "x") -> dict:
+    """Evaluate the written AST at ordered finite real points, not a limit."""
+    if variable not in ("x", "y", "t"):
+        raise ValueError("Variable must be x, y or t.")
+    if not isinstance(points, list) or not points or any(not isinstance(p, str) for p in points):
+        raise ValueError("Provide a nonempty list of point strings.")
+    # Validate the original grammar before binding: e.g. x**x is unsupported
+    # even if a particular point would turn the exponent into an integer.
+    parse_expression(expression, variable)
+    rows = []
+    for point in points:
+        row = {"point": point}
+        try:
+            target = parse_expression(point, variable, constant=True)
+            if target.is_real is not True or target.is_finite is not True:
+                raise ValueError("Points must be finite real constants.")
+        except ValueError as error:
+            rows.append({**row, "status": "invalid_point", "error": str(error)})
+            continue
+        row["point_exact"] = str(target)
+        try:
+            result = parse_expression(expression, variable, binding=target)
+            status = "unevaluated" if result.is_finite is not True else "evaluated" if result.is_real is True else "complex"
+            rows.append({**row, "status": status, **_value(result)})
+        except ValueError as error:
+            rows.append({**row, "status": "undefined", "error": str(error)})
+    return {"expression": expression, "variable": variable, "points": points, "rows": rows}
 
 
 def _compute(operation: str, expression: str, variable: str = "x", *,
