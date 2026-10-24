@@ -3,21 +3,23 @@ import { Button, Input, Select } from '@/ui/components';
 import { hoardJson } from '@/data/hoardClient';
 import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 
-type Operation = 'determinant' | 'inverse' | 'rref' | 'multiply' | 'nullspace' | 'power';
+type Operation = 'determinant' | 'inverse' | 'rref' | 'multiply' | 'nullspace' | 'power' | 'transpose';
 type Result = { operation: Operation; original_matrix: string[][]; matrix_exact: string[][]; rows: number; columns: number;
   status: 'computed' | 'singular'; determinant_exact?: string; inverse_exact?: string[][] | null; residuals_exact?: string[][];
   verified?: boolean | null; rref_exact?: string[][]; rank?: number; pivot_columns_one_based?: number[];
   original_right_matrix?: string[][]; right_matrix_exact?: string[][]; right_rows?: number; right_columns?: number;
   product_exact?: string[][]; product_rows?: number; product_columns?: number;
   nullity?: number; nullspace_basis_exact?: string[][]; nullspace_residuals_exact?: string[][];
-  original_exponent?: string; exponent_exact?: string; power_exact?: string[][] | null };
-const titles: Record<Operation, string> = { determinant: 'Determinante', inverse: 'Inversa', rref: 'Reducción por filas', multiply: 'Producto A · B', nullspace: 'Núcleo A · x = 0', power: 'Potencia entera Aⁿ' };
+  original_exponent?: string; exponent_exact?: string; power_exact?: string[][] | null;
+  transpose_exact?: string[][]; transpose_rows?: number; transpose_columns?: number };
+const titles: Record<Operation, string> = { determinant: 'Determinante', inverse: 'Inversa', rref: 'Reducción por filas', multiply: 'Producto A · B', nullspace: 'Núcleo A · x = 0', power: 'Potencia entera Aⁿ', transpose: 'Transpuesta Aᵀ' };
 const examples: Record<string, { matrix: string; operation: Operation; right?: string; exponent?: string }> = {
   inverse: { matrix: '1; 2\n3; 4', operation: 'inverse' }, fractions: { matrix: '1/2; 1/3\n2; 3', operation: 'inverse' },
   singular: { matrix: '1; 2\n2; 4', operation: 'inverse' }, rectangular: { matrix: '1; 2; 3\n2; 4; 6', operation: 'rref' },
   product: { matrix: '1/2; 1; -2\n0; 3; 1', right: '2; 0\n1/3; 4\n-1; 2', operation: 'multiply' },
   nullspace: { matrix: '1/2; 1; -1\n1; 2; -2', operation: 'nullspace' },
   power: { matrix: '1; 1\n0; 1', operation: 'power', exponent: '4' },
+  transpose: { matrix: '1/2; 0; -3\n2; 4; 1/3', operation: 'transpose' },
 };
 
 function ExactMatrix({ title, values }: { title: string; values: string[][] }) {
@@ -42,10 +44,19 @@ export function MatrixPanel() {
   const [example, setExample] = useState('inverse'), [open, setOpen] = useState(false);
   const [result, setResult] = useState<Result | null>(null), [busy, setBusy] = useState(false);
   const [error, setError] = useState(''), [copied, setCopied] = useState('');
+  const [reused, setReused] = useState('');
+  const matrixInput = useRef<HTMLTextAreaElement>(null);
   const generation = useRef(0);
   useEffect(() => () => { generation.current++; }, []);
-  useCopilotDraft('math_matrix', undefined, { matrix, right_matrix: right, exponent, operation, result, busy, error }, open);
-  function invalidate() { generation.current++; setResult(null); setError(''); setCopied(''); setBusy(false); }
+  useCopilotDraft('math_matrix', undefined, { matrix, right_matrix: right, exponent, operation, result, busy, error, reused }, open);
+  function invalidate() { generation.current++; setResult(null); setError(''); setCopied(''); setReused(''); setBusy(false); }
+  const reusableMatrix = result?.transpose_exact ?? result?.product_exact ?? result?.inverse_exact ?? result?.rref_exact ?? result?.power_exact;
+  function reuseResult() {
+    if (!result || !reusableMatrix) return;
+    const notice = `${titles[result.operation]}: resultado de ${reusableMatrix.length} × ${reusableMatrix[0].length} cargado como matriz A. Pulsa Calcular matriz para continuar.`;
+    setMatrix(reusableMatrix.map(row => row.join('; ')).join('\n'));
+    invalidate(); setReused(notice); matrixInput.current?.focus();
+  }
   async function calculate(event: FormEvent) {
     event.preventDefault(); invalidate(); const request = generation.current; setBusy(true);
     try {
@@ -75,6 +86,7 @@ export function MatrixPanel() {
       ...(result.determinant_exact != null ? [`Determinante: ${result.determinant_exact}`] : []),
       ...(result.original_exponent != null ? [`Exponente escrito: ${result.original_exponent}`, `Exponente entero: ${result.exponent_exact}`] : []),
       ...(result.power_exact ? block(`Potencia A^${result.exponent_exact} exacta`, result.power_exact) : []),
+      ...(result.transpose_exact ? [`Dimensiones: ${result.rows} × ${result.columns} → ${result.transpose_rows} × ${result.transpose_columns}`, ...block('Transpuesta A^T exacta', result.transpose_exact)] : []),
       ...(result.status === 'singular' ? [result.operation === 'power' ? 'La potencia negativa no existe: la matriz es singular y no tiene inversa.' : 'Matriz singular: no existe inversa.'] : []),
       ...(result.inverse_exact ? block('Inversa exacta', result.inverse_exact) : []),
       ...(result.residuals_exact ? block('Comprobación A * inversa - I', result.residuals_exact) : []),
@@ -89,13 +101,14 @@ export function MatrixPanel() {
   return <details className="mb-6 border-b border-ink-700 pb-3" onToggle={event => { setOpen(event.currentTarget.open); if (!event.currentTarget.open) invalidate(); }}>
     <summary className="cursor-pointer text-sm text-amber-400 font-medium rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
       Matrices exactas
-      <span className="block mt-1 text-ink-300 font-normal">Determinantes, inversas, reducción por filas, producto, núcleo y potencias con fracciones exactas</span>
+      <span className="block mt-1 text-ink-300 font-normal">Determinantes, inversas, reducción por filas, producto, núcleo, potencias y transpuesta con fracciones exactas</span>
     </summary>
     <form className="mt-5 space-y-4" onSubmit={calculate} onChange={invalidate}>
       <div><label htmlFor="matrix-input" className="block text-sm font-medium text-ink-200 mb-1">{operation === 'multiply' ? 'Filas de la matriz A' : 'Filas de la matriz'}</label>
-        <textarea id="matrix-input" required rows={4} value={matrix} onChange={event => setMatrix(event.target.value)} aria-describedby="matrix-help"
+        <textarea ref={matrixInput} id="matrix-input" required rows={4} value={matrix} onChange={event => setMatrix(event.target.value)} aria-describedby="matrix-help"
           className="w-full rounded border border-ink-600 bg-ink-900 px-3 py-2 font-mono text-sm text-ink-100 focus:outline-none focus:ring-2 focus:ring-amber-500" />
         <p id="matrix-help" className="mt-1 text-sm text-ink-300">Una fila por línea; separa números con punto y coma. Mismo número de columnas en cada fila. Usa enteros, fracciones o punto decimal, sin variables.</p>
+        {operation === 'transpose' && <p className="mt-2 text-sm text-ink-200">La transpuesta intercambia filas y columnas. Una matriz de 2 × 3 pasa a 3 × 2; admite matrices rectangulares.</p>}
       </div>
       {operation === 'multiply' && <div>
         <label htmlFor="matrix-right" className="block text-sm font-medium text-ink-200 mb-1">Filas de la matriz B</label>
@@ -117,18 +130,27 @@ export function MatrixPanel() {
           <option value="product">Producto rectangular A · B</option>
           <option value="nullspace">Núcleo de una matriz rectangular</option>
           <option value="power">Potencia de una matriz triangular</option>
+          <option value="transpose">Transpuesta rectangular con fracciones</option>
         </Select>
         <Button type="button" variant="secondary" onClick={() => { invalidate(); setMatrix(examples[example].matrix); if (examples[example].right) setRight(examples[example].right!); if (examples[example].exponent) setExponent(examples[example].exponent!); setOperation(examples[example].operation); }}>Cargar matriz de ejemplo</Button>
         <Button type="submit" loading={busy}>{busy ? 'Calculando matriz…' : 'Calcular matriz'}</Button>
       </div>
     </form>
+    {reused && <p role="status" className="mt-4 text-sm text-ink-200">{reused}</p>}
     {error && <p role="alert" className="mt-4 text-sm text-rose-300">{error}</p>}
     {result && <section aria-label="Resultado de matrices exactas" className="mt-5 space-y-4 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-lg text-ink-100 break-words" aria-live="polite">{result.operation === 'power' ? `Potencia A^${result.exponent_exact}` : titles[result.operation]} · {result.product_rows ?? result.rows} × {result.product_columns ?? result.columns}</h2>
-        <Button type="button" variant="secondary" onClick={copy}>Copiar matriz y resultado</Button>
+        <h2 className="font-display text-lg text-ink-100 break-words" aria-live="polite">{result.operation === 'power' ? `Potencia A^${result.exponent_exact}` : titles[result.operation]} · {result.transpose_rows ?? result.product_rows ?? result.rows} × {result.transpose_columns ?? result.product_columns ?? result.columns}</h2>
+        <div className="flex flex-wrap gap-2">
+          {reusableMatrix && <Button type="button" variant="secondary" onClick={reuseResult}>Usar resultado como matriz A</Button>}
+          <Button type="button" variant="secondary" onClick={copy}>Copiar matriz y resultado</Button>
+        </div>
       </div>
       <ExactMatrix title="Matriz A" values={result.matrix_exact} />
+      {result.transpose_exact && <>
+        <p className="text-sm text-ink-200">Filas y columnas intercambiadas: A ({result.rows} × {result.columns}) → Aᵀ ({result.transpose_rows} × {result.transpose_columns}).</p>
+        <ExactMatrix title="Transpuesta Aᵀ exacta" values={result.transpose_exact} />
+      </>}
       {result.original_exponent != null && <p className="text-sm text-ink-200 break-all">Exponente escrito: <span className="font-mono">{result.original_exponent}</span>. Exponente entero: <span className="font-mono">{result.exponent_exact}</span>.</p>}
       {result.power_exact && <ExactMatrix title={`Potencia A^${result.exponent_exact} exacta`} values={result.power_exact} />}
       {result.right_matrix_exact && result.product_exact && <>
@@ -161,6 +183,6 @@ export function MatrixPanel() {
       </section>}
       <p role="status" className="text-sm text-ink-200">{copied}</p>
     </section>}
-    <p className="mt-4 text-sm text-ink-300">Determinante, inversa y potencia requieren una matriz cuadrada; la reducción por filas y el núcleo admiten matrices rectangulares. Cálculo racional exacto, sin demostrar los pasos. No se guarda nada en el banco.</p>
+    <p className="mt-4 text-sm text-ink-300">Determinante, inversa y potencia requieren una matriz cuadrada; la reducción por filas, el núcleo y la transpuesta admiten matrices rectangulares. Cálculo racional exacto, sin demostrar los pasos. No se guarda nada en el banco.</p>
   </details>;
 }

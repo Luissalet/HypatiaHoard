@@ -5,6 +5,41 @@ import pytest
 from hypatia.agent_tools import call_tool, tool_catalog
 
 
+def test_matrix_transpose_rectangular_exact_roundtrip_and_bank(client):
+    from fractions import Fraction
+
+    def snapshot():
+        with client.services.db.lock:
+            return {name: [tuple(row) for row in client.services.db.conn.execute('SELECT * FROM "' + name + '"')]
+                    for name, in client.services.db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+
+    before = snapshot()
+    matrix = [["0.125", "-2/3", "0"], ["7", "1/4", "-0.5"]]
+    args = {"operation": "transpose", "matrix": matrix}
+    direct = client.post("/api/math/matrix", json=args)
+    gateway = client.post("/api/agent/call", headers={"Authorization": "Bearer " + client.services.token},
+                          json={"name": "math_matrix", "arguments": args})
+    assert direct.status_code == gateway.status_code == 200
+    value = direct.json()
+    assert value == gateway.json() == call_tool(client.services, "math_matrix", args)
+    expected = [[str(Fraction(row[column])) for row in matrix] for column in range(3)]
+    assert value["original_matrix"] == matrix
+    assert value["transpose_exact"] == expected == [["1/8", "7"], ["-2/3", "1/4"], ["0", "-1/2"]]
+    assert (value["rows"], value["columns"], value["transpose_rows"], value["transpose_columns"]) == (2, 3, 3, 2)
+    reverse = call_tool(client.services, "math_matrix", {"operation": "transpose", "matrix": expected})
+    assert reverse["transpose_exact"] == value["matrix_exact"]
+    assert snapshot() == before
+
+
+def test_matrix_transpose_vector_and_inapplicable_arguments(services):
+    result = call_tool(services, "math_matrix", {"operation": "transpose", "matrix": [["0"], ["-3/2"], ["2"]]})
+    assert result["transpose_exact"] == [["0", "-3/2", "2"]]
+    assert (result["transpose_rows"], result["transpose_columns"]) == (1, 3)
+    for extra in ({"right_matrix": [["1"]]}, {"exponent": "2"}):
+        with pytest.raises(ValueError, match="only used by"):
+            call_tool(services, "math_matrix", {"operation": "transpose", "matrix": [["1"]], **extra})
+
+
 def test_matrix_power_rational_contract_and_bank(client):
     from fractions import Fraction
 

@@ -550,8 +550,8 @@ def descriptive_statistics(values: list[str]) -> dict:
 def matrix_calculate(matrix: list[list[str]], operation: str = "inverse",
                      right_matrix: list[list[str]] | None = None, exponent: str | None = None) -> dict:
     """Exact rational matrix operations, including a basis of A*x=0."""
-    if operation not in ("determinant", "inverse", "rref", "multiply", "nullspace", "power"):
-        raise ValueError("Operation must be determinant, inverse, rref, multiply, nullspace or power.")
+    if operation not in ("determinant", "inverse", "rref", "multiply", "nullspace", "power", "transpose"):
+        raise ValueError("Operation must be determinant, inverse, rref, multiply, nullspace, power or transpose.")
     if operation != "multiply" and right_matrix is not None:
         raise ValueError("A right matrix is only used by multiply.")
     if operation != "power" and exponent is not None:
@@ -581,6 +581,10 @@ def matrix_calculate(matrix: list[list[str]], operation: str = "inverse",
 
     result = {"operation": operation, "original_matrix": matrix, "matrix_exact": strings(source),
               "rows": source.rows, "columns": source.cols, "status": "computed"}
+    if operation == "transpose":
+        transposed = source.T
+        return {**result, "transpose_exact": strings(transposed),
+                "transpose_rows": transposed.rows, "transpose_columns": transposed.cols}
     if operation == "power":
         if source.rows != source.cols:
             raise ValueError("An integer matrix power needs a square matrix.")
