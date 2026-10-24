@@ -547,31 +547,46 @@ def descriptive_statistics(values: list[str]) -> dict:
                        "standard_deviation": _value(sp.sqrt(sample_variance))} if count > 1 else None}
 
 
-def matrix_calculate(matrix: list[list[str]], operation: str = "inverse") -> dict:
-    """Exact rational determinant, inverse with substitution check, or RREF."""
-    if operation not in ("determinant", "inverse", "rref"):
-        raise ValueError("Operation must be determinant, inverse or rref.")
-    if not isinstance(matrix, list) or not matrix or any(not isinstance(row, list) or not row for row in matrix):
-        raise ValueError("Provide a nonempty matrix of number strings.")
-    columns = len(matrix[0])
-    normalized = []
-    for row_index, row in enumerate(matrix, 1):
-        if len(row) != columns:
-            raise ValueError(f"Row {row_index}: all rows must have {columns} columns.")
-        parsed = []
-        for column_index, value in enumerate(row, 1):
-            try:
-                parsed.append(_rational_literal(value))
-            except ValueError as error:
-                raise ValueError(f"Row {row_index}, column {column_index}: {error}") from error
-        normalized.append(parsed)
-    source = sp.Matrix(normalized)
+def matrix_calculate(matrix: list[list[str]], operation: str = "inverse",
+                     right_matrix: list[list[str]] | None = None) -> dict:
+    """Exact rational determinant, inverse, RREF or ordered matrix product."""
+    if operation not in ("determinant", "inverse", "rref", "multiply"):
+        raise ValueError("Operation must be determinant, inverse, rref or multiply.")
+    if operation != "multiply" and right_matrix is not None:
+        raise ValueError("A right matrix is only used by multiply.")
+
+    def parse(rows, prefix=""):
+        if not isinstance(rows, list) or not rows or any(not isinstance(row, list) or not row for row in rows):
+            raise ValueError(f"{prefix}Provide a nonempty matrix of number strings.")
+        columns = len(rows[0])
+        normalized = []
+        for row_index, row in enumerate(rows, 1):
+            if len(row) != columns:
+                raise ValueError(f"{prefix}Row {row_index}: all rows must have {columns} columns.")
+            parsed = []
+            for column_index, value in enumerate(row, 1):
+                try:
+                    parsed.append(_rational_literal(value))
+                except ValueError as error:
+                    raise ValueError(f"{prefix}Row {row_index}, column {column_index}: {error}") from error
+            normalized.append(parsed)
+        return sp.Matrix(normalized)
+
+    source = parse(matrix)
 
     def strings(value: sp.Matrix) -> list[list[str]]:
         return [[str(cell) for cell in row] for row in value.tolist()]
 
     result = {"operation": operation, "original_matrix": matrix, "matrix_exact": strings(source),
               "rows": source.rows, "columns": source.cols, "status": "computed"}
+    if operation == "multiply":
+        right = parse(right_matrix, "Matrix B: ")
+        if source.cols != right.rows:
+            raise ValueError(f"A has {source.cols} columns but B has {right.rows} rows; these dimensions must match for A * B.")
+        product = source * right
+        return {**result, "original_right_matrix": right_matrix, "right_matrix_exact": strings(right),
+                "right_rows": right.rows, "right_columns": right.cols, "product_exact": strings(product),
+                "product_rows": product.rows, "product_columns": product.cols}
     if operation == "rref":
         reduced, pivots = source.rref()
         return {**result, "rref_exact": strings(reduced), "rank": len(pivots),

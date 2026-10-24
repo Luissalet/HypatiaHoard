@@ -289,3 +289,8 @@ division, rational functions, long-division steps or study bank changes.
 
 
 **Exact rational Taylor:** Home → Taylor de funciones racionales, `math_rational_taylor` and `POST /api/math/rational-taylor` take numerator/denominator polynomials over QQ, a rational center string, inclusive degree0..12 and variable x/y/t. They return centered/expanded polynomials, all coefficients0..n including zeros, an exact algebraic remainder and identity verification. The ORIGINAL denominator must remain nonzero and cannot vanish at the center, including cancelled factors and zero numerators. No convergence radius, numerical error bound, transcendental/Laurent series, derivative steps, model calls, dependencies or study-bank changes. Editing/closing clears results and excludes late replies. Catalog71=53Study+18Teacher.
+## Exact matrix products
+
+In **Exact matrices**, select **Producto A · B** and enter A and B as rows of rational number strings (semicolon-separated in the UI). A columns must match B rows. The result shows both normalized inputs, dimensions and the ordered matrix product, which can be copied together. Fractions and finite decimals remain exact; this is not an elementwise product. Inputs remain available after errors or changing operations, and later edits invalidate pending results.
+
+The existing `math_matrix` API/MCP tool accepts `operation: "multiply"` and `right_matrix`, alongside `matrix` A. `/api/math/matrix` uses the same contract. The original determinant, inverse and RREF operations and the study bank remain unchanged. No new dependency, model or tool is needed; multiplication does not provide a step-by-step derivation.

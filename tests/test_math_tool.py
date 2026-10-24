@@ -5,6 +5,49 @@ import pytest
 from hypatia.agent_tools import call_tool, tool_catalog
 
 
+def test_matrix_product_contract_and_bank_preservation(client):
+    with client.services.db.lock:
+        names = [row[0] for row in client.services.db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+        before = {name: [tuple(row) for row in client.services.db.conn.execute('SELECT * FROM "' + name + '"')] for name in names}
+    args = {"operation": "multiply", "matrix": [["1/2", "1", "-2"], ["0", "3", "1"]],
+            "right_matrix": [["2", "0"], ["1/3", "4"], ["-1", "2"]]}
+    token = client.services.config.token_path.read_text().strip()
+    direct = client.post("/api/math/matrix", json=args)
+    gateway = client.post("/api/agent/call", headers={"Authorization": "Bearer " + token},
+                          json={"name": "math_matrix", "arguments": args})
+    assert direct.status_code == gateway.status_code == 200
+    value = direct.json()
+    assert value == gateway.json() == call_tool(client.services, "math_matrix", args)
+    assert value["product_exact"] == [["10/3", "0"], ["0", "14"]]
+    assert (value["rows"], value["columns"], value["right_rows"], value["right_columns"],
+            value["product_rows"], value["product_columns"]) == (2, 3, 3, 2, 2, 2)
+    assert value["original_matrix"] == args["matrix"] and value["original_right_matrix"] == args["right_matrix"]
+    decimal = call_tool(client.services, "math_matrix", {"operation": "multiply", "matrix": [["0.1", "-1/3"]], "right_matrix": [["3"], ["0.6"]]})
+    assert decimal["product_exact"] == [["1/10"]]
+    a, b = [["1", "1"], ["0", "1"]], [["1", "0"], ["1", "1"]]
+    ab = call_tool(client.services, "math_matrix", {"operation": "multiply", "matrix": a, "right_matrix": b})
+    ba = call_tool(client.services, "math_matrix", {"operation": "multiply", "matrix": b, "right_matrix": a})
+    assert ab["product_exact"] == [["2", "1"], ["1", "1"]]
+    assert ba["product_exact"] == [["1", "1"], ["1", "2"]]
+    with client.services.db.lock:
+        after = {name: [tuple(row) for row in client.services.db.conn.execute('SELECT * FROM "' + name + '"')] for name in names}
+    assert after == before
+
+
+def test_matrix_product_reports_operand_and_dimension_errors(client):
+    cases = [
+        ({"matrix": [["1", "2"]]}, "Matrix B"),
+        ({"matrix": [["1", "2"]], "right_matrix": [["1", "2"]]}, "columns"),
+        ({"matrix": [["1"]], "right_matrix": [["1"], ["2", "3"]]}, "Matrix B: Row 2"),
+        ({"matrix": [["1"]], "right_matrix": [["1/0"]]}, "Matrix B: Row 1, column 1"),
+    ]
+    for arguments, detail in cases:
+        response = client.post("/api/math/matrix", json={"operation": "multiply", **arguments})
+        assert response.status_code == 400 and detail in response.json()["error"]
+    response = client.post("/api/math/matrix", json={"operation": "inverse", "matrix": [["1"]], "right_matrix": [["1"]]})
+    assert response.status_code == 400 and "only used by multiply" in response.json()["error"]
+
+
 def test_polynomial_forms_are_exact_and_equivalent(services):
     import sympy as sp
 

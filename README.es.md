@@ -260,3 +260,8 @@ modifica el banco ni añade dependencias. Catálogo71=53Study+18Teacher.
 
 
 **Taylor racional exacto:** Inicio → Taylor de funciones racionales, `math_rational_taylor` y `POST /api/math/rational-taylor` reciben polinomios racionales numerador/denominador, centro racional string, grado inclusivo0..12 y variable x/y/t. Devuelven polinomio centrado/expandido, coeficientes de todas las potencias0..n, resto algebraico exacto e identidad verificada. El denominador ORIGINAL debe ser distinto de cero y no anularse en el centro, incluso con factores cancelados o numerador cero. No radio de convergencia, cota numérica del error, series trascendentes/Laurent, pasos de derivadas, modelos, dependencias o banco. Editar/cerrar retira resultados y descarta respuestas anteriores. Catálogo71=53Study+18Teacher.
+## Producto exacto de matrices
+
+En **Matrices exactas**, elige **Producto A · B** y escribe A y B, una fila por línea y números separados por punto y coma. Las columnas de A deben coincidir con las filas de B. El resultado muestra ambas entradas normalizadas, sus dimensiones y el producto en ese orden; puedes copiarlo junto con las entradas. Fracciones y decimales finitos se conservan exactos. No es un producto elemento a elemento ni una derivación paso a paso.
+
+La herramienta API/MCP existente `math_matrix` admite `operation: "multiply"` y `right_matrix`, además de `matrix` A. `/api/math/matrix` comparte ese contrato. Se mantienen determinantes, inversas, RREF y banco de estudio, sin nuevas dependencias ni modelos. Los borradores permanecen tras errores o cambiar de operación; editar invalida resultados pendientes.
