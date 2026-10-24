@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, polynomial_division, polynomial_gcd, values as math_values
+from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, partial_fractions, polynomial_division, polynomial_gcd, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -94,6 +94,12 @@ class MathValuesArgs(BaseModel):
 class MathMatrixArgs(BaseModel):
     matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
     operation: Literal["determinant", "inverse", "rref"] = "inverse"
+
+
+class MathPartialFractionsArgs(BaseModel):
+    numerator: str = Field(..., min_length=1, max_length=200, description="Numerator polynomial over the rationals, e.g. 'x+3'. Existing arithmetic syntax with ** for powers.")
+    denominator: str = Field(..., min_length=1, max_length=200, description="Nonzero denominator polynomial, e.g. '(x-1)*(x+1)'. Its original nonzero restriction remains even if factors cancel or the numerator is zero.")
+    variable: Literal["x", "y", "t"] = "x"
 
 
 class MathPolynomialGcdArgs(BaseModel):
@@ -448,6 +454,10 @@ def run_math_matrix(_: Services, args: MathMatrixArgs) -> dict:
     return matrix_calculate(**args.model_dump())
 
 
+def run_math_partial_fractions(_: Services, args: MathPartialFractionsArgs) -> dict:
+    return partial_fractions(**args.model_dump())
+
+
 def run_math_polynomial_gcd(_: Services, args: MathPolynomialGcdArgs) -> dict:
     return polynomial_gcd(**args.model_dump())
 
@@ -731,6 +741,13 @@ STUDY_TOOLS: list[Tool] = [
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
          + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan.", MathMatrixArgs, ann(True), run_math_matrix),
+    Tool("math_partial_fractions", "Decompose a rational function into exact partial fractions. Keywords: fracciones parciales."
+         " Give rational-coefficient numerator/denominator polynomials and one variable x, y or t."
+         " Returns polynomial part, proper partial fractions, full decomposition, exact strings/LaTeX,"
+         " residual and verification. Original denominator must remain nonzero, including cancelled factors or zero numerator."
+         " Decomposition is over QQ: irreducible rational factors may remain. No algebraic/complex extension,"
+         " pole solving, integration, derivation steps or study bank changes."
+         + SYN + "fracciones simples, función racional, descomposición racional.", MathPartialFractionsArgs, ann(True), run_math_partial_fractions),
     Tool("math_polynomial_gcd", "Calculate monic rational polynomial gcd/lcm and exact Bezout coefficients. Keywords: MCD, MCM."
          " Use a/b strings in one variable x, y or t. Returns normalized inputs, monic nonzero gcd/lcm,"
          " u/v satisfying A*u+B*v=gcd, exact strings/LaTeX/degrees (null for zero), residual and verification."

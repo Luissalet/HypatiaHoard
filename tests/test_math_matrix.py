@@ -42,5 +42,5 @@ def test_matrix_api_agent_parity_and_bank_unchanged(client):
     assert ui.json() == agent.json() == call_tool(client.services,'math_matrix',args)
     assert ui.json()['verified'] and before == snapshot()
     catalog = {t['name']:t for t in tool_catalog()}
-    assert len(catalog) == 69 and catalog['math_matrix']['annotations']['readOnlyHint']
+    assert len(catalog) == 70 and catalog['math_matrix']['annotations']['readOnlyHint']
     assert client.post('/api/math/matrix',json={'matrix':[['1','2']],'operation':'determinant'}).status_code == 400

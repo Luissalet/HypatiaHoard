@@ -301,6 +301,36 @@ def polynomial_division(dividend: str, divisor: str, variable: str = "x") -> dic
             "verified": bool(residual.is_zero and (remainder.is_zero or remainder.degree() < second.degree()))}
 
 
+def partial_fractions(numerator: str, denominator: str, variable: str = "x") -> dict:
+    """Partial fractions over QQ, retaining the original domain restriction."""
+    if variable not in ("x", "y", "t"):
+        raise ValueError("Variable must be x, y or t.")
+    symbol = sp.Symbol(variable)
+    polynomials = []
+    for name, source in (("numerator", numerator), ("denominator", denominator)):
+        try:
+            polynomials.append(sp.Poly(parse_expression(source, variable, polynomial=True), symbol, domain=sp.QQ))
+        except (sp.PolynomialError, sp.polys.polyerrors.CoercionFailed) as error:
+            raise ValueError(f"{name}: use a polynomial with rational coefficients.") from error
+    first, second = polynomials
+    if second.is_zero:
+        raise ValueError("The denominator polynomial cannot be zero.")
+    quotient, remainder = first.div(second)
+    proper = sp.apart(remainder.as_expr() / second.as_expr(), symbol)
+    result = quotient.as_expr() + proper
+    ratio = first.as_expr() / second.as_expr()
+    residual = sp.cancel(ratio - result)
+    def pack(expr):
+        return {"exact": str(expr), "latex": sp.latex(expr)}
+    return {"numerator": numerator, "denominator": denominator, "variable": variable, "domain": "QQ",
+            "numerator_normalized": pack(first.as_expr()), "denominator_normalized": pack(second.as_expr()),
+            "normalized": pack(sp.cancel(ratio)), "polynomial_part": pack(quotient.as_expr()),
+            "proper_part": pack(proper), "decomposition": pack(result),
+            "domain_restriction": f"({second.as_expr()}) != 0",
+            "domain_restriction_latex": sp.latex(second.as_expr()) + r" \ne 0",
+            "residual": str(residual), "verified": bool(residual == 0)}
+
+
 def polynomial_gcd(a: str, b: str, variable: str = "x") -> dict:
     """Monic rational polynomial gcd/lcm and an exact Bezout certificate."""
     if variable not in ("x", "y", "t"):
