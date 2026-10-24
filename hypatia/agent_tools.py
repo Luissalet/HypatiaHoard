@@ -93,7 +93,7 @@ class MathValuesArgs(BaseModel):
 
 class MathMatrixArgs(BaseModel):
     matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
-    operation: Literal["determinant", "inverse", "rref", "multiply"] = "inverse"
+    operation: Literal["determinant", "inverse", "rref", "multiply", "nullspace"] = "inverse"
     right_matrix: list[list[str]] | None = Field(None, min_length=1, description="Matrix B for multiply only: rational number strings. A columns must equal B rows. Returns the ordered matrix product A*B, not an elementwise product.")
 
 
@@ -749,12 +749,13 @@ STUDY_TOOLS: list[Tool] = [
          "Standard Python integer input syntax, case-insensitive digits, optional base2/8/16 prefixes and underscores. "
          "Existing runtime integer conversion limits apply. No study data read or changed."
          + SYN + "convertir bases, base numérica, binario, octal, decimal, hexadecimal.", MathBaseConvertArgs, ann(True), run_math_base_convert),
-    Tool("math_matrix", "Calculate exact rational determinants, inverses, RREF or A*B products. Keywords: matrices, inversa."
+    Tool("math_matrix", "Calculate exact rational determinants, inverses, RREF, A*B products or nullspace bases. Keywords: matrices, inversa, núcleo."
          "\nUse number-string rows with equal length. Determinant and inverse require square matrices; rref accepts rectangles. "
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "For multiply, also provide right_matrix B; A columns must equal B rows. Returns both inputs, dimensions and exact A*B in that order, not elementwise multiplication. "
+         "For nullspace, accepts rectangular matrices and returns rank, nullity, nullspace_basis_exact (each vector has A.columns coordinates), and A*v residuals for each vector. Empty basis means only the zero solution. This is a rational basis, not necessarily orthonormal or unique. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
-         + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan, producto de matrices, multiplicar matrices.", MathMatrixArgs, ann(True), run_math_matrix),
+         + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan, producto de matrices, multiplicar matrices, núcleo, nullspace, kernel, sistema homogéneo.", MathMatrixArgs, ann(True), run_math_matrix),
     Tool("math_rational_taylor", "Expand a rational function into an exact Taylor polynomial around a rational center. Keywords: Taylor, desarrollo local."
          " Give numerator/denominator polynomials over QQ, center string, inclusive degree0..12 and variable x/y/t."
          " Returns centered/expanded polynomial, all coefficients including zeros, exact algebraic remainder,"

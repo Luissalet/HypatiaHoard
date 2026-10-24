@@ -3,17 +3,19 @@ import { Button, Select } from '@/ui/components';
 import { hoardJson } from '@/data/hoardClient';
 import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
 
-type Operation = 'determinant' | 'inverse' | 'rref' | 'multiply';
+type Operation = 'determinant' | 'inverse' | 'rref' | 'multiply' | 'nullspace';
 type Result = { operation: Operation; original_matrix: string[][]; matrix_exact: string[][]; rows: number; columns: number;
   status: 'computed' | 'singular'; determinant_exact?: string; inverse_exact?: string[][] | null; residuals_exact?: string[][];
   verified?: boolean | null; rref_exact?: string[][]; rank?: number; pivot_columns_one_based?: number[];
   original_right_matrix?: string[][]; right_matrix_exact?: string[][]; right_rows?: number; right_columns?: number;
-  product_exact?: string[][]; product_rows?: number; product_columns?: number };
-const titles: Record<Operation, string> = { determinant: 'Determinante', inverse: 'Inversa', rref: 'Reducción por filas', multiply: 'Producto A · B' };
+  product_exact?: string[][]; product_rows?: number; product_columns?: number;
+  nullity?: number; nullspace_basis_exact?: string[][]; nullspace_residuals_exact?: string[][] };
+const titles: Record<Operation, string> = { determinant: 'Determinante', inverse: 'Inversa', rref: 'Reducción por filas', multiply: 'Producto A · B', nullspace: 'Núcleo A · x = 0' };
 const examples: Record<string, { matrix: string; operation: Operation; right?: string }> = {
   inverse: { matrix: '1; 2\n3; 4', operation: 'inverse' }, fractions: { matrix: '1/2; 1/3\n2; 3', operation: 'inverse' },
   singular: { matrix: '1; 2\n2; 4', operation: 'inverse' }, rectangular: { matrix: '1; 2; 3\n2; 4; 6', operation: 'rref' },
   product: { matrix: '1/2; 1; -2\n0; 3; 1', right: '2; 0\n1/3; 4\n-1; 2', operation: 'multiply' },
+  nullspace: { matrix: '1/2; 1; -1\n1; 2; -2', operation: 'nullspace' },
 };
 
 function ExactMatrix({ title, values }: { title: string; values: string[][] }) {
@@ -72,6 +74,9 @@ export function MatrixPanel() {
       ...(result.inverse_exact ? block('Inversa exacta', result.inverse_exact) : []),
       ...(result.residuals_exact ? block('Comprobación A * inversa - I', result.residuals_exact) : []),
       ...(result.rref_exact ? [...block('Forma reducida por filas', result.rref_exact), `Rango: ${result.rank}`, `Columnas pivote (desde 1): ${result.pivot_columns_one_based?.join('; ') || 'ninguna'}`] : []),
+      ...(result.nullspace_basis_exact ? [`Núcleo A * x = 0. Rango: ${result.rank}. Dimensión del núcleo: ${result.nullity}.`,
+        ...(result.nullspace_basis_exact.length ? result.nullspace_basis_exact.flatMap((vector, index) => [`Vector ${index + 1}: ${vector.join('; ')}`, `A * vector ${index + 1}: ${result.nullspace_residuals_exact?.[index].join('; ')}`]) : ['Base vacía: la única solución es el vector cero.']),
+        'Todas las soluciones son combinaciones lineales de estos vectores; la base no es única ni necesariamente ortonormal.'] : []),
       'Cálculo racional exacto; no incluye una demostración paso a paso.'].join('\n');
     try { await navigator.clipboard.writeText(text); if (request === generation.current) setCopied('Entradas y resultado copiados.'); }
     catch { if (request === generation.current) setCopied('No se pudo copiar. Selecciona los valores para copiarlos manualmente.'); }
@@ -79,7 +84,7 @@ export function MatrixPanel() {
   return <details className="mb-6 border-b border-ink-700 pb-3" onToggle={event => { setOpen(event.currentTarget.open); if (!event.currentTarget.open) invalidate(); }}>
     <summary className="cursor-pointer text-sm text-amber-400 font-medium rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
       Matrices exactas
-      <span className="block mt-1 text-ink-300 font-normal">Determinantes, inversas, reducción por filas y producto A · B con fracciones exactas</span>
+      <span className="block mt-1 text-ink-300 font-normal">Determinantes, inversas, reducción por filas, producto A · B y núcleo con fracciones exactas</span>
     </summary>
     <form className="mt-5 space-y-4" onSubmit={calculate} onChange={invalidate}>
       <div><label htmlFor="matrix-input" className="block text-sm font-medium text-ink-200 mb-1">{operation === 'multiply' ? 'Filas de la matriz A' : 'Filas de la matriz'}</label>
@@ -101,6 +106,7 @@ export function MatrixPanel() {
           <option value="inverse">Matriz invertible</option><option value="fractions">Coeficientes racionales</option>
           <option value="singular">Matriz singular</option><option value="rectangular">Rectangular y rango</option>
           <option value="product">Producto rectangular A · B</option>
+          <option value="nullspace">Núcleo de una matriz rectangular</option>
         </Select>
         <Button type="button" variant="secondary" onClick={() => { invalidate(); setMatrix(examples[example].matrix); if (examples[example].right) setRight(examples[example].right!); setOperation(examples[example].operation); }}>Cargar matriz de ejemplo</Button>
         <Button type="submit" loading={busy}>{busy ? 'Calculando matriz…' : 'Calcular matriz'}</Button>
@@ -129,8 +135,20 @@ export function MatrixPanel() {
       {result.rref_exact && <><ExactMatrix title="Forma reducida por filas" values={result.rref_exact} />
         <p className="text-sm text-ink-200">Rango: {result.rank}. Columnas pivote, contando desde 1: {result.pivot_columns_one_based?.join(', ') || 'ninguna'}.</p>
       </>}
+      {result.nullspace_basis_exact && <section aria-label="Base del núcleo" className="space-y-4">
+        <h3 className="font-display text-lg text-ink-100">Base del núcleo A · x = 0</h3>
+        <p className="text-sm text-ink-200">Rango: {result.rank}. Dimensión del núcleo: {result.nullity}. Coordenadas en el orden de las columnas de A.</p>
+        {result.nullspace_basis_exact.length ? <>
+          <p className="text-sm text-ink-200">Todas las soluciones son combinaciones lineales de estos vectores. La base no es única ni necesariamente ortonormal.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{result.nullspace_basis_exact.map((vector, index) => <ExactMatrix key={index} title={`Vector ${index + 1}`} values={vector.map(cell => [cell])} />)}</div>
+          <p className="text-sm text-ink-200">{result.verified ? 'Comprobación exacta: A por cada vector de la base da el vector cero.' : 'La comprobación presenta diferencias.'}</p>
+          <details><summary className="text-sm text-amber-400 cursor-pointer">Ver residuos A · vector</summary>
+            <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">{result.nullspace_residuals_exact?.map((vector, index) => <ExactMatrix key={index} title={`A · vector ${index + 1}`} values={vector.map(cell => [cell])} />)}</div>
+          </details>
+        </> : <p role="status" className="text-sm text-ink-200">La base está vacía: la única solución de A · x = 0 es el vector cero de {result.columns} coordenadas.</p>}
+      </section>}
       <p role="status" className="text-sm text-ink-200">{copied}</p>
     </section>}
-    <p className="mt-4 text-sm text-ink-300">Determinante e inversa requieren una matriz cuadrada; la reducción por filas admite matrices rectangulares. Cálculo racional exacto, sin demostrar los pasos. No se guarda nada en el banco.</p>
+    <p className="mt-4 text-sm text-ink-300">Determinante e inversa requieren una matriz cuadrada; la reducción por filas y el núcleo admiten matrices rectangulares. Cálculo racional exacto, sin demostrar los pasos. No se guarda nada en el banco.</p>
   </details>;
 }

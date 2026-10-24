@@ -549,9 +549,9 @@ def descriptive_statistics(values: list[str]) -> dict:
 
 def matrix_calculate(matrix: list[list[str]], operation: str = "inverse",
                      right_matrix: list[list[str]] | None = None) -> dict:
-    """Exact rational determinant, inverse, RREF or ordered matrix product."""
-    if operation not in ("determinant", "inverse", "rref", "multiply"):
-        raise ValueError("Operation must be determinant, inverse, rref or multiply.")
+    """Exact rational matrix operations, including a basis of A*x=0."""
+    if operation not in ("determinant", "inverse", "rref", "multiply", "nullspace"):
+        raise ValueError("Operation must be determinant, inverse, rref, multiply or nullspace.")
     if operation != "multiply" and right_matrix is not None:
         raise ValueError("A right matrix is only used by multiply.")
 
@@ -579,6 +579,13 @@ def matrix_calculate(matrix: list[list[str]], operation: str = "inverse",
 
     result = {"operation": operation, "original_matrix": matrix, "matrix_exact": strings(source),
               "rows": source.rows, "columns": source.cols, "status": "computed"}
+    if operation == "nullspace":
+        basis = source.nullspace()
+        residuals = [source * vector for vector in basis]
+        return {**result, "rank": source.cols - len(basis), "nullity": len(basis),
+                "nullspace_basis_exact": [[str(cell) for cell in vector] for vector in basis],
+                "nullspace_residuals_exact": [[str(cell) for cell in vector] for vector in residuals],
+                "verified": all(vector == sp.zeros(source.rows, 1) for vector in residuals)}
     if operation == "multiply":
         right = parse(right_matrix, "Matrix B: ")
         if source.cols != right.rows:

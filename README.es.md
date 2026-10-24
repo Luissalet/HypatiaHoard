@@ -269,3 +269,9 @@ La herramienta API/MCP existente `math_matrix` admite `operation: "multiply"` y 
 ## Localizar una calculadora
 
 Inicio incorpora un buscador y selector antes de las15 calculadoras existentes. Busca por nombre o alias (por ejemplo Taylor, matrices o Bézout) y pulsa **Abrir calculadora** o Enter. Ignora mayúsculas y acentos y busca todas las palabras escritas. Abre y enfoca el formulario sin cambiar de ruta, cerrar otras calculadoras ni borrar sus campos o resultados; todas siguen disponibles debajo aunque la búsqueda no tenga coincidencias. Se mantienen API/MCP71, motores matemáticos y banco de estudio.
+
+## Núcleo de una matriz
+
+En **Matrices exactas**, elige **Núcleo A · x = 0** para obtener una base racional del espacio de soluciones del sistema homogéneo. Admite matrices rectangulares y muestra rango, dimensión del núcleo y cada vector como columna, con coordenadas en el orden de las columnas de A. Todas las soluciones son combinaciones lineales de esos vectores; una base vacía significa que sólo existe el vector cero. La matriz cero devuelve una base completa de coordenadas.
+
+La comprobación muestra A por cada vector y sus residuos exactos; puedes copiar la entrada y la base con el resultado. La base no es única ni necesariamente ortonormal, y no se explican los pasos de reducción. `math_matrix` y `/api/math/matrix` admiten `operation: "nullspace"`; devuelven `rank`, `nullity`, `nullspace_basis_exact` y `nullspace_residuals_exact`, con un vector por lista. Se conservan las otras cuatro operaciones y el catálogo71, sin dependencias, modelos ni cambios en el banco de estudio.

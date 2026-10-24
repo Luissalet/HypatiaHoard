@@ -5,6 +5,42 @@ import pytest
 from hypatia.agent_tools import call_tool, tool_catalog
 
 
+def test_matrix_nullspace_contract_and_bank_preservation(client):
+    from fractions import Fraction
+
+    with client.services.db.lock:
+        names = [row[0] for row in client.services.db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+        before = {name: [tuple(row) for row in client.services.db.conn.execute('SELECT * FROM "' + name + '"')] for name in names}
+    args = {"operation": "nullspace", "matrix": [["1/2", "1", "-1"], ["1", "2", "-2"]]}
+    token = client.services.config.token_path.read_text().strip()
+    direct = client.post("/api/math/matrix", json=args)
+    gateway = client.post("/api/agent/call", headers={"Authorization": "Bearer " + token},
+                          json={"name": "math_matrix", "arguments": args})
+    assert direct.status_code == gateway.status_code == 200
+    value = direct.json()
+    assert value == gateway.json() == call_tool(client.services, "math_matrix", args)
+    assert value["original_matrix"] == args["matrix"] and (value["rows"], value["columns"]) == (2, 3)
+    assert value["nullspace_basis_exact"] == [["-2", "1", "0"], ["2", "0", "1"]]
+    assert value["rank"] == 1 and value["nullity"] == 2 and value["verified"]
+    assert value["nullspace_residuals_exact"] == [["0", "0"], ["0", "0"]]
+    for vector in value["nullspace_basis_exact"]:
+        assert all(sum(Fraction(a) * Fraction(x) for a, x in zip(row, vector)) == 0 for row in args["matrix"])
+    with client.services.db.lock:
+        after = {name: [tuple(row) for row in client.services.db.conn.execute('SELECT * FROM "' + name + '"')] for name in names}
+    assert after == before
+
+
+@pytest.mark.parametrize("matrix,basis,rank", [
+    ([["0", "0", "0"], ["0", "0", "0"]], [["1", "0", "0"], ["0", "1", "0"], ["0", "0", "1"]], 0),
+    ([["1", "0"], ["0", "1"], ["1", "1"]], [], 2),
+])
+def test_matrix_nullspace_zero_and_injective(services, matrix, basis, rank):
+    value = call_tool(services, "math_matrix", {"operation": "nullspace", "matrix": matrix})
+    assert value["nullspace_basis_exact"] == basis and value["rank"] == rank
+    assert value["nullity"] == len(matrix[0]) - rank and value["verified"]
+    assert value["nullspace_residuals_exact"] == [["0"] * len(matrix) for _ in basis]
+
+
 def test_matrix_product_contract_and_bank_preservation(client):
     with client.services.db.lock:
         names = [row[0] for row in client.services.db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]

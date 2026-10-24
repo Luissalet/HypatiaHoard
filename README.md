@@ -298,3 +298,9 @@ The existing `math_matrix` API/MCP tool accepts `operation: "multiply"` and `rig
 ## Find a calculator
 
 Home now has a calculator search and destination selector above all15 existing calculators. Search by name or aliases (for example Taylor, matrices or Bézout), then use **Abrir calculadora** or Enter. Search ignores case and accents and matches all words. It opens and focuses the existing form without changing the route, closing other calculators or clearing their drafts/results; every calculator remains available below, including when there are no search matches. API/MCP71, mathematical engines and study data are unchanged.
+
+## Matrix nullspace
+
+In **Matrices exactas**, select **Núcleo A · x = 0** for a rational basis of the homogeneous system's solution space. Rectangular matrices are supported. The result shows rank, nullity and each basis vector as a column in A's column order. Every solution is a linear combination of those vectors; an empty basis means only the zero solution exists. A zero matrix returns the complete coordinate basis.
+
+The exact check shows A times each vector and its residuals; the existing copy action includes input and basis. The basis is not unique or necessarily orthonormal, and no row-reduction derivation is provided. `math_matrix` and `/api/math/matrix` accept `operation: "nullspace"`, returning `rank`, `nullity`, `nullspace_basis_exact` and `nullspace_residuals_exact`, with one vector per list. The four previous operations and71-tool catalogue remain available, with no new dependencies, models or study bank changes.
