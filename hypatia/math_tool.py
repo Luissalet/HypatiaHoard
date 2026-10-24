@@ -274,6 +274,20 @@ def _rational_literal(value: str) -> sp.Rational:
     return sp.Rational(number.numerator, number.denominator)
 
 
+def continued_fraction(value: str) -> dict:
+    """Finite continued fraction and exact convergents of a rational literal."""
+    from sympy.ntheory.continued_fraction import continued_fraction_convergents, continued_fraction_iterator
+
+    number = _rational_literal(value)
+    coefficients = list(continued_fraction_iterator(number))
+    convergents = list(continued_fraction_convergents(coefficients))
+    terms = [str(term) for term in coefficients]
+    notation = '[' + terms[0] + ('; ' + ', '.join(terms[1:]) if len(terms) > 1 else '') + ']'
+    return {"input": value, "exact": str(number), "coefficients": terms,
+            "convergents": [str(term) for term in convergents], "notation": notation,
+            "reconstructed": str(convergents[-1]), "verified": convergents[-1] == number}
+
+
 def integer_pair(a: str, b: str) -> dict:
     """Extended Euclid for decimal integer strings; all integer output stays exact."""
     for name, value in (("a", a), ("b", b)):

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values as math_values
+from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -34,6 +34,7 @@ Teacher role (classes, exams for students, rubrics, batch correction): exam_gene
 For integer gcd/lcm and Bezout identities use math_integer_pair with two signed decimal integer strings. Report its exact coefficients and identity check; coefficients are not unique. Euclidean divisions use absolute values. Two zeros use gcd/lcm and coefficients zero by convention; either zero makes lcm zero. This does not factor primes or change the study bank.
 For a*x = b modulo a nonzero integer use math_linear_congruence with signed decimal strings a,b,modulus. Negative modulus is normalized to its absolute value. Report no_solution when gcd does not divide b; otherwise report the complete integer family x=residue+k*period, k any integer, and residue_count distinct residues modulo |modulus|. Period1 means all integers. This tool solves one equation without enumeration.
 For simultaneous x=residue modulo modulus conditions use math_congruence_system with a list of exact residue/modulus strings. Noncoprime moduli are supported. Report the complete family or the incompatible condition and gcd check. Period1 means all integers; no study bank is read or changed.
+For finite continued fractions use math_continued_fraction with an exact integer, finite decimal or integer-fraction string. Report the coefficients and convergents as strings; the final convergent reconstructs the normalized input exactly. Negative inputs use floor quotients. This does not expand pi, radicals or periodic irrationals, or prove optimal approximation. No study bank is read or changed.
 Never read the data folder or the database directly; use these tools only."""
 
 QType = Literal["TEST", "DESARROLLO", "COMPLETAR", "PRACTICO"]
@@ -92,6 +93,10 @@ class MathValuesArgs(BaseModel):
 class MathMatrixArgs(BaseModel):
     matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
     operation: Literal["determinant", "inverse", "rref"] = "inverse"
+
+
+class MathContinuedFractionArgs(BaseModel):
+    value: str = Field(..., min_length=1, description="Exact rational number string: integer, finite decimal or integer fraction, e.g. '355/113', '-3/8' or '0.125'. Returns finite continued-fraction coefficients and convergents as exact strings; no pi, radicals or periodic irrationals.")
 
 
 class MathIntegerPairArgs(BaseModel):
@@ -430,6 +435,10 @@ def run_math_matrix(_: Services, args: MathMatrixArgs) -> dict:
     return matrix_calculate(**args.model_dump())
 
 
+def run_math_continued_fraction(_: Services, args: MathContinuedFractionArgs) -> dict:
+    return continued_fraction(**args.model_dump())
+
+
 def run_math_integer_pair(_: Services, args: MathIntegerPairArgs) -> dict:
     return integer_pair(**args.model_dump())
 
@@ -701,6 +710,11 @@ STUDY_TOOLS: list[Tool] = [
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
          + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan.", MathMatrixArgs, ann(True), run_math_matrix),
+    Tool("math_continued_fraction", "Expand an exact rational into a finite continued fraction."
+         " Returns original/normalized input, coefficient and convergent string arrays, notation, reconstructed rational and exact verification."
+         " Integers, finite decimals and integer fractions only; negative inputs use floor quotients."
+         " No floating-point rounding, irrational periods, best-approximation proof or study bank changes."
+         + SYN + "fracciones continuas, convergentes, expansión racional.", MathContinuedFractionArgs, ann(True), run_math_continued_fraction),
     Tool("math_integer_pair", "Calculate exact integer gcd/lcm and Bezout coefficients. Keywords: MCD, MCM, Euclides."
          "\nUse two signed decimal integer strings. Returns nonnegative gcd/lcm, x/y with a*x+b*y=gcd, "
          "an exact identity check and Euclidean divisions of absolute values. Coefficients are not unique. "

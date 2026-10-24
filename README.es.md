@@ -20,7 +20,7 @@ cerrar descarta respuestas viejas. No enumera residuos, usa modelos, añade
 dependencias ni cambia el banco. Combina residuos; la herramienta individual
 conserva la resolución de `a*x=b` módulo m. Contraste matemático:
 [congruencias generalizadas de SymPy](https://docs.sympy.org/latest/modules/ntheory.html#sympy.ntheory.modular.solve_congruence).
-La implementación reutiliza el resolvedor lineal nativo; catálogo combinado66
+La implementación reutiliza el resolvedor lineal nativo; catálogo combinado67
 =48Estudio+18Profesor.
 
 **Congruencias lineales** resuelve `a*x ≡ b (mod m)` con la misma función nativa
@@ -41,7 +41,7 @@ el panel de sistemas separado descrito arriba. Referencia matemática:
 divisiones de Euclides sobre valores absolutos. Devuelve MCD/MCM no negativos,
 coeficientes enteros `x`/`y` y comprueba `a*x+b*y=MCD`; los coeficientes no son
 únicos. API `POST /api/math/integer-pair` y MCP `math_integer_pair` usan la misma
-función; el catálogo combinado tiene66 herramientas. Entradas y resultados
+función; el catálogo combinado tiene67 herramientas. Entradas y resultados
 enteros son cadenas y conservan cifras mayores que la precisión de JavaScript;
 se mantienen los límites de conversión del runtime. Si algún entero es cero,
 MCM es cero; para `(0,0)` se usan MCD/MCM y coeficientes cero por convención.
@@ -229,3 +229,14 @@ El Hoard local muestra el panel común de Faustus en todas las vistas principale
 El servidor monta `/api/copilot/info`, `/api/copilot/panel.js` y `/api/copilot/proxy` con el transporte canónico de HoardLink. `copilot-space-id` identifica de forma duradera la carpeta de datos; las credenciales permanecen en el servidor. Los cambios de las herramientas refrescan las listas sin remontar formularios abiertos. Al guardar se envían sólo los campos cambiados a la API atómica de registros; los arrays y objetos anidados siguen siendo sustituciones de su campo completo.
 
 Las consultas con fuentes y el Tutor del cuaderno conservan sus flujos pedagógicos con citas. Continuar en Faustus abre el asistente común. Las conversaciones antiguas permanecen legibles con sus citas; al continuarlas se importan por la API común idempotente, conservando ids de mensajes, fechas y metadatos de citas. Las conversaciones generales se ejecutan en Faustus, con sesiones y borradores independientes por asignatura. El Chat de fuentes y el Tutor conservan sus turnos nativos, citas, pasajes y dificultades. Se conservan las herramientas nativas de fuentes/tutor, el estado pedagógico y los datos originales. Requiere el servicio Faustus configurado y recompilar la PWA local con `npm run build`. La PWA pública sin conexión conserva su funcionamiento.
+
+## Fracciones continuas finitas
+
+La calculadora exacta descompone racionales y muestra todos sus convergentes.
+`math_continued_fraction` y `POST /api/math/continued-fraction` comparten cálculo:
+355/113 da [3; 7, 16] y los convergentes 3, 22/7 y 355/113. Entradas y resultados
+son strings exactos, también negativos y enteros grandes. El último convergente
+reconstruye el racional normalizado; no se modifica el banco de estudio. El panel
+inline incluye ejemplo, tabla de términos/convergentes y copia de texto. Sólo
+enteros, decimales finitos y fracciones de enteros del parser existente; no
+periodicidad irracional ni prueba de optimalidad. Catálogo67=49Study+18Teacher.
