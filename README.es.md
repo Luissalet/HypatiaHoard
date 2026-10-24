@@ -20,7 +20,7 @@ cerrar descarta respuestas viejas. No enumera residuos, usa modelos, añade
 dependencias ni cambia el banco. Combina residuos; la herramienta individual
 conserva la resolución de `a*x=b` módulo m. Contraste matemático:
 [congruencias generalizadas de SymPy](https://docs.sympy.org/latest/modules/ntheory.html#sympy.ntheory.modular.solve_congruence).
-La implementación reutiliza el resolvedor lineal nativo; catálogo combinado67
+La implementación reutiliza el resolvedor lineal nativo; catálogo combinado68
 =48Estudio+18Profesor.
 
 **Congruencias lineales** resuelve `a*x ≡ b (mod m)` con la misma función nativa
@@ -41,7 +41,7 @@ el panel de sistemas separado descrito arriba. Referencia matemática:
 divisiones de Euclides sobre valores absolutos. Devuelve MCD/MCM no negativos,
 coeficientes enteros `x`/`y` y comprueba `a*x+b*y=MCD`; los coeficientes no son
 únicos. API `POST /api/math/integer-pair` y MCP `math_integer_pair` usan la misma
-función; el catálogo combinado tiene67 herramientas. Entradas y resultados
+función; el catálogo combinado tiene68 herramientas. Entradas y resultados
 enteros son cadenas y conservan cifras mayores que la precisión de JavaScript;
 se mantienen los límites de conversión del runtime. Si algún entero es cero,
 MCM es cero; para `(0,0)` se usan MCD/MCM y coeficientes cero por convención.
@@ -239,4 +239,15 @@ son strings exactos, también negativos y enteros grandes. El último convergent
 reconstruye el racional normalizado; no se modifica el banco de estudio. El panel
 inline incluye ejemplo, tabla de términos/convergentes y copia de texto. Sólo
 enteros, decimales finitos y fracciones de enteros del parser existente; no
-periodicidad irracional ni prueba de optimalidad. Catálogo67=49Study+18Teacher.
+periodicidad irracional ni prueba de optimalidad. Catálogo68=50Study+18Teacher.
+
+## División de polinomios
+
+La calculadora divide dos polinomios racionales en x, y o t y muestra cociente,
+resto, identidad A=B×Q+R y residuo de comprobación exactos. Incluye ejemplo y
+copia, conserva entradas ante error y retira resultados incompatibles al editar
+o cerrar. El resto es cero o tiene grado menor que el divisor; cero no tiene
+grado definido. UI, `math_polynomial_division` y
+`POST /api/math/polynomial-division` comparten parser y SymPy locales existentes.
+Sin división multivariable, funciones racionales ni pasos de división larga; no
+modifica el banco ni añade dependencias. Catálogo68=50Study+18Teacher.

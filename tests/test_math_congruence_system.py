@@ -69,5 +69,5 @@ def test_system_api_agent_and_direct_contract_keep_all_study_tables(client):
                  {'constraints': [{'residue': '2', 'modulus': '0'}]}):
         assert client.post('/api/math/congruence-system', json=args).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == 67 and catalog['math_congruence_system']['annotations']['readOnlyHint']
+    assert len(catalog) == 68 and catalog['math_congruence_system']['annotations']['readOnlyHint']
     assert snapshot() == before

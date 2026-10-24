@@ -274,6 +274,33 @@ def _rational_literal(value: str) -> sp.Rational:
     return sp.Rational(number.numerator, number.denominator)
 
 
+def polynomial_division(dividend: str, divisor: str, variable: str = "x") -> dict:
+    """Euclidean division over the rationals, preserving the written inputs."""
+    if variable not in ("x", "y", "t"):
+        raise ValueError("Variable must be x, y or t.")
+    symbol = sp.Symbol(variable)
+    polynomials = []
+    for name, source in (("dividend", dividend), ("divisor", divisor)):
+        try:
+            polynomials.append(sp.Poly(parse_expression(source, variable, polynomial=True), symbol, domain=sp.QQ))
+        except (sp.PolynomialError, sp.polys.polyerrors.CoercionFailed) as error:
+            raise ValueError(f"{name}: use a polynomial with rational coefficients.") from error
+    first, second = polynomials
+    if second.is_zero:
+        raise ValueError("The divisor polynomial cannot be zero.")
+    quotient, remainder = first.div(second)
+    residual = first - second * quotient - remainder
+    def pack(poly):
+        return {"exact": str(poly.as_expr()), "latex": sp.latex(poly.as_expr()),
+                "degree": None if poly.is_zero else int(poly.degree())}
+    return {"dividend": dividend, "divisor": divisor, "variable": variable,
+            "dividend_normalized": pack(first), "divisor_normalized": pack(second),
+            "quotient": pack(quotient), "remainder": pack(remainder),
+            "identity": f"({first.as_expr()}) = ({second.as_expr()}) * ({quotient.as_expr()}) + ({remainder.as_expr()})",
+            "residual": str(residual.as_expr()), "exact_division": bool(remainder.is_zero),
+            "verified": bool(residual.is_zero and (remainder.is_zero or remainder.degree() < second.degree()))}
+
+
 def continued_fraction(value: str) -> dict:
     """Finite continued fraction and exact convergents of a rational literal."""
     from sympy.ntheory.continued_fraction import continued_fraction_convergents, continued_fraction_iterator

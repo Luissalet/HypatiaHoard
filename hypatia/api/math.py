@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathCongruenceSystemArgs, MathContinuedFractionArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathStatisticsArgs, MathValuesArgs
-from ..math_tool import compute, continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values
+from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathCongruenceSystemArgs, MathContinuedFractionArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathPolynomialDivisionArgs, MathStatisticsArgs, MathValuesArgs
+from ..math_tool import compute, continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, polynomial_division, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/polynomial-division")
+def divide_polynomials(body: MathPolynomialDivisionArgs):
+    try:
+        return polynomial_division(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/continued-fraction")

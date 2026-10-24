@@ -53,5 +53,5 @@ def test_api_agent_and_catalog_preserve_all_study_tables(client):
     for args in ({'value': 'pi'}, {'value': '1/0'}, {'value': 3}, {}):
         assert client.post('/api/math/continued-fraction', json=args).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == 67 and catalog['math_continued_fraction']['annotations']['readOnlyHint']
+    assert len(catalog) == 68 and catalog['math_continued_fraction']['annotations']['readOnlyHint']
     assert snapshot() == before

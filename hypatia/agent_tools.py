@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values as math_values
+from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, polynomial_division, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -35,6 +35,7 @@ For integer gcd/lcm and Bezout identities use math_integer_pair with two signed 
 For a*x = b modulo a nonzero integer use math_linear_congruence with signed decimal strings a,b,modulus. Negative modulus is normalized to its absolute value. Report no_solution when gcd does not divide b; otherwise report the complete integer family x=residue+k*period, k any integer, and residue_count distinct residues modulo |modulus|. Period1 means all integers. This tool solves one equation without enumeration.
 For simultaneous x=residue modulo modulus conditions use math_congruence_system with a list of exact residue/modulus strings. Noncoprime moduli are supported. Report the complete family or the incompatible condition and gcd check. Period1 means all integers; no study bank is read or changed.
 For finite continued fractions use math_continued_fraction with an exact integer, finite decimal or integer-fraction string. Report the coefficients and convergents as strings; the final convergent reconstructs the normalized input exactly. Negative inputs use floor quotients. This does not expand pi, radicals or periodic irrationals, or prove optimal approximation. No study bank is read or changed.
+For polynomial quotient and remainder use math_polynomial_division with two polynomials in x, y or t over the rationals. Report the exact quotient, remainder and A=B*Q+R verification. Remainder is zero or has degree below the divisor. This is not multivariate or rational-function division, and does not provide long-division steps or change the study bank.
 Never read the data folder or the database directly; use these tools only."""
 
 QType = Literal["TEST", "DESARROLLO", "COMPLETAR", "PRACTICO"]
@@ -93,6 +94,12 @@ class MathValuesArgs(BaseModel):
 class MathMatrixArgs(BaseModel):
     matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
     operation: Literal["determinant", "inverse", "rref"] = "inverse"
+
+
+class MathPolynomialDivisionArgs(BaseModel):
+    dividend: str = Field(..., min_length=1, max_length=200, description="Dividend polynomial with rational coefficients, e.g. 'x**3+2'. Existing polynomial arithmetic syntax; no variable denominators.")
+    divisor: str = Field(..., min_length=1, max_length=200, description="Nonzero divisor polynomial, e.g. 'x**2+1'. Quotient/remainder are over the rationals; decimals preserve their written digits.")
+    variable: Literal["x", "y", "t"] = "x"
 
 
 class MathContinuedFractionArgs(BaseModel):
@@ -435,6 +442,10 @@ def run_math_matrix(_: Services, args: MathMatrixArgs) -> dict:
     return matrix_calculate(**args.model_dump())
 
 
+def run_math_polynomial_division(_: Services, args: MathPolynomialDivisionArgs) -> dict:
+    return polynomial_division(**args.model_dump())
+
+
 def run_math_continued_fraction(_: Services, args: MathContinuedFractionArgs) -> dict:
     return continued_fraction(**args.model_dump())
 
@@ -710,6 +721,12 @@ STUDY_TOOLS: list[Tool] = [
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
          + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan.", MathMatrixArgs, ann(True), run_math_matrix),
+    Tool("math_polynomial_division", "Divide univariate polynomials over the rationals with exact quotient and remainder."
+         " Use dividend/divisor strings and variable x, y or t; divisor must not be zero."
+         " Returns normalized polynomials, quotient/remainder exact strings and LaTeX, degrees (null for zero),"
+         " A=B*Q+R identity, residual and verification. Remainder is zero or degree below the divisor."
+         " No multivariate division, rational functions, long-division steps or study bank changes."
+         + SYN + "división de polinomios, cociente, resto, división euclídea.", MathPolynomialDivisionArgs, ann(True), run_math_polynomial_division),
     Tool("math_continued_fraction", "Expand an exact rational into a finite continued fraction."
          " Returns original/normalized input, coefficient and convergent string arrays, notation, reconstructed rational and exact verification."
          " Integers, finite decimals and integer fractions only; negative inputs use floor quotients."

@@ -5,7 +5,7 @@
 Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
 - **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
-- **Assistant control**: 67 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
+- **Assistant control**: 68 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
 - **A teacher role** (Profesor): classes, exams generated from your bank and your own material with citations, versions A/B, rubrics, batch correction with model proposals you confirm, grades and class analysis. Student data stays on your PC.
 - **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
 - **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard, the notebook's embeddings come from Borges's Hoard and scanned PDFs are read by Kafka's Hoard, all through the family hub (see *In the family*). With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
@@ -28,7 +28,7 @@ This combines residue conditions, while the individual tool below still solves
 `a*x=b` modulo m. Mathematical reference:
 [SymPy's generalized congruence contract](https://docs.sympy.org/latest/modules/ntheory.html#sympy.ntheory.modular.solve_congruence).
 The implementation merges classes with the existing native linear solver;
-combined MCP catalog67 =49Study+18Teacher.
+combined MCP catalog68 =50Study+18Teacher.
 
 **Linear congruences:** Home → Congruencias lineales, `math_linear_congruence`
 and `POST /api/math/linear-congruence` solve `a*x ≡ b (mod m)` using the same
@@ -269,4 +269,14 @@ The final convergent reconstructs the normalized input; no study data changes.
 The inline panel includes an example, a term/convergent table and text copy.
 Only integers, finite decimals and integer fractions are accepted by the existing
 numeric parser; this does not expand irrational periods or prove approximation
-optimality. The catalog contains 67 tools (49 Study + 18 Teacher).
+optimality. The catalog contains 68 tools (50 Study + 18 Teacher).
+
+## Polynomial division
+
+The exact calculator divides two polynomials over the rationals in x, y or t.
+It shows the exact quotient, remainder, A=B*Q+R identity and residual check, with
+editable example and full text copy. The remainder is zero or has degree below
+the divisor; zero has no defined degree. `math_polynomial_division` and
+`POST /api/math/polynomial-division` share the existing parser and local SymPy.
+Integer, fraction and finite decimal coefficients stay exact. No multivariate
+division, rational functions, long-division steps or study bank changes.
