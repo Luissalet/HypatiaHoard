@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, polynomial_division, values as math_values
+from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, polynomial_division, polynomial_gcd, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -94,6 +94,12 @@ class MathValuesArgs(BaseModel):
 class MathMatrixArgs(BaseModel):
     matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
     operation: Literal["determinant", "inverse", "rref"] = "inverse"
+
+
+class MathPolynomialGcdArgs(BaseModel):
+    a: str = Field(..., min_length=1, max_length=200, description="First polynomial over the rationals, e.g. 'x**3-x'. Existing arithmetic grammar; no variable denominators.")
+    b: str = Field(..., min_length=1, max_length=200, description="Second rational polynomial, e.g. 'x**2-1'. Either may be zero. Nonzero gcd/lcm are monic; both zero gives zero by convention.")
+    variable: Literal["x", "y", "t"] = "x"
 
 
 class MathPolynomialDivisionArgs(BaseModel):
@@ -442,6 +448,10 @@ def run_math_matrix(_: Services, args: MathMatrixArgs) -> dict:
     return matrix_calculate(**args.model_dump())
 
 
+def run_math_polynomial_gcd(_: Services, args: MathPolynomialGcdArgs) -> dict:
+    return polynomial_gcd(**args.model_dump())
+
+
 def run_math_polynomial_division(_: Services, args: MathPolynomialDivisionArgs) -> dict:
     return polynomial_division(**args.model_dump())
 
@@ -721,6 +731,13 @@ STUDY_TOOLS: list[Tool] = [
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
          + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan.", MathMatrixArgs, ann(True), run_math_matrix),
+    Tool("math_polynomial_gcd", "Calculate monic rational polynomial gcd/lcm and exact Bezout coefficients. Keywords: MCD, MCM."
+         " Use a/b strings in one variable x, y or t. Returns normalized inputs, monic nonzero gcd/lcm,"
+         " u/v satisfying A*u+B*v=gcd, exact strings/LaTeX/degrees (null for zero), residual and verification."
+         " Coefficients are not unique. If either input is zero lcm is zero; for both zero all results are zero by convention."
+         " Over QQ: constants are units, so coprime means gcd=1. No multivariate polynomials, rational functions,"
+         " Euclidean steps or study bank changes."
+         + SYN + "MCD polinómico, MCM de polinomios, Bézout, Euclides extendido.", MathPolynomialGcdArgs, ann(True), run_math_polynomial_gcd),
     Tool("math_polynomial_division", "Divide univariate polynomials over the rationals with exact quotient and remainder."
          " Use dividend/divisor strings and variable x, y or t; divisor must not be zero."
          " Returns normalized polynomials, quotient/remainder exact strings and LaTeX, degrees (null for zero),"

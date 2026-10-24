@@ -301,6 +301,40 @@ def polynomial_division(dividend: str, divisor: str, variable: str = "x") -> dic
             "verified": bool(residual.is_zero and (remainder.is_zero or remainder.degree() < second.degree()))}
 
 
+def polynomial_gcd(a: str, b: str, variable: str = "x") -> dict:
+    """Monic rational polynomial gcd/lcm and an exact Bezout certificate."""
+    if variable not in ("x", "y", "t"):
+        raise ValueError("Variable must be x, y or t.")
+    symbol = sp.Symbol(variable)
+    polynomials = []
+    for name, source in (("a", a), ("b", b)):
+        try:
+            polynomials.append(sp.Poly(parse_expression(source, variable, polynomial=True), symbol, domain=sp.QQ))
+        except (sp.PolynomialError, sp.polys.polyerrors.CoercionFailed) as error:
+            raise ValueError(f"{name}: use a polynomial with rational coefficients.") from error
+    first, second = polynomials
+    zero = sp.Poly(0, symbol, domain=sp.QQ)
+    if first.is_zero and second.is_zero:
+        u = v = gcd = lcm = zero
+    elif first.is_zero:
+        u, v, gcd, lcm = zero, sp.Poly(1 / second.LC(), symbol, domain=sp.QQ), second.monic(), zero
+    elif second.is_zero:
+        u, v, gcd, lcm = sp.Poly(1 / first.LC(), symbol, domain=sp.QQ), zero, first.monic(), zero
+    else:
+        u, v, gcd = first.gcdex(second)
+        lcm = zero if first.is_zero or second.is_zero else first.mul(second).exquo(gcd).monic()
+    residual = first * u + second * v - gcd
+    def pack(poly):
+        return {"exact": str(poly.as_expr()), "latex": sp.latex(poly.as_expr()),
+                "degree": None if poly.is_zero else int(poly.degree())}
+    return {"a": a, "b": b, "variable": variable, "domain": "QQ",
+            "a_normalized": pack(first), "b_normalized": pack(second),
+            "gcd": pack(gcd), "lcm": pack(lcm), "u": pack(u), "v": pack(v),
+            "identity": f"({first.as_expr()}) * ({u.as_expr()}) + ({second.as_expr()}) * ({v.as_expr()}) = ({gcd.as_expr()})",
+            "residual": str(residual.as_expr()), "verified": bool(residual.is_zero),
+            "coprime": bool(gcd.is_one), "both_zero": bool(first.is_zero and second.is_zero)}
+
+
 def continued_fraction(value: str) -> dict:
     """Finite continued fraction and exact convergents of a rational literal."""
     from sympy.ntheory.continued_fraction import continued_fraction_convergents, continued_fraction_iterator

@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathCongruenceSystemArgs, MathContinuedFractionArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathPolynomialDivisionArgs, MathStatisticsArgs, MathValuesArgs
-from ..math_tool import compute, continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, polynomial_division, values
+from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathCongruenceSystemArgs, MathContinuedFractionArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathPolynomialDivisionArgs, MathPolynomialGcdArgs, MathStatisticsArgs, MathValuesArgs
+from ..math_tool import compute, continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, polynomial_division, polynomial_gcd, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/polynomial-gcd")
+def polynomial_common_divisor(body: MathPolynomialGcdArgs):
+    try:
+        return polynomial_gcd(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/polynomial-division")

@@ -69,5 +69,5 @@ def test_api_agent_catalog_and_study_table_preservation(client):
                  {'dividend': 3, 'divisor': 'x'}, {}):
         assert client.post('/api/math/polynomial-division', json=args).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == 68 and catalog['math_polynomial_division']['annotations']['readOnlyHint']
+    assert len(catalog) == 69 and catalog['math_polynomial_division']['annotations']['readOnlyHint']
     assert snapshot() == before

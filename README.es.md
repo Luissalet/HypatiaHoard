@@ -41,7 +41,7 @@ el panel de sistemas separado descrito arriba. Referencia matemática:
 divisiones de Euclides sobre valores absolutos. Devuelve MCD/MCM no negativos,
 coeficientes enteros `x`/`y` y comprueba `a*x+b*y=MCD`; los coeficientes no son
 únicos. API `POST /api/math/integer-pair` y MCP `math_integer_pair` usan la misma
-función; el catálogo combinado tiene68 herramientas. Entradas y resultados
+función; el catálogo combinado tiene69 herramientas. Entradas y resultados
 enteros son cadenas y conservan cifras mayores que la precisión de JavaScript;
 se mantienen los límites de conversión del runtime. Si algún entero es cero,
 MCM es cero; para `(0,0)` se usan MCD/MCM y coeficientes cero por convención.
@@ -239,7 +239,7 @@ son strings exactos, también negativos y enteros grandes. El último convergent
 reconstruye el racional normalizado; no se modifica el banco de estudio. El panel
 inline incluye ejemplo, tabla de términos/convergentes y copia de texto. Sólo
 enteros, decimales finitos y fracciones de enteros del parser existente; no
-periodicidad irracional ni prueba de optimalidad. Catálogo68=50Study+18Teacher.
+periodicidad irracional ni prueba de optimalidad. Catálogo69=51Study+18Teacher.
 
 ## División de polinomios
 
@@ -250,4 +250,7 @@ o cerrar. El resto es cero o tiene grado menor que el divisor; cero no tiene
 grado definido. UI, `math_polynomial_division` y
 `POST /api/math/polynomial-division` comparten parser y SymPy locales existentes.
 Sin división multivariable, funciones racionales ni pasos de división larga; no
-modifica el banco ni añade dependencias. Catálogo68=50Study+18Teacher.
+modifica el banco ni añade dependencias. Catálogo69=51Study+18Teacher.
+
+
+**MCD y Bézout polinómicos:** Inicio → MCD y Bézout de polinomios, `math_polynomial_gcd` y `POST /api/math/polynomial-gcd` reciben strings `a`, `b` racionales con variable x/y/t. Devuelven MCD/MCM no nulos mónicos, U/V e identidad A*U+B*V=MCD verificada exactamente. Las constantes no nulas son unidades sobre QQ; U/V no son únicos. Si una entrada es cero, el MCM es cero; para dos ceros MCD/MCM/U/V son cero por convenio. El cero no tiene grado. No multivariables, funciones racionales, pasos de Euclides, cambios del banco, modelos ni dependencias nuevas. Catálogo69=51Study+18Teacher. Editar o cerrar retira el resultado y descarta respuestas anteriores.
