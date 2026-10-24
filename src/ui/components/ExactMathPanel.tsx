@@ -16,6 +16,26 @@ import { PolynomialDivisionPanel } from '@/ui/components/PolynomialDivisionPanel
 import { PolynomialGcdPanel } from '@/ui/components/PolynomialGcdPanel';
 import { PartialFractionsPanel } from '@/ui/components/PartialFractionsPanel';
 import { RationalTaylorPanel } from '@/ui/components/RationalTaylorPanel';
+import { CalculatorNavigator } from '@/ui/components/CalculatorNavigator';
+
+const GENERAL = { id: 'calculator-general', title: 'Cuentas, ecuaciones y cálculo', keywords: 'aritmética evaluar desarrollar factorizar polinomio derivar derivadas integrar integrales límites' };
+const PANELS = [
+  { id: 'calculator-division', title: 'División de polinomios', keywords: 'cociente resto división polinómica', component: PolynomialDivisionPanel },
+  { id: 'calculator-polynomial-gcd', title: 'MCD y MCM de polinomios', keywords: 'Bézout Euclides polinómico racional', component: PolynomialGcdPanel },
+  { id: 'calculator-partial-fractions', title: 'Fracciones parciales', keywords: 'simples descomposición función racional', component: PartialFractionsPanel },
+  { id: 'calculator-taylor', title: 'Taylor de funciones racionales', keywords: 'Maclaurin serie centro coeficientes resto', component: RationalTaylorPanel },
+  { id: 'calculator-values', title: 'Tabla de valores', keywords: 'evaluar función sustituir puntos', component: ValueTablePanel },
+  { id: 'calculator-interpolation', title: 'Interpolación polinómica', keywords: 'Lagrange puntos polinomio', component: InterpolationPanel },
+  { id: 'calculator-bases', title: 'Conversión de bases', keywords: 'binario decimal hexadecimal octal enteros', component: BaseConversionPanel },
+  { id: 'calculator-continued-fraction', title: 'Fracciones continuas', keywords: 'convergentes expansión racional', component: ContinuedFractionPanel },
+  { id: 'calculator-integer-gcd', title: 'MCD y MCM de enteros', keywords: 'Bézout Euclides máximo común divisor mínimo múltiplo', component: IntegerPairPanel },
+  { id: 'calculator-congruence', title: 'Congruencia lineal', keywords: 'módulo modular inverso', component: CongruencePanel },
+  { id: 'calculator-congruence-system', title: 'Sistema de congruencias', keywords: 'resto chino simultáneas CRT módulos', component: CongruenceSystemPanel },
+  { id: 'calculator-matrix', title: 'Matrices exactas', keywords: 'matriz determinante inversa RREF rango pivotes producto multiplicar matrices', component: MatrixPanel },
+  { id: 'calculator-statistics', title: 'Estadística descriptiva', keywords: 'media mediana varianza desviación muestra población', component: DescriptiveStatsPanel },
+  { id: 'calculator-linear-system', title: 'Sistemas de ecuaciones lineales', keywords: 'matriz Gauss soluciones incógnitas', component: LinearSystemPanel },
+];
+const CALCULATORS = [GENERAL, ...PANELS];
 
 type Operation = 'evaluate' | 'expand' | 'factor' | 'solve' | 'differentiate' | 'integrate' | 'limit';
 type Value = { exact: string; latex: string; approx: string | null };
@@ -104,7 +124,7 @@ export function ExactMathPanel() {
     catch { setCopied('No se pudo copiar. Puedes seleccionar el resultado y copiarlo manualmente.'); }
   }
 
-  return <><details className="mb-6 border-y border-ink-700 py-3">
+  return <><CalculatorNavigator calculators={CALCULATORS} /><section id={GENERAL.id} className="scroll-mt-24"><details className="mb-6 border-y border-ink-700 py-3">
     <summary className="cursor-pointer text-sm text-amber-400 font-medium rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
       Calculadora exacta
       <span className="block mt-1 text-ink-300 font-normal">Cuentas, polinomios, ecuaciones, derivadas, integrales y límites</span>
@@ -175,5 +195,5 @@ export function ExactMathPanel() {
       {copied && <p role="status" className="text-sm text-ink-200">{copied}</p>}
       <p className="text-sm text-ink-300">Cálculo simbólico local. Las integrales y límites sin resolver se indican como tales. No se guarda nada en tu banco de estudio.</p>
     </form>
-  </details><PolynomialDivisionPanel /><PolynomialGcdPanel /><PartialFractionsPanel /><RationalTaylorPanel /><ValueTablePanel /><InterpolationPanel /><BaseConversionPanel /><ContinuedFractionPanel /><IntegerPairPanel /><CongruencePanel /><CongruenceSystemPanel /><MatrixPanel /><DescriptiveStatsPanel /><LinearSystemPanel /></>;
+  </details></section>{PANELS.map(({ id, component: Panel }) => <section key={id} id={id} className="scroll-mt-24"><Panel /></section>)}</>;
 }

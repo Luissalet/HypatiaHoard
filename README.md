@@ -294,3 +294,7 @@ division, rational functions, long-division steps or study bank changes.
 In **Exact matrices**, select **Producto A · B** and enter A and B as rows of rational number strings (semicolon-separated in the UI). A columns must match B rows. The result shows both normalized inputs, dimensions and the ordered matrix product, which can be copied together. Fractions and finite decimals remain exact; this is not an elementwise product. Inputs remain available after errors or changing operations, and later edits invalidate pending results.
 
 The existing `math_matrix` API/MCP tool accepts `operation: "multiply"` and `right_matrix`, alongside `matrix` A. `/api/math/matrix` uses the same contract. The original determinant, inverse and RREF operations and the study bank remain unchanged. No new dependency, model or tool is needed; multiplication does not provide a step-by-step derivation.
+
+## Find a calculator
+
+Home now has a calculator search and destination selector above all15 existing calculators. Search by name or aliases (for example Taylor, matrices or Bézout), then use **Abrir calculadora** or Enter. Search ignores case and accents and matches all words. It opens and focuses the existing form without changing the route, closing other calculators or clearing their drafts/results; every calculator remains available below, including when there are no search matches. API/MCP71, mathematical engines and study data are unchanged.

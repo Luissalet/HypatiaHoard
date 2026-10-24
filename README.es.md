@@ -265,3 +265,7 @@ modifica el banco ni añade dependencias. Catálogo71=53Study+18Teacher.
 En **Matrices exactas**, elige **Producto A · B** y escribe A y B, una fila por línea y números separados por punto y coma. Las columnas de A deben coincidir con las filas de B. El resultado muestra ambas entradas normalizadas, sus dimensiones y el producto en ese orden; puedes copiarlo junto con las entradas. Fracciones y decimales finitos se conservan exactos. No es un producto elemento a elemento ni una derivación paso a paso.
 
 La herramienta API/MCP existente `math_matrix` admite `operation: "multiply"` y `right_matrix`, además de `matrix` A. `/api/math/matrix` comparte ese contrato. Se mantienen determinantes, inversas, RREF y banco de estudio, sin nuevas dependencias ni modelos. Los borradores permanecen tras errores o cambiar de operación; editar invalida resultados pendientes.
+
+## Localizar una calculadora
+
+Inicio incorpora un buscador y selector antes de las15 calculadoras existentes. Busca por nombre o alias (por ejemplo Taylor, matrices o Bézout) y pulsa **Abrir calculadora** o Enter. Ignora mayúsculas y acentos y busca todas las palabras escritas. Abre y enfoca el formulario sin cambiar de ruta, cerrar otras calculadoras ni borrar sus campos o resultados; todas siguen disponibles debajo aunque la búsqueda no tenga coincidencias. Se mantienen API/MCP71, motores matemáticos y banco de estudio.
