@@ -749,7 +749,7 @@ STUDY_TOOLS: list[Tool] = [
          "Standard Python integer input syntax, case-insensitive digits, optional base2/8/16 prefixes and underscores. "
          "Existing runtime integer conversion limits apply. No study data read or changed."
          + SYN + "convertir bases, base numérica, binario, octal, decimal, hexadecimal.", MathBaseConvertArgs, ann(True), run_math_base_convert),
-    Tool("math_matrix", "Calculate exact rational determinants, inverses, RREF, A*B products or nullspace bases. Keywords: matrices, inversa, núcleo."
+    Tool("math_matrix", "Exact rational determinants, inverses, RREF, A*B and nullspace bases. Keywords: matrices, inversa, núcleo."
          "\nUse number-string rows with equal length. Determinant and inverse require square matrices; rref accepts rectangles. "
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "For multiply, also provide right_matrix B; A columns must equal B rows. Returns both inputs, dimensions and exact A*B in that order, not elementwise multiplication. "
