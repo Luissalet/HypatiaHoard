@@ -548,12 +548,14 @@ def descriptive_statistics(values: list[str]) -> dict:
 
 
 def matrix_calculate(matrix: list[list[str]], operation: str = "inverse",
-                     right_matrix: list[list[str]] | None = None) -> dict:
+                     right_matrix: list[list[str]] | None = None, exponent: str | None = None) -> dict:
     """Exact rational matrix operations, including a basis of A*x=0."""
-    if operation not in ("determinant", "inverse", "rref", "multiply", "nullspace"):
-        raise ValueError("Operation must be determinant, inverse, rref, multiply or nullspace.")
+    if operation not in ("determinant", "inverse", "rref", "multiply", "nullspace", "power"):
+        raise ValueError("Operation must be determinant, inverse, rref, multiply, nullspace or power.")
     if operation != "multiply" and right_matrix is not None:
         raise ValueError("A right matrix is only used by multiply.")
+    if operation != "power" and exponent is not None:
+        raise ValueError("An exponent is only used by power.")
 
     def parse(rows, prefix=""):
         if not isinstance(rows, list) or not rows or any(not isinstance(row, list) or not row for row in rows):
@@ -579,6 +581,16 @@ def matrix_calculate(matrix: list[list[str]], operation: str = "inverse",
 
     result = {"operation": operation, "original_matrix": matrix, "matrix_exact": strings(source),
               "rows": source.rows, "columns": source.cols, "status": "computed"}
+    if operation == "power":
+        if source.rows != source.cols:
+            raise ValueError("An integer matrix power needs a square matrix.")
+        if not isinstance(exponent, str) or not re.fullmatch(r"[+-]?[0-9]+", exponent.strip()):
+            raise ValueError("Exponent: write a decimal integer, with an optional sign.")
+        number = int(exponent.strip())
+        result.update(original_exponent=exponent, exponent_exact=str(number))
+        if number < 0 and source.det() == 0:
+            return {**result, "status": "singular", "power_exact": None}
+        return {**result, "power_exact": strings(source ** number)}
     if operation == "nullspace":
         basis = source.nullspace()
         residuals = [source * vector for vector in basis]

@@ -31,7 +31,7 @@ const PANELS = [
   { id: 'calculator-integer-gcd', title: 'MCD y MCM de enteros', keywords: 'Bézout Euclides máximo común divisor mínimo múltiplo', component: IntegerPairPanel },
   { id: 'calculator-congruence', title: 'Congruencia lineal', keywords: 'módulo modular inverso', component: CongruencePanel },
   { id: 'calculator-congruence-system', title: 'Sistema de congruencias', keywords: 'resto chino simultáneas CRT módulos', component: CongruenceSystemPanel },
-  { id: 'calculator-matrix', title: 'Matrices exactas', keywords: 'matriz determinante inversa RREF rango pivotes producto multiplicar matrices núcleo kernel nullspace homogéneo', component: MatrixPanel },
+  { id: 'calculator-matrix', title: 'Matrices exactas', keywords: 'matriz determinante inversa RREF rango pivotes producto multiplicar matrices núcleo kernel nullspace homogéneo potencia potencias exponente elevar', component: MatrixPanel },
   { id: 'calculator-statistics', title: 'Estadística descriptiva', keywords: 'media mediana varianza desviación muestra población', component: DescriptiveStatsPanel },
   { id: 'calculator-linear-system', title: 'Sistemas de ecuaciones lineales', keywords: 'matriz Gauss soluciones incógnitas', component: LinearSystemPanel },
 ];

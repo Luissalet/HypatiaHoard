@@ -5,6 +5,47 @@ import pytest
 from hypatia.agent_tools import call_tool, tool_catalog
 
 
+def test_matrix_power_rational_contract_and_bank(client):
+    from fractions import Fraction
+
+    with client.services.db.lock:
+        names = [row[0] for row in client.services.db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+        before = {name: [tuple(row) for row in client.services.db.conn.execute('SELECT * FROM "' + name + '"')] for name in names}
+    args = {"operation": "power", "matrix": [["0.5", "1"], ["0", "1/2"]], "exponent": " +003 "}
+    direct = client.post("/api/math/matrix", json=args)
+    gateway = client.post("/api/agent/call", headers={"Authorization": "Bearer " + client.services.token},
+                          json={"name": "math_matrix", "arguments": args})
+    assert direct.status_code == gateway.status_code == 200
+    value = direct.json()
+    assert value == gateway.json() == call_tool(client.services, "math_matrix", args)
+    assert value["original_matrix"] == args["matrix"] and value["original_exponent"] == " +003 "
+    assert value["exponent_exact"] == "3" and value["power_exact"] == [["1/8", "3/4"], ["0", "1/8"]]
+    # Repeated rational multiplication is independent of the symbolic power implementation.
+    source = [[Fraction(cell) for cell in row] for row in args["matrix"]]
+    product = [[Fraction(i == j) for j in range(2)] for i in range(2)]
+    for _ in range(3):
+        product = [[sum(product[i][k] * source[k][j] for k in range(2)) for j in range(2)] for i in range(2)]
+    assert product == [[Fraction(cell) for cell in row] for row in value["power_exact"]]
+    with client.services.db.lock:
+        after = {name: [tuple(row) for row in client.services.db.conn.execute('SELECT * FROM "' + name + '"')] for name in names}
+    assert after == before
+
+
+def test_matrix_power_zero_negative_and_unavailable(services):
+    def power(matrix, exponent):
+        return call_tool(services, "math_matrix", {"operation": "power", "matrix": matrix, "exponent": exponent})
+    assert power([["0", "0"], ["0", "0"]], "-0")["power_exact"] == [["1", "0"], ["0", "1"]]
+    assert power([["2", "0"], ["0", "5"]], "-2")["power_exact"] == [["1/4", "0"], ["0", "1/25"]]
+    singular = power([["1", "2"], ["2", "4"]], "-1")
+    assert singular["status"] == "singular" and singular["power_exact"] is None
+    assert singular["exponent_exact"] == "-1"
+    for matrix, exponent in [([["1", "2"]], "2"), ([["1"]], "1/2"), ([["1"]], None)]:
+        with pytest.raises(ValueError):
+            power(matrix, exponent)
+    with pytest.raises(ValueError, match="only used by power"):
+        call_tool(services, "math_matrix", {"matrix": [["1"]], "operation": "inverse", "exponent": "2"})
+
+
 def test_matrix_nullspace_contract_and_bank_preservation(client):
     from fractions import Fraction
 
