@@ -5,7 +5,7 @@
 Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
 - **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
-- **Assistant control**: 70 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
+- **Assistant control**: 71 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
 - **A teacher role** (Profesor): classes, exams generated from your bank and your own material with citations, versions A/B, rubrics, batch correction with model proposals you confirm, grades and class analysis. Student data stays on your PC.
 - **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
 - **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard, the notebook's embeddings come from Borges's Hoard and scanned PDFs are read by Kafka's Hoard, all through the family hub (see *In the family*). With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
@@ -28,7 +28,7 @@ This combines residue conditions, while the individual tool below still solves
 `a*x=b` modulo m. Mathematical reference:
 [SymPy's generalized congruence contract](https://docs.sympy.org/latest/modules/ntheory.html#sympy.ntheory.modular.solve_congruence).
 The implementation merges classes with the existing native linear solver;
-combined MCP catalog70 =52Study+18Teacher.
+combined MCP catalog71 =53Study+18Teacher.
 
 **Linear congruences:** Home → Congruencias lineales, `math_linear_congruence`
 and `POST /api/math/linear-congruence` solve `a*x ≡ b (mod m)` using the same
@@ -269,7 +269,7 @@ The final convergent reconstructs the normalized input; no study data changes.
 The inline panel includes an example, a term/convergent table and text copy.
 Only integers, finite decimals and integer fractions are accepted by the existing
 numeric parser; this does not expand irrational periods or prove approximation
-optimality. The catalog contains 70 tools (52 Study + 18 Teacher).
+optimality. The catalog contains 71 tools (53 Study + 18 Teacher).
 
 ## Polynomial division
 
@@ -282,7 +282,10 @@ Integer, fraction and finite decimal coefficients stay exact. No multivariate
 division, rational functions, long-division steps or study bank changes.
 
 
-**Polynomial gcd and Bezout:** Home → MCD y Bézout de polinomios, `math_polynomial_gcd` and `POST /api/math/polynomial-gcd` take rational polynomial strings `a`, `b` in variable x/y/t. They return exact monic nonzero gcd/lcm, U/V and verification of A*U+B*V=gcd. Nonzero constants are units over QQ; coefficients are not unique. If either input is zero the lcm is zero; both zero gives zero gcd/lcm/U/V by convention. Zero has no degree. No multivariate/rational-function calculation, Euclidean steps, bank changes, model calls or new dependencies. Combined MCP catalog70=52Study+18Teacher. Editing or closing clears the previous result and excludes late responses.
+**Polynomial gcd and Bezout:** Home → MCD y Bézout de polinomios, `math_polynomial_gcd` and `POST /api/math/polynomial-gcd` take rational polynomial strings `a`, `b` in variable x/y/t. They return exact monic nonzero gcd/lcm, U/V and verification of A*U+B*V=gcd. Nonzero constants are units over QQ; coefficients are not unique. If either input is zero the lcm is zero; both zero gives zero gcd/lcm/U/V by convention. Zero has no degree. No multivariate/rational-function calculation, Euclidean steps, bank changes, model calls or new dependencies. Combined MCP catalog71=53Study+18Teacher. Editing or closing clears the previous result and excludes late responses.
 
 
-**Exact partial fractions:** Home → Fracciones parciales, `math_partial_fractions` and `POST /api/math/partial-fractions` take rational polynomial strings numerator/denominator in x/y/t. They return the polynomial part, proper partial fractions and full decomposition over QQ, with exact strings/LaTeX and zero residual verification. The original denominator must remain nonzero, including cancelled factors and zero numerators; cancellation does not restore excluded points. No algebraic/complex extension, pole solving, integration, derivation steps, models, new dependencies or bank changes. Editing or closing clears the result and excludes late replies. Catalog70=52Study+18Teacher.
+**Exact partial fractions:** Home → Fracciones parciales, `math_partial_fractions` and `POST /api/math/partial-fractions` take rational polynomial strings numerator/denominator in x/y/t. They return the polynomial part, proper partial fractions and full decomposition over QQ, with exact strings/LaTeX and zero residual verification. The original denominator must remain nonzero, including cancelled factors and zero numerators; cancellation does not restore excluded points. No algebraic/complex extension, pole solving, integration, derivation steps, models, new dependencies or bank changes. Editing or closing clears the result and excludes late replies. Catalog71=53Study+18Teacher.
+
+
+**Exact rational Taylor:** Home → Taylor de funciones racionales, `math_rational_taylor` and `POST /api/math/rational-taylor` take numerator/denominator polynomials over QQ, a rational center string, inclusive degree0..12 and variable x/y/t. They return centered/expanded polynomials, all coefficients0..n including zeros, an exact algebraic remainder and identity verification. The ORIGINAL denominator must remain nonzero and cannot vanish at the center, including cancelled factors and zero numerators. No convergence radius, numerical error bound, transcendental/Laurent series, derivative steps, model calls, dependencies or study-bank changes. Editing/closing clears results and excludes late replies. Catalog71=53Study+18Teacher.

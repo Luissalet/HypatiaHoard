@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathCongruenceSystemArgs, MathContinuedFractionArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathPartialFractionsArgs, MathPolynomialDivisionArgs, MathPolynomialGcdArgs, MathStatisticsArgs, MathValuesArgs
-from ..math_tool import compute, continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, partial_fractions, polynomial_division, polynomial_gcd, values
+from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathCongruenceSystemArgs, MathContinuedFractionArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathPartialFractionsArgs, MathPolynomialDivisionArgs, MathPolynomialGcdArgs, MathRationalTaylorArgs, MathStatisticsArgs, MathValuesArgs
+from ..math_tool import compute, continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, partial_fractions, polynomial_division, polynomial_gcd, rational_taylor, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/rational-taylor")
+def expand_rational_taylor(body: MathRationalTaylorArgs):
+    try:
+        return rational_taylor(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/partial-fractions")

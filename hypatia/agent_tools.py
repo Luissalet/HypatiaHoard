@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, partial_fractions, polynomial_division, polynomial_gcd, values as math_values
+from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, partial_fractions, polynomial_division, polynomial_gcd, rational_taylor, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -94,6 +94,14 @@ class MathValuesArgs(BaseModel):
 class MathMatrixArgs(BaseModel):
     matrix: list[list[str]] = Field(..., min_length=1, description="Nonempty rectangular array of rational number strings, e.g. [['1','2'],['3','4']]. Integers, finite decimals or integer fractions. Row/column errors identify the cell.")
     operation: Literal["determinant", "inverse", "rref"] = "inverse"
+
+
+class MathRationalTaylorArgs(BaseModel):
+    numerator: str = Field(..., min_length=1, max_length=200, description="Numerator polynomial with rational coefficients.")
+    denominator: str = Field(..., min_length=1, max_length=200, description="Original denominator polynomial, nonzero at the center even if factors cancel.")
+    center: str = Field("0", min_length=1, max_length=200, description="Exact rational center: integer, finite decimal or integer fraction, e.g. '1/2'.")
+    order: int = Field(3, ge=0, le=12, strict=True, description="Maximum Taylor polynomial degree, inclusive. Coefficients of powers0 through this degree are returned, including zeros.")
+    variable: Literal["x", "y", "t"] = "x"
 
 
 class MathPartialFractionsArgs(BaseModel):
@@ -454,6 +462,10 @@ def run_math_matrix(_: Services, args: MathMatrixArgs) -> dict:
     return matrix_calculate(**args.model_dump())
 
 
+def run_math_rational_taylor(_: Services, args: MathRationalTaylorArgs) -> dict:
+    return rational_taylor(**args.model_dump())
+
+
 def run_math_partial_fractions(_: Services, args: MathPartialFractionsArgs) -> dict:
     return partial_fractions(**args.model_dump())
 
@@ -741,6 +753,13 @@ STUDY_TOOLS: list[Tool] = [
          "Returns original/exact matrix and determinant, inverse with A*inverse-I residuals, or RREF/rank/one-based pivot columns. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
          + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan.", MathMatrixArgs, ann(True), run_math_matrix),
+    Tool("math_rational_taylor", "Expand a rational function into an exact Taylor polynomial around a rational center. Keywords: Taylor, desarrollo local."
+         " Give numerator/denominator polynomials over QQ, center string, inclusive degree0..12 and variable x/y/t."
+         " Returns centered/expanded polynomial, all coefficients including zeros, exact algebraic remainder,"
+         " original denominator nonzero restriction and identity verification. Rejects centers outside the original domain,"
+         " even for cancelled factors. No convergence radius, numerical error bound, transcendental/Laurent series,"
+         " derivative steps or study bank changes."
+         + SYN + "serie de Taylor racional, Maclaurin, coeficientes exactos, resto exacto.", MathRationalTaylorArgs, ann(True), run_math_rational_taylor),
     Tool("math_partial_fractions", "Decompose a rational function into exact partial fractions. Keywords: fracciones parciales."
          " Give rational-coefficient numerator/denominator polynomials and one variable x, y or t."
          " Returns polynomial part, proper partial fractions, full decomposition, exact strings/LaTeX,"

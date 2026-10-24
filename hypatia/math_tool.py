@@ -301,6 +301,52 @@ def polynomial_division(dividend: str, divisor: str, variable: str = "x") -> dic
             "verified": bool(residual.is_zero and (remainder.is_zero or remainder.degree() < second.degree()))}
 
 
+def rational_taylor(numerator: str, denominator: str, center: str = "0", order: int = 3,
+                    variable: str = "x") -> dict:
+    """Taylor polynomial over QQ, with an exact algebraic remainder."""
+    if variable not in ("x", "y", "t"):
+        raise ValueError("Variable must be x, y or t.")
+    if type(order) is not int or not 0 <= order <= 12:
+        raise ValueError("Taylor degree must be an integer from 0 to 12.")
+    symbol = sp.Symbol(variable)
+    polynomials = []
+    for name, source in (("numerator", numerator), ("denominator", denominator)):
+        try:
+            polynomials.append(sp.Poly(parse_expression(source, variable, polynomial=True), symbol, domain=sp.QQ))
+        except (sp.PolynomialError, sp.polys.polyerrors.CoercionFailed) as error:
+            raise ValueError(f"{name}: use a polynomial with rational coefficients.") from error
+    first, second = polynomials
+    target = _rational_literal(center)
+    if second.eval(target) == 0:
+        raise ValueError("The original denominator must be nonzero at the center, even if a factor cancels.")
+    p, q = first.shift(target), second.shift(target)
+    coefficients = []
+    for k in range(order + 1):
+        coefficients.append((p.nth(k) - sum(q.nth(j) * coefficients[k-j] for j in range(1, k+1))) / q.nth(0))
+    terms = []
+    for k, c in enumerate(coefficients):
+        if c != 0:
+            power = (symbol-target)**k
+            terms.append(c if k == 0 else power if c == 1 else sp.Mul(c, power, evaluate=False))
+    centered = sp.Add(*terms, evaluate=False)
+    polynomial = sp.Poly(centered, symbol, domain=sp.QQ)
+    factor = sp.Poly((symbol-target)**(order+1), symbol, domain=sp.QQ)
+    remainder_factor = (first - second * polynomial).exquo(factor).as_expr()
+    remainder = (symbol-target)**(order+1) * remainder_factor / second.as_expr()
+    residual = sp.cancel(first.as_expr()/second.as_expr() - polynomial.as_expr() - remainder)
+    def pack(expr):
+        return {"exact": str(expr), "latex": sp.latex(expr)}
+    return {"numerator": numerator, "denominator": denominator, "variable": variable,
+            "center": center, "center_exact": str(target), "order": order, "domain": "QQ",
+            "polynomial": pack(polynomial.as_expr()), "centered_polynomial": pack(centered),
+            "coefficients": [{"power": k, **pack(c)} for k, c in enumerate(coefficients)],
+            "remainder": pack(remainder), "remainder_factor": pack(remainder_factor),
+            "denominator_normalized": pack(second.as_expr()),
+            "domain_restriction": f"({second.as_expr()}) != 0",
+            "domain_restriction_latex": sp.latex(second.as_expr()) + r" \ne 0",
+            "residual": str(residual), "verified": bool(residual == 0)}
+
+
 def partial_fractions(numerator: str, denominator: str, variable: str = "x") -> dict:
     """Partial fractions over QQ, retaining the original domain restriction."""
     if variable not in ("x", "y", "t"):

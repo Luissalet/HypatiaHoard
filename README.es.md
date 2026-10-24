@@ -41,7 +41,7 @@ el panel de sistemas separado descrito arriba. Referencia matemática:
 divisiones de Euclides sobre valores absolutos. Devuelve MCD/MCM no negativos,
 coeficientes enteros `x`/`y` y comprueba `a*x+b*y=MCD`; los coeficientes no son
 únicos. API `POST /api/math/integer-pair` y MCP `math_integer_pair` usan la misma
-función; el catálogo combinado tiene70 herramientas. Entradas y resultados
+función; el catálogo combinado tiene71 herramientas. Entradas y resultados
 enteros son cadenas y conservan cifras mayores que la precisión de JavaScript;
 se mantienen los límites de conversión del runtime. Si algún entero es cero,
 MCM es cero; para `(0,0)` se usan MCD/MCM y coeficientes cero por convención.
@@ -239,7 +239,7 @@ son strings exactos, también negativos y enteros grandes. El último convergent
 reconstruye el racional normalizado; no se modifica el banco de estudio. El panel
 inline incluye ejemplo, tabla de términos/convergentes y copia de texto. Sólo
 enteros, decimales finitos y fracciones de enteros del parser existente; no
-periodicidad irracional ni prueba de optimalidad. Catálogo70=52Study+18Teacher.
+periodicidad irracional ni prueba de optimalidad. Catálogo71=53Study+18Teacher.
 
 ## División de polinomios
 
@@ -250,10 +250,13 @@ o cerrar. El resto es cero o tiene grado menor que el divisor; cero no tiene
 grado definido. UI, `math_polynomial_division` y
 `POST /api/math/polynomial-division` comparten parser y SymPy locales existentes.
 Sin división multivariable, funciones racionales ni pasos de división larga; no
-modifica el banco ni añade dependencias. Catálogo70=52Study+18Teacher.
+modifica el banco ni añade dependencias. Catálogo71=53Study+18Teacher.
 
 
-**MCD y Bézout polinómicos:** Inicio → MCD y Bézout de polinomios, `math_polynomial_gcd` y `POST /api/math/polynomial-gcd` reciben strings `a`, `b` racionales con variable x/y/t. Devuelven MCD/MCM no nulos mónicos, U/V e identidad A*U+B*V=MCD verificada exactamente. Las constantes no nulas son unidades sobre QQ; U/V no son únicos. Si una entrada es cero, el MCM es cero; para dos ceros MCD/MCM/U/V son cero por convenio. El cero no tiene grado. No multivariables, funciones racionales, pasos de Euclides, cambios del banco, modelos ni dependencias nuevas. Catálogo70=52Study+18Teacher. Editar o cerrar retira el resultado y descarta respuestas anteriores.
+**MCD y Bézout polinómicos:** Inicio → MCD y Bézout de polinomios, `math_polynomial_gcd` y `POST /api/math/polynomial-gcd` reciben strings `a`, `b` racionales con variable x/y/t. Devuelven MCD/MCM no nulos mónicos, U/V e identidad A*U+B*V=MCD verificada exactamente. Las constantes no nulas son unidades sobre QQ; U/V no son únicos. Si una entrada es cero, el MCM es cero; para dos ceros MCD/MCM/U/V son cero por convenio. El cero no tiene grado. No multivariables, funciones racionales, pasos de Euclides, cambios del banco, modelos ni dependencias nuevas. Catálogo71=53Study+18Teacher. Editar o cerrar retira el resultado y descarta respuestas anteriores.
 
 
-**Fracciones parciales exactas:** Inicio → Fracciones parciales, `math_partial_fractions` y `POST /api/math/partial-fractions` reciben strings numerador/denominador polinómicos racionales en x/y/t. Devuelven parte polinómica, fracciones propias y descomposición completa sobre QQ, con texto/LaTeX y residuo exacto de comprobación. El denominador original debe seguir distinto de cero, incluso con factores cancelados o numerador cero: cancelar no recupera puntos excluidos. No extensión algebraica/compleja, cálculo de polos, integración, pasos por coeficientes indeterminados, modelos, dependencias nuevas ni cambios del banco. Editar o cerrar retira resultados y descarta respuestas tardías. Catálogo70=52Study+18Teacher.
+**Fracciones parciales exactas:** Inicio → Fracciones parciales, `math_partial_fractions` y `POST /api/math/partial-fractions` reciben strings numerador/denominador polinómicos racionales en x/y/t. Devuelven parte polinómica, fracciones propias y descomposición completa sobre QQ, con texto/LaTeX y residuo exacto de comprobación. El denominador original debe seguir distinto de cero, incluso con factores cancelados o numerador cero: cancelar no recupera puntos excluidos. No extensión algebraica/compleja, cálculo de polos, integración, pasos por coeficientes indeterminados, modelos, dependencias nuevas ni cambios del banco. Editar o cerrar retira resultados y descarta respuestas tardías. Catálogo71=53Study+18Teacher.
+
+
+**Taylor racional exacto:** Inicio → Taylor de funciones racionales, `math_rational_taylor` y `POST /api/math/rational-taylor` reciben polinomios racionales numerador/denominador, centro racional string, grado inclusivo0..12 y variable x/y/t. Devuelven polinomio centrado/expandido, coeficientes de todas las potencias0..n, resto algebraico exacto e identidad verificada. El denominador ORIGINAL debe ser distinto de cero y no anularse en el centro, incluso con factores cancelados o numerador cero. No radio de convergencia, cota numérica del error, series trascendentes/Laurent, pasos de derivadas, modelos, dependencias o banco. Editar/cerrar retira resultados y descarta respuestas anteriores. Catálogo71=53Study+18Teacher.
