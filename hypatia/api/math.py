@@ -2,10 +2,18 @@
 
 from fastapi import APIRouter, HTTPException
 
-from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathStatisticsArgs, MathValuesArgs
-from ..math_tool import compute, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values
+from ..agent_tools import MathBaseConvertArgs, MathComputeArgs, MathCongruenceSystemArgs, MathIntegerPairArgs, MathInterpolateArgs, MathLinearCongruenceArgs, MathLinearSystemArgs, MathMatrixArgs, MathStatisticsArgs, MathValuesArgs
+from ..math_tool import compute, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values
 
 router = APIRouter(prefix="/api/math")
+
+
+@router.post("/congruence-system")
+def solve_congruence_system(body: MathCongruenceSystemArgs):
+    try:
+        return congruence_system(**body.model_dump())
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
 
 
 @router.post("/linear-congruence")

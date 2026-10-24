@@ -327,6 +327,47 @@ def linear_congruence(a: str, b: str, modulus: str) -> dict:
                         and (first * period) % positive_modulus == 0}
 
 
+def congruence_system(constraints: list[dict[str, str]]) -> dict:
+    """Merge integer residue classes through the existing linear solver."""
+    if not isinstance(constraints, list) or not constraints:
+        raise ValueError("Provide at least one residue/modulus pair.")
+    normalized = []
+    for index, item in enumerate(constraints):
+        if not isinstance(item, dict):
+            raise ValueError(f"Congruence {index + 1}: provide residue and modulus strings.")
+        for name in ("residue", "modulus"):
+            value = item.get(name)
+            if not isinstance(value, str) or not re.fullmatch(r"[+-]?[0-9]+", value.strip()):
+                raise ValueError(f"Congruence {index + 1} {name}: write a decimal integer, with an optional sign.")
+        modulus = abs(int(item["modulus"].strip()))
+        if not modulus:
+            raise ValueError(f"Congruence {index + 1}: modulus cannot be zero.")
+        normalized.append({"residue": item["residue"], "modulus": item["modulus"],
+                           "residue_exact": str(int(item["residue"].strip()) % modulus),
+                           "modulus_exact": str(modulus)})
+    residue, period = 0, 1
+    for index, item in enumerate(normalized):
+        difference = int(item["residue_exact"]) - residue
+        merge = linear_congruence(str(period), str(difference), item["modulus_exact"])
+        if merge["status"] == "no_solution":
+            return {"constraints": normalized, "status": "no_solution", "residue": None, "period": None,
+                    "all_integers": False, "checks": [], "verified": merge["verified"],
+                    "conflict": {"index": index, "prior_residue": str(residue), "prior_period": str(period),
+                                 "difference": str(difference), "gcd": merge["gcd"],
+                                 "compatibility_remainder": merge["compatibility_remainder"],
+                                 "bezout": merge["bezout"]}}
+        next_period = period * int(merge["period"])
+        residue = (residue + period * int(merge["residue"])) % next_period
+        period = next_period
+    checks = [{"index": index, "expected": item["residue_exact"], "modulus": item["modulus_exact"],
+               "actual": str(residue % int(item["modulus_exact"])),
+               "period_remainder": str(period % int(item["modulus_exact"]))}
+              for index, item in enumerate(normalized)]
+    return {"constraints": normalized, "status": "solved", "residue": str(residue), "period": str(period),
+            "all_integers": period == 1, "conflict": None, "checks": checks,
+            "verified": all(row["actual"] == row["expected"] and row["period_remainder"] == "0" for row in checks)}
+
+
 def descriptive_statistics(values: list[str]) -> dict:
     """Describe written rational observations without floating-point rounding."""
     if not isinstance(values, list) or not values:

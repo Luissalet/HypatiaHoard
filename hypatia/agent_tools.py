@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
-from .math_tool import convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values as math_values
+from .math_tool import congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, values as math_values
 from .services import Services
 from .tooling import Tool, ann
 
@@ -32,7 +32,8 @@ Notebook: cite passages with [n] exactly as the tools number them, never cite a 
 For exact arithmetic, polynomial expansion/factorization, polynomial equations, derivatives, integrals or limits, use math_compute and report its result. expand and factor work on polynomials with rational coefficients in one variable; factor works over the rationals, so x**2-2 remains unchanged. Constant denominators are allowed; variable denominators and negative variable powers are not polynomials. Integration takes both lower/upper strings or neither (a primitive with arbitrary constant C). Limits require point; side defaults to both and compares the two sides. oo/-oo are infinite endpoints. Report divergent, nonexistent and unevaluated outcomes as such, never as numerical answers. For systems of linear equations use math_linear_system, with number strings and variables in column order. For value tables use math_values with ordered finite real constant points; report undefined/invalid/complex rows explicitly. Point evaluation preserves the original arithmetic tree and is not a limit. For polynomial interpolation from rational point pairs use math_interpolate; preserve the number strings and report the exact polynomial, degree and residual check. This is interpolation, not regression or prediction. For integer base conversion use math_base_convert with the original number string and explicit source/target bases2–36. Results are signed integers, not fixed-width words or two's complement. For exact rational matrix determinants, inverses or reduced row echelon forms use math_matrix. Singular matrices have no inverse; pivot columns are counted from1. Inverse residuals check A*inverse-I, not a step-by-step proof. These calculators are independent of the study bank.
 Teacher role (classes, exams for students, rubrics, batch correction): exam_generate builds an exam from the bank and/or drafts questions from the teacher's sources with citations (drafts need exam_drafts_review); grading_run only PROPOSES grades for open answers against the rubric: show grading_review to the teacher and call grading_confirm only with what the teacher accepts. Student names, answers and grades stay on this PC: never send them anywhere else.
 For integer gcd/lcm and Bezout identities use math_integer_pair with two signed decimal integer strings. Report its exact coefficients and identity check; coefficients are not unique. Euclidean divisions use absolute values. Two zeros use gcd/lcm and coefficients zero by convention; either zero makes lcm zero. This does not factor primes or change the study bank.
-For a*x = b modulo a nonzero integer use math_linear_congruence with signed decimal strings a,b,modulus. Negative modulus is normalized to its absolute value. Report no_solution when gcd does not divide b; otherwise report the complete integer family x=residue+k*period, k any integer, and residue_count distinct residues modulo |modulus|. Period1 means all integers. No enumeration or CRT system is provided.
+For a*x = b modulo a nonzero integer use math_linear_congruence with signed decimal strings a,b,modulus. Negative modulus is normalized to its absolute value. Report no_solution when gcd does not divide b; otherwise report the complete integer family x=residue+k*period, k any integer, and residue_count distinct residues modulo |modulus|. Period1 means all integers. This tool solves one equation without enumeration.
+For simultaneous x=residue modulo modulus conditions use math_congruence_system with a list of exact residue/modulus strings. Noncoprime moduli are supported. Report the complete family or the incompatible condition and gcd check. Period1 means all integers; no study bank is read or changed.
 Never read the data folder or the database directly; use these tools only."""
 
 QType = Literal["TEST", "DESARROLLO", "COMPLETAR", "PRACTICO"]
@@ -102,6 +103,15 @@ class MathLinearCongruenceArgs(BaseModel):
     a: str = Field(..., min_length=1, description="Signed decimal integer coefficient of x, preserved as a string, e.g. '35'. No expressions or fractions.")
     b: str = Field(..., min_length=1, description="Signed decimal integer target, e.g. '14'. Use '1' to find an inverse when it exists.")
     modulus: str = Field(..., min_length=1, description="Nonzero signed decimal integer string, e.g. '28'; a negative modulus is normalized to its absolute value. Returns all solutions as residue+k*period or no_solution, with exact string values.")
+
+
+class MathCongruenceCondition(BaseModel):
+    residue: str = Field(..., min_length=1, description="Signed decimal integer residue string; no expressions, fractions or numeric JSON values.")
+    modulus: str = Field(..., min_length=1, description="Nonzero signed decimal integer modulus string; a negative modulus is normalized to its absolute value.")
+
+
+class MathCongruenceSystemArgs(BaseModel):
+    constraints: list[MathCongruenceCondition] = Field(..., min_length=1, description="Simultaneous x=residue modulo modulus conditions, e.g. [{'residue':'2','modulus':'6'},{'residue':'5','modulus':'9'}]. Moduli need not be coprime. Returns the complete family or a gcd incompatibility proof.")
 
 
 class MathStatisticsArgs(BaseModel):
@@ -428,6 +438,10 @@ def run_math_linear_congruence(_: Services, args: MathLinearCongruenceArgs) -> d
     return linear_congruence(**args.model_dump())
 
 
+def run_math_congruence_system(_: Services, args: MathCongruenceSystemArgs) -> dict:
+    return congruence_system(**args.model_dump())
+
+
 def run_math_statistics(_: Services, args: MathStatisticsArgs) -> dict:
     return descriptive_statistics(**args.model_dump())
 
@@ -693,6 +707,12 @@ STUDY_TOOLS: list[Tool] = [
          "For two zeros gcd/lcm and coefficients are zero by convention; with either zero lcm is zero. "
          "All integer values stay strings; runtime integer conversion limits apply. No prime factorization or study bank changes."
          + SYN + "máximo común divisor, mínimo común múltiplo, identidad de Bézout, algoritmo de Euclides.", MathIntegerPairArgs, ann(True), run_math_integer_pair),
+    Tool("math_congruence_system", "Solve simultaneous integer congruences exactly. Keywords: teorema chino del resto."
+         " Supply residue/modulus pairs as signed decimal strings. Handles noncoprime moduli, normalizes negatives, rejects zero moduli. "
+         "Returns the complete x=residue+k*period family with canonical residue, positive lcm period and exact checks, "
+         "or no_solution with the incompatible condition, prior class and gcd proof. All integer values are strings. "
+         "No enumeration, factoring, model or study bank change."
+         + SYN + "sistema de congruencias, teorema chino del resto generalizado, CRT, restos simultáneos.", MathCongruenceSystemArgs, ann(True), run_math_congruence_system),
     Tool("math_linear_congruence", "Solve a*x = b modulo an integer exactly. Keywords: congruencia, inverso modular."
          "\nUse signed decimal strings a,b,modulus. Nonzero modulus is normalized to absolute value. "
          "Returns gcd, Bezout identity and compatibility remainder. If compatible, residue+k*period for any integer k, "

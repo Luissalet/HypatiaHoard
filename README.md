@@ -5,12 +5,30 @@
 Hypatia's Hoard is the second version of [Exam Coach](https://github.com/Mlgpigeon/ExamCoach), built to run on your own PC and to be driven by an assistant. Exam Coach stays what it was: a public PWA that students used. Hypatia takes the whole of it and adds:
 
 - **A local server** (Python, `hypatia/`) that serves the app at `http://127.0.0.1:5187`, keeps your study data in SQLite and syncs it with the app's IndexedDB.
-- **Assistant control**: 65 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
+- **Assistant control**: 66 MCP tools so Faustus (or any MCP client) can quiz you with spaced repetition, build mock exams on your weak topics, grade open answers, calculate exact math, add or suggest questions from your own material, and run the teacher role.
 - **A teacher role** (Profesor): classes, exams generated from your bank and your own material with citations, versions A/B, rubrics, batch correction with model proposals you confirm, grades and class analysis. Student data stays on your PC.
 - **A notebook over your sources**: cited answers from your PDFs, study guides, briefing, FAQ, glossary, timeline, a mind map, a two-voice audio overview and a Socratic tutor.
 - **Local models only**, through Hoard Link (vendored in `hypatia/hoard_link/`), the same shared backend the rest of the Hoard family uses. The podcast speaks through Prospero's Hoard, the notebook's embeddings come from Borges's Hoard and scanned PDFs are read by Kafka's Hoard, all through the family hub (see *In the family*). With no model running, every AI feature still returns the material so the assistant can do the work itself, and the app disables the buttons that need a model.
 
 No course content lives in this repository. Subjects arrive as **password-protected packages** (`.examcoach.enc`) from the marketplace or from a file; their questions, PDFs and your progress stay in `data/` and `resources/` on your PC, both ignored by git.
+
+**Congruence systems:** Home → Sistema de congruencias, new
+`math_congruence_system` and `POST /api/math/congruence-system` combine a nonempty
+`constraints` list of signed decimal string `residue`/`modulus` pairs. They handle
+noncoprime moduli and normalize negative moduli; zero is invalid. The complete
+family for2mod6 and5mod9 is `x=14+k*18`, with k any integer. Incompatible systems
+return `no_solution` with the first conflicting condition, prior residue class,
+gcd and nonzero compatibility remainder. A solved result includes normalized
+conditions, canonical nonnegative residue, positive lcm period and exact checks;
+period1 means all integers. Values remain strings beyond JavaScript precision,
+subject to runtime conversion limits. The panel adds/removes conditions, copies
+the result/check, retains invalid input and ignores late responses after editing
+or closing. No residue enumeration, model, new dependency or study-bank change.
+This combines residue conditions, while the individual tool below still solves
+`a*x=b` modulo m. Mathematical reference:
+[SymPy's generalized congruence contract](https://docs.sympy.org/latest/modules/ntheory.html#sympy.ntheory.modular.solve_congruence).
+The implementation merges classes with the existing native linear solver;
+combined MCP catalog66 =48Study+18Teacher.
 
 **Linear congruences:** Home → Congruencias lineales, `math_linear_congruence`
 and `POST /api/math/linear-congruence` solve `a*x ≡ b (mod m)` using the same
@@ -22,7 +40,8 @@ returns `no_solution`. Period1 means every integer solves it. Use b=1 for a
 modular inverse when it exists. Inputs/results remain strings beyond JavaScript
 precision, subject to runtime integer conversion limits. The native panel copies
 the solution/check and retains erroneous inputs for correction. No enormous
-residue list, CRT system, new dependency or study-bank write. Mathematical
+residue list, new dependency or study-bank write. This individual operation does
+not combine conditions; use the separate system tool above. Mathematical
 reference: [MIT18.781 lecture5](https://ocw.mit.edu/courses/18-781-theory-of-numbers-spring-2012/7b36e2ada32c5ed0638783d4e66af60c_MIT18_781S12_lec5.pdf).
 
 **Exact integer pairs:** Home → MCD, MCM y Bézout, `math_integer_pair` and

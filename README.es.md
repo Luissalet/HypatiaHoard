@@ -4,6 +4,25 @@
 
 ## Calculadora exacta
 
+**Sistema de congruencias** combina condiciones `x ≡ r (mod m)` desde el inicio,
+API `POST /api/math/congruence-system` y la nueva MCP `math_congruence_system`.
+Recibe `constraints` con al menos un par de cadenas `residue`/`modulus` enteras
+decimales con signo. Admite módulos no coprimos y normaliza los negativos; cero
+es inválido. Para2mod6 y5mod9 devuelve la familia completa `x=14+k*18`, k cualquier
+entero. Un sistema incompatible devuelve `no_solution`, la primera condición en
+conflicto, clase previa, MCD y resto de compatibilidad distinto de cero. La
+solución incluye condiciones normalizadas, residuo canónico no negativo,
+período positivo igual al MCM y comprobaciones exactas; período1 significa todos
+los enteros. Conserva cifras mayores que la precisión de JavaScript como cadenas
+y los límites de conversión del runtime. El panel permite añadir/quitar filas,
+copiar resultado/comprobación y corregir errores sin perder datos; editar o
+cerrar descarta respuestas viejas. No enumera residuos, usa modelos, añade
+dependencias ni cambia el banco. Combina residuos; la herramienta individual
+conserva la resolución de `a*x=b` módulo m. Contraste matemático:
+[congruencias generalizadas de SymPy](https://docs.sympy.org/latest/modules/ntheory.html#sympy.ntheory.modular.solve_congruence).
+La implementación reutiliza el resolvedor lineal nativo; catálogo combinado66
+=48Estudio+18Profesor.
+
 **Congruencias lineales** resuelve `a*x ≡ b (mod m)` con la misma función nativa
 en el panel del inicio, API `POST /api/math/linear-congruence` y MCP
 `math_linear_congruence`. Introduce `a`, `b`, `modulus` como cadenas decimales
@@ -14,14 +33,15 @@ b, devuelve `no_solution`; período1 significa cualquier entero. Con b=1 obtiene
 un inverso modular cuando existe. Conserva cifras mayores que la precisión de
 JavaScript y los límites de conversión del runtime. Permite copiar solución y
 comprobación y corregir entradas tras un error. No enumera listas enormes,
-resuelve sistemas CRT ni modifica el banco. Referencia matemática:
+ni modifica el banco. Esa operación individual no combina condiciones; se usa
+el panel de sistemas separado descrito arriba. Referencia matemática:
 [MIT18.781, lección5](https://ocw.mit.edu/courses/18-781-theory-of-numbers-spring-2012/7b36e2ada32c5ed0638783d4e66af60c_MIT18_781S12_lec5.pdf).
 
 **MCD, MCM y Bézout** calcula dos enteros decimales con signo y muestra sus
 divisiones de Euclides sobre valores absolutos. Devuelve MCD/MCM no negativos,
 coeficientes enteros `x`/`y` y comprueba `a*x+b*y=MCD`; los coeficientes no son
 únicos. API `POST /api/math/integer-pair` y MCP `math_integer_pair` usan la misma
-función; el catálogo combinado tiene65 herramientas. Entradas y resultados
+función; el catálogo combinado tiene66 herramientas. Entradas y resultados
 enteros son cadenas y conservan cifras mayores que la precisión de JavaScript;
 se mantienen los límites de conversión del runtime. Si algún entero es cero,
 MCM es cero; para `(0,0)` se usan MCD/MCM y coeficientes cero por convención.
