@@ -40,6 +40,10 @@ def index_for(base: Path, target: Path) -> list | dict | None:
     if target.name != "index.json" or folder.name not in CATEGORIES or folder.parent.parent != base:
         return None
     if not folder.is_dir():
+        if not folder.parent.exists():
+            # A subject with no files on this PC yet: an empty listing instead of a 404, so opening
+            # it does not log an error (with no subject folder there is no extra_info.json either).
+            return [] if folder.name == "Temas" else {"files": []}
         return None
     if folder.name == "Temas":
         return _topic_pdfs(folder)

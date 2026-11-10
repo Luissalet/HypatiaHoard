@@ -169,6 +169,10 @@ def test_resource_index_built_from_the_folder(client):
     assert client.get("/resources/vision-artificial/Resumenes/index.json").status_code == 404
     assert client.get("/resources/vision-artificial/extra_info.json").status_code == 404
     assert client.get("/resources/Temas/index.json").status_code == 404
+    # A subject with no folder at all lists nothing instead of logging a 404 in the app.
+    assert client.get("/resources/faros-de-velmora/Temas/index.json").json() == []
+    assert client.get("/resources/faros-de-velmora/Practica/index.json").json() == {"files": []}
+    assert client.get("/resources/faros-de-velmora/extra_info.json").status_code == 404
 
 
 def test_resource_upload_keeps_topic_pdfs_on_the_server(client):
