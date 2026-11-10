@@ -49,4 +49,4 @@ def test_congruence_api_mcp_contract_and_bank_preservation(client):
         assert client.post('/api/math/linear-congruence', json=args).status_code == 400
     assert snapshot() == before
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == 71 and catalog['math_linear_congruence']['annotations']['readOnlyHint']
+    assert len(catalog) == 74 and catalog['math_linear_congruence']['annotations']['readOnlyHint']

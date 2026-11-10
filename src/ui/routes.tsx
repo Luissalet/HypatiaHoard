@@ -32,6 +32,10 @@ const GradingBatchPage     = lazy(() => import('./pages/teacher/GradingBatchPage
 const NotebookPage         = import.meta.env.VITE_HOARD === '1'
   ? lazy(() => import('./pages/Notebook').then(m => ({ default: m.NotebookPage })))
   : null;
+// Repaso oral (pregunta leída, respuesta de viva voz): necesita el servidor local.
+const OralReviewPage       = import.meta.env.VITE_HOARD === '1'
+  ? lazy(() => import('./pages/OralReview').then(m => ({ default: m.OralReviewPage })))
+  : null;
 
 // ── Spinner de carga para rutas diferidas ──────────────────────────────────
 function PageLoader() {
@@ -69,6 +73,12 @@ export function AppRouter() {
           <Route path="/results/:sessionId"                    element={<ResultsPage />} />
           <Route path="/settings"                              element={<SettingsPage />} />
           <Route path="/flashcard/:subjectId"                  element={<FlashcardPage />} />
+          {OralReviewPage && (
+            <Route path="/oral"                                element={<OralReviewPage />} />
+          )}
+          {OralReviewPage && (
+            <Route path="/oral/:subjectId"                     element={<OralReviewPage />} />
+          )}
           <Route path="/deliverables"                          element={<DeliverablesPage />} />
           <Route path="/sessions"                              element={<SessionHistoryPage />} />
           <Route path="/stats"                                 element={<GlobalStatsPage />} />

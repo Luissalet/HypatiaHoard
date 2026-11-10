@@ -9,7 +9,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
-from . import bank, grading, lessons, pages, records, study, suggest, study_calendar
+from . import bank, grading, lessons, oral, pages, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
 from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, partial_fractions, polynomial_division, polynomial_gcd, rational_taylor, values as math_values
 from .services import Services
@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover - depends on the checkout
 AGENT_INSTRUCTIONS = """Hypatia's Hoard is the user's exam-prep bank (the same data as the Exam Coach PWA at http://127.0.0.1:5187, synced both ways): subjects, topics, questions (TEST, DESARROLLO, COMPLETAR, PRACTICO) with spaced repetition, key concepts, deliverables, and a notebook of the user's own sources (PDFs, notes) with citations.
 Quizzing: call cards_due (or exam_mock for a mock exam), show ONLY the prompt (and the options for TEST), wait for the user's real answer, then grade it: answer_grade for TEST/COMPLETAR (deterministic) or DESARROLLO/PRACTICO (model rubric; if it returns no verdict, compare with modelAnswer yourself), then call card_review once with the prompt you showed (and the id) and the grade the answer earns: again if wrong, blank, "no me acuerdo" or about something else; hard if partly right; good if right; easy only if instant and complete. Then say what the model answer said.
 Page cards (kind \"page\" in cards_due: an HTML lesson, `pageHtml`) are reviewed whole: show the lesson (or its text), ask how much the user recalls, and call card_review with the prompt (the page title) and the grade they report; there is no answer to withhold. Create them with page_card_add from material the user has.
+Oral review (the user answers by voice): oral_card_next gives the next due card with its question already spoken (audio.path); play or read it, get the user's recorded answer (audio_path) or what they said (transcript), and call oral_card_answer once: it transcribes, compares by meaning, records the grade and returns what was right (covered), what was missing, the spoken feedback and the next card. Pass the ids already asked in `exclude`. Do not also call card_review for that answer.
 Teach a document: lesson_from_document turns pasted text or a file (PDF, DOCX...) into a lesson (sections, key concepts, one question per concept stored in the bank; save=false previews). Then lesson_get(lesson, section=n) gives one section to teach and its questions to interleave; quiz them as usual (answer_grade, card_review). concept_mastery shows the mastery per concept computed from the review history; use it to pick what to reteach.
 Never reveal the answer before the user has answered. Never call card_review without a real answer from the user in this conversation. Never invent questions, grades or sources.
 Adding questions: only from material the user has (their notes, a notebook source, what they said). Prefer questions_suggest (shows drafts; nothing saved) and save only what the user accepts with questions_suggest_accept. If a tool returns `material` and a `note` instead of drafts/answers, no local model was available: do the work yourself from that material.
@@ -263,6 +264,33 @@ class AnswerGradeArgs(BaseModel):
     prompt: str | None = Field(None, max_length=8000, description="The prompt shown, when there is no id.")
     subject: str | None = Field(None, max_length=200)
     answer: str | list[str] | dict[str, str] = Field(..., description="The user's answer: free text; TEST: letters/ids/texts ('a, c'); COMPLETAR: text per blank (list or {blankId: text}).")
+
+
+class OralCardNextArgs(BaseModel):
+    subject: str | None = Field(None, max_length=200, description="Subject; omit for every subject.")
+    deck: str | None = Field(None, max_length=200, description="Alias of subject.")
+    topic: str | None = Field(None, max_length=200)
+    exclude: list[str] = Field(default_factory=list, max_length=2000, description="Card ids already asked in this session (so a failed card is not asked again at once).")
+    speak: bool = Field(True, description="Also synthesize the question (audio.path is a WAV on this PC).")
+
+
+class OralCardAnswerArgs(BaseModel):
+    id: str | None = Field(None, max_length=100, description="The card id from oral_card_next.")
+    prompt: str | None = Field(None, max_length=8000, description="The prompt asked, when there is no id.")
+    subject: str | None = Field(None, max_length=200)
+    topic: str | None = Field(None, max_length=200)
+    audio_path: str | None = Field(None, max_length=1000, description="Absolute path on this PC of the recorded answer (wav, mp3, webm, m4a, ogg...).")
+    transcript: str | None = Field(None, max_length=8000, description="What the user said, when it is already transcribed (then no audio is needed).")
+    record: bool = Field(True, description="Enter the grade in the spaced-repetition schedule. False only previews the comparison.")
+    grade: Grade | None = Field(None, description="Force again/hard/good/easy instead of the grade the comparison suggests.")
+    speak_feedback: bool = Field(True, description="Also synthesize the feedback and the next question.")
+    language: str = Field("es", max_length=12, description="Language of the answer for the transcription.")
+    exclude: list[str] = Field(default_factory=list, max_length=2000, description="Card ids already asked in this session.")
+
+
+class OralSpeakArgs(BaseModel):
+    text: str = Field(..., min_length=1, max_length=4000)
+    voice: str | None = Field(None, max_length=200, description="A voice of the family's voice studio; omit for the default one.")
 
 
 class WeakTopicsArgs(BaseModel):
@@ -571,6 +599,29 @@ def run_answer_grade(services: Services, args: AnswerGradeArgs) -> dict:
     return grading.grade(services, question, args.answer)
 
 
+def run_oral_card_next(services: Services, args: OralCardNextArgs) -> dict:
+    subject = _subject(services, args.subject or args.deck)
+    topic = _topic(services, subject, args.topic)
+    return oral.next_card(services, subject["id"] if subject else None, topic["id"] if topic else None,
+                          args.exclude, args.speak)
+
+
+def run_oral_card_answer(services: Services, args: OralCardAnswerArgs) -> dict:
+    subject = _subject(services, args.subject)
+    topic = _topic(services, subject, args.topic)
+    question = _question(services, args.id, args.prompt, args.subject)
+    return oral.answer(services, question, transcript=args.transcript, audio_path=args.audio_path, record=args.record,
+                       grade=args.grade, speak_feedback=args.speak_feedback, language=args.language, exclude=args.exclude,
+                       subject_id=subject["id"] if subject else None, topic_id=topic["id"] if topic else None)
+
+
+def run_oral_speak(services: Services, args: OralSpeakArgs) -> dict:
+    audio = oral.speak(services, args.text, args.voice)
+    if audio is None:
+        return {"ok": False, "note": "No voice answered: start the family's voice studio (Prospero's Hoard) or configure a tts model."}
+    return {"ok": True, **audio}
+
+
 def run_weak_topics(services: Services, args: WeakTopicsArgs) -> dict:
     subject = services.resolve_subject(args.subject)
     return {"subject": subject["name"], "topics": study.weak_topics(services, subject["id"])[: args.limit]}
@@ -759,35 +810,35 @@ STUDY_TOOLS: list[Tool] = [
          "For transpose, accepts rectangular rational matrices and exchanges rows and columns, returning transpose_exact, transpose_rows and transpose_columns. No conjugation or study bank writes. "
          "Singular matrices have no inverse and report status singular; no symbolic entries or step-by-step proof. No study bank changes."
          + SYN + "determinante, matriz inversa, reducción por filas, rango, pivotes, Gauss-Jordan, producto de matrices, multiplicar matrices, núcleo, nullspace, kernel, sistema homogéneo, potencia de matriz, exponente entero, elevar matriz, transpuesta, traspuesta, transpose, intercambiar filas y columnas.", MathMatrixArgs, ann(True), run_math_matrix),
-    Tool("math_rational_taylor", "Expand a rational function into an exact Taylor polynomial around a rational center. Keywords: Taylor, desarrollo local."
-         " Give numerator/denominator polynomials over QQ, center string, inclusive degree0..12 and variable x/y/t."
+    Tool("math_rational_taylor", "Expand a rational function into an exact Taylor polynomial at a rational center. Keywords: Taylor."
+         "\nGive numerator/denominator polynomials over QQ, center string, inclusive degree0..12 and variable x/y/t."
          " Returns centered/expanded polynomial, all coefficients including zeros, exact algebraic remainder,"
          " original denominator nonzero restriction and identity verification. Rejects centers outside the original domain,"
          " even for cancelled factors. No convergence radius, numerical error bound, transcendental/Laurent series,"
          " derivative steps or study bank changes."
-         + SYN + "serie de Taylor racional, Maclaurin, coeficientes exactos, resto exacto.", MathRationalTaylorArgs, ann(True), run_math_rational_taylor),
+         + SYN + "serie de Taylor racional, desarrollo local, Maclaurin, coeficientes exactos, resto exacto.", MathRationalTaylorArgs, ann(True), run_math_rational_taylor),
     Tool("math_partial_fractions", "Decompose a rational function into exact partial fractions. Keywords: fracciones parciales."
-         " Give rational-coefficient numerator/denominator polynomials and one variable x, y or t."
+         "\nGive rational-coefficient numerator/denominator polynomials and one variable x, y or t."
          " Returns polynomial part, proper partial fractions, full decomposition, exact strings/LaTeX,"
          " residual and verification. Original denominator must remain nonzero, including cancelled factors or zero numerator."
          " Decomposition is over QQ: irreducible rational factors may remain. No algebraic/complex extension,"
          " pole solving, integration, derivation steps or study bank changes."
          + SYN + "fracciones simples, función racional, descomposición racional.", MathPartialFractionsArgs, ann(True), run_math_partial_fractions),
     Tool("math_polynomial_gcd", "Calculate monic rational polynomial gcd/lcm and exact Bezout coefficients. Keywords: MCD, MCM."
-         " Use a/b strings in one variable x, y or t. Returns normalized inputs, monic nonzero gcd/lcm,"
+         "\nUse a/b strings in one variable x, y or t. Returns normalized inputs, monic nonzero gcd/lcm,"
          " u/v satisfying A*u+B*v=gcd, exact strings/LaTeX/degrees (null for zero), residual and verification."
          " Coefficients are not unique. If either input is zero lcm is zero; for both zero all results are zero by convention."
          " Over QQ: constants are units, so coprime means gcd=1. No multivariate polynomials, rational functions,"
          " Euclidean steps or study bank changes."
          + SYN + "MCD polinómico, MCM de polinomios, Bézout, Euclides extendido.", MathPolynomialGcdArgs, ann(True), run_math_polynomial_gcd),
     Tool("math_polynomial_division", "Divide univariate polynomials over the rationals with exact quotient and remainder."
-         " Use dividend/divisor strings and variable x, y or t; divisor must not be zero."
+         "\nUse dividend/divisor strings and variable x, y or t; divisor must not be zero."
          " Returns normalized polynomials, quotient/remainder exact strings and LaTeX, degrees (null for zero),"
          " A=B*Q+R identity, residual and verification. Remainder is zero or degree below the divisor."
          " No multivariate division, rational functions, long-division steps or study bank changes."
          + SYN + "división de polinomios, cociente, resto, división euclídea.", MathPolynomialDivisionArgs, ann(True), run_math_polynomial_division),
     Tool("math_continued_fraction", "Expand an exact rational into a finite continued fraction."
-         " Returns original/normalized input, coefficient and convergent string arrays, notation, reconstructed rational and exact verification."
+         "\nReturns original/normalized input, coefficient and convergent string arrays, notation, reconstructed rational and exact verification."
          " Integers, finite decimals and integer fractions only; negative inputs use floor quotients."
          " No floating-point rounding, irrational periods, best-approximation proof or study bank changes."
          + SYN + "fracciones continuas, convergentes, expansión racional.", MathContinuedFractionArgs, ann(True), run_math_continued_fraction),
@@ -798,7 +849,7 @@ STUDY_TOOLS: list[Tool] = [
          "All integer values stay strings; runtime integer conversion limits apply. No prime factorization or study bank changes."
          + SYN + "máximo común divisor, mínimo común múltiplo, identidad de Bézout, algoritmo de Euclides.", MathIntegerPairArgs, ann(True), run_math_integer_pair),
     Tool("math_congruence_system", "Solve simultaneous integer congruences exactly. Keywords: teorema chino del resto."
-         " Supply residue/modulus pairs as signed decimal strings. Handles noncoprime moduli, normalizes negatives, rejects zero moduli. "
+         "\nSupply residue/modulus pairs as signed decimal strings. Handles noncoprime moduli, normalizes negatives, rejects zero moduli. "
          "Returns the complete x=residue+k*period family with canonical residue, positive lcm period and exact checks, "
          "or no_solution with the incompatible condition, prior class and gcd proof. All integer values are strings. "
          "No enumeration, factoring, model or study bank change."
@@ -876,6 +927,22 @@ STUDY_TOOLS: list[Tool] = [
          "modelAnswer for you to judge). Returns suggestedGrade for card_review. Saves nothing."
          + SYN + "corregir, evaluar respuesta, está bien mi respuesta, nota, puntuar.", AnswerGradeArgs, ann(True, False, False),
          run_answer_grade),
+    Tool("oral_card_next", "Next due card to ask aloud, with the question already synthesized. Keywords: repaso oral, voz."
+         "\nSame queue as cards_due (overdue, never seen, last failed) without page cards and without the ids in `exclude`. "
+         "Returns the card (prompt, spoken text, options) and audio.path, a WAV of the question; no answer is included: "
+         "oral_card_answer compares and grades." + SYN + "tarjeta oral, pregúntame de viva voz, repaso hablado, léeme la pregunta.",
+         OralCardNextArgs, ann(True, False, False), run_oral_card_next),
+    Tool("oral_card_answer", "Grade a spoken answer by meaning and record the review (write). Keywords: respuesta oral."
+         "\nGive audio_path (it is transcribed by the family's speech-to-text) or transcript. The family model compares the answer "
+         "with the expected one by meaning: verdict, covered (what was right), missing, feedback; the suggested grade enters "
+         "the schedule exactly like card_review (record=false previews). Silence and the commands «repite», «siguiente», «parar» "
+         "record nothing. Without a model, option and fill-in cards are graded by rule and open ones return needsSelfGrade. "
+         "Returns feedbackAudio and the next card." + SYN + "respuesta hablada, corregir de viva voz, transcribir respuesta, nota oral.",
+         OralCardAnswerArgs, ann(False, False, False), run_oral_card_answer),
+    Tool("oral_speak", "Synthesize a text with the family voice and get the WAV path. Keywords: leer en voz alta."
+         "\nUsed for the questions and the feedback of oral cards; also makes a spoken answer to try oral_card_answer without a "
+         "microphone. The same text and voice are synthesized once." + SYN + "leer texto, voz, audio de prueba, texto a voz.",
+         OralSpeakArgs, ann(False, False, True), run_oral_speak),
     Tool("weak_topics", "Rank a subject's topics by weakness: accuracy, failed, overdue, never seen. Keywords: puntos débiles."
          "\nScore 0-100 (higher = weaker) per topic." + SYN + "temas flojos, qué me cuesta, dónde fallo, puntos débiles, qué repasar.",
          WeakTopicsArgs, ann(True), run_weak_topics),

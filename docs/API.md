@@ -19,3 +19,14 @@ Notebook legacy continuation calls Faustus POST `/api/hoard-copilot/imports` thr
 Transport provenance: hypatia/hoard_link/copilot.py is byte-identical to HoardLink main fe828e62322e8614c490458df59d298f904198e0 (the approved shared relay), without the experimental generic installer dependency.
 
 Optional recursive patches: MCP `record_patch(..., merge_objects=true)` and HTTP `PATCH ...?merge_objects=true` merge changed object keys recursively; null removes the supplied key. Arrays continue to replace their field. The default remains the reviewed whole-field replacement contract. Teacher header saves use differences against the form baseline and recursive patches, so changing the centre retains an agent's change to the course. Native forms also supply typed draft snapshots through `hypatia:context-request`, including option choices and ids that are represented by buttons rather than inputs.
+
+## Oral cards
+
+All under `/api/study/oral` (same guard as the rest of the API; the MCP tools `oral_card_next`, `oral_card_answer` and `oral_speak` share the argument models).
+
+- `GET /status` → `{tts, stt: "funes" | "prospero" | "local" | null, llm, voice, engine}`.
+- `POST /next` `{subject?, topic?, exclude?: [ids], speak?: true}` → `{card, remaining, asked, today, note}`. `card` is `{id, type, prompt, spoken, subject, topic, options?, clozeText?, audio}`; `audio` is `{name, path, url, bytes, duration_s, voice, text}` or null when no voice answers. No answer field is returned.
+- `POST /answer` `{id | prompt, transcript | audio_path, subject?, topic?, record?: true, grade?, speak_feedback?: true, language?: "es", exclude?}` → `{questionId, transcript, heard, verdict, score, covered, missing, feedback, grade, expected, explanation, needsSelfGrade, by: "model" | "rule", model, recorded, review?, transcription?, feedbackSpoken, feedbackAudio, next}`. Silence returns `heard: false`; a session command returns `action: "repeat" | "skip" | "stop"`; a failed transcription returns `error: "stt_unavailable"` with the reasons in `note`. None of those records a review.
+- `POST /answer-audio?id=…&subject=&topic=&record=&speak_feedback=&language=&exclude=a,b&filename=` with the audio as the body (`Content-Type: audio/webm`, `audio/wav`, `audio/mpeg`…; at most 40 MB) → the same answer. The file is deleted after the transcription.
+- `POST /speak` `{text, voice?}` → `{ok, name, path, url, bytes, duration_s, voice, text}`.
+- `GET /audio/{name}` → the cached WAV (`name` is the 24-hex-digit file name returned above).

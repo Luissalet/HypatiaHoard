@@ -59,5 +59,5 @@ def test_api_agent_match_and_preserve_study_tables(client):
     for invalid in ({'numerator':'x','denominator':'0'}, {'numerator':3,'denominator':'1'}, {'numerator':'1','denominator':'1','order':1.5}, {}):
         assert client.post('/api/math/rational-taylor',json=invalid).status_code==400
     catalog={t['name']:t for t in tool_catalog()}
-    assert len(catalog)==71 and catalog['math_rational_taylor']['annotations']['readOnlyHint']
+    assert len(catalog)==74 and catalog['math_rational_taylor']['annotations']['readOnlyHint']
     assert snapshot()==before

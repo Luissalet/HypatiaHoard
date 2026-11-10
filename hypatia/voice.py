@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from .hoard_link import fam_media
+from .hoard_link import fam_media, family
 
 DEFAULT_ENGINE = "piper"
 DEFAULT_VOICES = ("es_ES-davefx-medium", "es_ES-sharvard-medium")
@@ -46,9 +46,23 @@ class VoiceError(RuntimeError):
     pass
 
 
+def wake_studio(error: object) -> bool:
+    """Prospero keeps its generation module (voices and dictation) off until it is asked for, and a
+    restart turns it off again: when a call is refused for that reason, turn the module on. True when
+    it is on now and the call is worth repeating."""
+    if "is off" not in str(error or "").lower():
+        return False
+    raw = family.call("prospero", "studio_module_set",
+                      {"module": "generation", "enabled": True,
+                       "reason": "Hypatia necesita la voz y la transcripción de la familia"}, timeout=120.0)
+    return isinstance(raw, dict) and bool(raw.get("ok"))
+
+
 def speak(text: str, voice_ref: Optional[str], engine: str = DEFAULT_ENGINE, timeout: float = 300.0) -> bytes:
     """WAV bytes for `text` from Prospero through the hub. Raises VoiceError."""
     res = fam_media.speak_bytes(text, voice=voice_ref, engine=engine, lang="es", timeout_s=timeout, local_fallback=False)
+    if not res.get("ok") and wake_studio(res.get("error")):
+        res = fam_media.speak_bytes(text, voice=voice_ref, engine=engine, lang="es", timeout_s=timeout, local_fallback=False)
     if not res.get("ok"):
         raise VoiceError(f"Prospero's Hoard rechazó la voz {voice_ref!r}: {res.get('error') or 'sin respuesta'}")
     return res["data"]

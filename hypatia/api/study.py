@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 
 from .. import agent_tools as tools
+from .. import oral
 from .deps import services
 
 router = APIRouter(prefix="/api/study")
@@ -67,6 +70,67 @@ def lesson_delete(request: Request, body: tools.LessonDeleteArgs):
 @router.post("/grade")
 def grade(request: Request, body: tools.AnswerGradeArgs):
     return _run(tools.run_answer_grade, request, body)
+
+
+@router.get("/oral/status")
+def oral_status(request: Request):
+    return oral.status(services(request))
+
+
+@router.post("/oral/next")
+def oral_next(request: Request, body: tools.OralCardNextArgs):
+    return _run(tools.run_oral_card_next, request, body)
+
+
+@router.post("/oral/answer")
+def oral_answer(request: Request, body: tools.OralCardAnswerArgs):
+    return _run(tools.run_oral_card_answer, request, body)
+
+
+@router.post("/oral/answer-audio")
+async def oral_answer_audio(request: Request, id: str = Query(..., min_length=1, max_length=100),
+                            subject: str | None = Query(None, max_length=200), topic: str | None = Query(None, max_length=200),
+                            record: bool = Query(True), speak_feedback: bool = Query(True),
+                            language: str = Query("es", max_length=12), exclude: str = Query("", max_length=80000),
+                            filename: str = Query("", max_length=300)):
+    """The recorded answer as the request body (what the microphone button and «Subir audio» send)."""
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > oral.MAX_ANSWER_BYTES:
+        raise HTTPException(413, "El audio supera 40 MB.")
+    buf = bytearray()
+    async for part in request.stream():
+        buf.extend(part)
+        if len(buf) > oral.MAX_ANSWER_BYTES:
+            raise HTTPException(413, "El audio supera 40 MB.")
+    content_type = request.headers.get("content-type", "")
+
+    def work() -> dict:
+        try:
+            path = oral.save_answer_audio(bytes(buf), content_type, filename)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from error
+        try:
+            args = tools.OralCardAnswerArgs(id=id, subject=subject, topic=topic, audio_path=str(path), record=record,
+                                            speak_feedback=speak_feedback, language=language,
+                                            exclude=[part for part in exclude.split(",") if part])
+            return _run(tools.run_oral_card_answer, request, args)
+        finally:
+            path.unlink(missing_ok=True)
+
+    return await run_in_threadpool(work)
+
+
+@router.post("/oral/speak")
+def oral_speak(request: Request, body: tools.OralSpeakArgs):
+    return _run(tools.run_oral_speak, request, body)
+
+
+@router.get("/oral/audio/{name}")
+def oral_audio(request: Request, name: str):
+    path = oral.audio_file(services(request), name)
+    if path is None:
+        raise HTTPException(404, "No existe ese audio.")
+    return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "private, max-age=86400"})
 
 
 @router.post("/weak-topics")

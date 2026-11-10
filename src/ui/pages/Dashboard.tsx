@@ -624,6 +624,22 @@ export function Dashboard() {
                     : `${subjects.length} asignatura${subjects.length !== 1 ? 's' : ''} · ${Object.values(stats).reduce((k, b) => k + b.total, 0)} preguntas`}
                 </p>
               </div>
+              <div className="shrink-0 flex flex-wrap items-center justify-end gap-2">
+              {hoard && subjects.length >= 1 && (
+                <button
+                  onClick={() => navigate('/oral')}
+                  data-testid="dashboard-oral"
+                  title="Hypatia pregunta en voz alta y tú respondes de viva voz"
+                  className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-ink-800 border border-ink-700 text-ink-200 hover:text-ink-100 hover:border-amber-500/50 rounded-xl text-sm font-medium transition-all"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0" aria-hidden="true">
+                    <rect x="9" y="2" width="6" height="12" rx="3"/>
+                    <path d="M5 10v1a7 7 0 0 0 14 0v-1"/>
+                    <line x1="12" y1="18" x2="12" y2="22"/>
+                  </svg>
+                  Repaso oral
+                </button>
+              )}
               {subjects.length >= 2 && (
                 <button
                   onClick={() => navigate('/global-practice')}
@@ -638,6 +654,7 @@ export function Dashboard() {
                   Práctica mixta
                 </button>
               )}
+              </div>
             </div>
 
             {hoard && ExactMathPanel && <Suspense fallback={null}><ExactMathPanel /></Suspense>}

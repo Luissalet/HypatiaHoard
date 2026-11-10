@@ -54,5 +54,5 @@ def test_api_agent_catalog_and_no_study_mutation(client):
     for invalid in ({'a': 'x', 'b': 'sin(x)'}, {'a': 3, 'b': 'x'}, {}):
         assert client.post('/api/math/polynomial-gcd', json=invalid).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == 71 and catalog['math_polynomial_gcd']['annotations']['readOnlyHint']
+    assert len(catalog) == 74 and catalog['math_polynomial_gcd']['annotations']['readOnlyHint']
     assert snapshot() == before
