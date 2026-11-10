@@ -352,7 +352,7 @@ function PackageCard({
   const isInstalled = !!installed;
 
   return (
-    <div className={`rounded-xl border p-4 transition-colors ${
+    <div className={`min-w-0 rounded-xl border p-4 transition-colors ${
       isInstalled
         ? 'bg-ink-900/50 border-emerald-500/30'
         : 'bg-ink-900/30 border-ink-800 hover:border-ink-700'

@@ -175,6 +175,8 @@
 /* ─── Hoard family chrome (dark) ───────────────────────────────────────────── */
 [data-theme="dark"] body { font-family: var(--hoard-font-sans); }
 [data-theme="dark"] header.border-b { min-height: var(--hoard-header-h); display: flex; flex-direction: column; justify-content: center; background: var(--hoard-surface); border-color: var(--hoard-border); backdrop-filter: none; }
+/* The column flex above stops auto-margin children from stretching: keep them at the header width so a wide row (tabs, buttons) scrolls or wraps inside instead of widening the page on a phone. */
+[data-theme="dark"] header.border-b > * { width: 100%; min-width: 0; }
 [data-theme="dark"] header.border-b span.font-display { font-weight: 700; color: var(--hoard-accent); }
 [data-theme="dark"] header.border-b div.rounded-lg.bg-amber-500 { width: 32px; height: 32px; border-radius: 8px; }
 [data-theme="dark"] h1.font-display, [data-theme="dark"] h2.font-display { font-weight: 700; }
