@@ -9,7 +9,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
-from . import bank, grading, lessons, oral, pages, records, study, suggest, study_calendar
+from . import bank, grading, lessons, oral, pages, plan, records, study, suggest, study_calendar
 from .math_tool import compute as compute_math
 from .math_tool import continued_fraction, congruence_system, convert_base, descriptive_statistics, integer_pair, interpolate, linear_congruence, linear_system, matrix_calculate, partial_fractions, polynomial_division, polynomial_gcd, rational_taylor, values as math_values
 from .services import Services
@@ -367,6 +367,20 @@ class StudyCalendarArgs(BaseModel):
     include_completed: bool = False
 
 
+class StudyPlanArgs(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200, description="Subject name, slug, prefix or id.")
+    exam_date: date | None = Field(None, description="Exam date YYYY-MM-DD; omit to reuse the saved plan's or the subject's date.")
+    minutes_per_day: int | None = Field(None, ge=10, le=600, description="Study minutes available per day (default saved or 60).")
+    rest_days: list[int] | None = Field(None, max_length=6, description="Weekdays without study: 0=Monday ... 6=Sunday.")
+    mock_questions: int | None = Field(None, ge=5, le=100, description="Questions per timed mock exam (default 20).")
+    mock_minutes: int | None = Field(None, ge=5, le=300, description="Minutes per timed mock exam (default 1.5 per question).")
+    save: bool = Field(True, description="Keep these settings for the subject (the app and the family agenda show the plan).")
+
+
+class StudyPlanClearArgs(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200, description="Subject name, slug, prefix or id.")
+
+
 class CardIn(BaseModel):
     front: str = Field(..., min_length=1, max_length=8000)
     back: str = Field(..., min_length=1, max_length=16000)
@@ -685,6 +699,18 @@ def run_deliverables_upcoming(services: Services, args: DeliverablesArgs) -> dic
     return {"days": args.days, "count": len(rows), "deliverables": rows}
 
 
+def run_study_plan(services: Services, args: StudyPlanArgs) -> dict:
+    subject = services.resolve_subject(args.subject)
+    return plan.build(services, subject, exam_date=args.exam_date.isoformat() if args.exam_date else None,
+                      minutes_per_day=args.minutes_per_day, rest_days=args.rest_days, mock_questions=args.mock_questions,
+                      mock_minutes=args.mock_minutes, save=args.save)
+
+
+def run_study_plan_clear(services: Services, args: StudyPlanClearArgs) -> dict:
+    subject = services.resolve_subject(args.subject)
+    return {"subject": subject.get("name"), "removed": plan.clear(services, subject["id"])}
+
+
 def run_study_calendar_export(services: Services, args: StudyCalendarArgs) -> dict:
     subject = _subject(services, args.subject)
     return study_calendar.export_calendar(services, date_from=args.date_from, date_to=args.date_to,
@@ -985,6 +1011,13 @@ STUDY_TOOLS: list[Tool] = [
     Tool("lesson_delete", "Delete a lesson (write, destructive); its questions stay unless delete_questions. Keywords: borrar lección.\n"
          "Lets you rebuild a lesson from the same document.\nSinónimos: eliminar lección, rehacer lección.",
          LessonDeleteArgs, ann(False, True, True), run_lesson_delete),
+    Tool("study_plan", "Day-by-day study plan until the exam date: reviews, new cards, timed mocks. Keywords: plan de estudio."
+         "\nComputed from the bank and the review schedule (no model): reviews due each day, unseen cards spread so all are "
+         "studied before the last days, timed mock exams weighted to weak topics (weekly and ~3 days before), a final review "
+         "day. Returns todayPlan.questionIds to quiz now, weak topics and warnings when a day exceeds the minutes. "
+         "save=true keeps the settings; the family agenda then shows each study day."
+         + SYN + "plan de estudio, organízame hasta el examen, calendario de repaso, cuánto tengo que estudiar al día, simulacro.",
+         StudyPlanArgs, ann(False, False, True), run_study_plan),
     Tool("study_calendar_export", "Export saved study deadlines as iCalendar. Keywords: calendario, ICS, entregas, exámenes."
          "\nPreview an explicit date range. Read-only; exact dates and saved local times, stable UIDs, excluded items with reasons. "
          "No teacher records, grades, reminders or inferred study sessions."

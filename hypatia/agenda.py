@@ -2,7 +2,8 @@
 
 * exams: a subject's exam date, and the date in the header of a teacher exam (when it is a real date);
 * deliverables (activities, tests, practicals) not yet done, with their due date and time;
-* cards: "N tarjetas para repasar hoy", one all-day item for today, only when something is due.
+* cards: "N tarjetas para repasar hoy", one all-day item for today, only when something is due;
+* the study plan of each subject that has one: an all-day item per study day and its exam date.
 
 Nothing here reads a student's name or answers: only subject names, exam titles and counts.
 """
@@ -84,5 +85,11 @@ def agenda_items(services: Any, date_from: date, date_to: date, sphere: str = ""
             items.append({"id": f"hypatia:cards:{today.isoformat()}", "all_day": True, "start": today.isoformat(), "kind": "cards",
                           "title": f"{due} tarjeta{'' if due == 1 else 's'} para repasar hoy",
                           "priority": "normal", "url": familyevents.app_link(services, "")})
+    try:
+        from . import plan
+
+        items.extend(plan.agenda_items(services, date_from, date_to))
+    except Exception:  # noqa: BLE001 - a broken plan never hides the rest of the agenda
+        pass
     items.sort(key=lambda i: (str(i["start"]), i["id"]))
     return items

@@ -59,6 +59,11 @@ export function serverIdFor(kind: RecordKind, localId: string): string {
   return toServerId(readIdMap(), kind, localId);
 }
 
+/** Local ids for a server id (the id itself first, then any alias the server deduped onto it). */
+export function localIdsFor(kind: RecordKind, serverId: string): string[] {
+  return toLocalIds(readIdMap(), kind, serverId);
+}
+
 // ─── Dexie hooks ─────────────────────────────────────────────────────────────
 
 /** kind:id pairs being deleted because the server said so — not re-queued. */

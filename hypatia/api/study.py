@@ -27,6 +27,16 @@ def calendar_export(request: Request, body: tools.StudyCalendarArgs):
     return _run(tools.run_study_calendar_export, request, body)
 
 
+@router.post("/plan")
+def study_plan(request: Request, body: tools.StudyPlanArgs):
+    return _run(tools.run_study_plan, request, body)
+
+
+@router.post("/plan/clear")
+def study_plan_clear(request: Request, body: tools.StudyPlanClearArgs):
+    return _run(tools.run_study_plan_clear, request, body)
+
+
 @router.post("/due")
 def due(request: Request, body: tools.CardsDueArgs):
     return _run(tools.run_cards_due, request, body)

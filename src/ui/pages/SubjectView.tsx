@@ -1,5 +1,5 @@
 import { useCopilotDraft } from '@/ui/hooks/useCopilotDraft';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { changedFields } from '@/data/copilotCore';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '@/ui/store';
@@ -32,7 +32,12 @@ import { exportToAnkiTsv, downloadAnkiFile } from '@/utils/ankiExport';
 import { getTopicWavCacheKey, getResourceWavCacheKey, hasWavEntry } from '@/utils/backgroundSynthesis';
 import type { SynthesisProgress } from '@/utils/backgroundSynthesis';
 import { useHoardMode, isHoardMode } from '@/data/hoardMode';
-type TabId = 'topics' | 'questions' | 'practice' | 'exams' | 'resources' | 'concepts' | 'chatbots' | 'ia';
+type TabId = 'topics' | 'questions' | 'practice' | 'plan' | 'exams' | 'resources' | 'concepts' | 'chatbots' | 'ia';
+
+// Plan de estudio: computed by the local server, so it only exists in the Hoard build.
+const StudyPlanPanel = import.meta.env.VITE_HOARD === '1'
+  ? lazy(() => import('@/ui/components/StudyPlanPanel').then((m) => ({ default: m.StudyPlanPanel })))
+  : null;
 
 const TYPE_LABELS_MAP: Record<QuestionType, string> = {
   TEST: 'Test',
@@ -116,6 +121,7 @@ function CopyLinkButton({ subjectId, tab }: { subjectId: string | undefined; tab
     <button
       onClick={handleCopy}
       title={copied ? '¡Enlace copiado!' : 'Copiar enlace a esta asignatura'}
+      aria-label={copied ? 'Enlace copiado' : 'Copiar enlace a esta asignatura'}
       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 ${
         copied
           ? 'bg-sage-600/20 text-sage-400 border border-sage-600/30'
@@ -127,14 +133,14 @@ function CopyLinkButton({ subjectId, tab }: { subjectId: string | undefined; tab
           <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
           </svg>
-          Copiado
+          <span className="hidden sm:inline">Copiado</span>
         </>
       ) : (
         <>
           <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
             <path d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" />
           </svg>
-          Copiar enlace
+          <span className="hidden sm:inline">Copiar enlace</span>
         </>
       )}
     </button>
@@ -773,6 +779,7 @@ const handleResourceDelete = async (categorySlug: string, filename: string) => {
     { id: 'topics', label: 'Temas' },
     { id: 'questions', label: `Preguntas (${subjectQuestions.length})` },
     { id: 'practice', label: 'Practicar' },
+    ...(hoard && StudyPlanPanel ? [{ id: 'plan', label: 'Plan' }] : []),
     { id: 'exams', label: `Exámenes (${subjectExams.length})` },
     { id: 'resources', label: 'Otros recursos' },
     { id: 'concepts', label: 'Conceptos clave' },
@@ -1651,6 +1658,13 @@ const handleResourceDelete = async (categorySlug: string, filename: string) => {
         {/* PRACTICAR */}
         {tab === 'practice' && (
           <PracticeConfig subjectId={subjectId!} topics={subjectTopics} questions={subjectQuestions} defaultTopicId={filterTopic} autostart={autostart} />
+        )}
+
+        {/* PLAN DE ESTUDIO */}
+        {tab === 'plan' && hoard && StudyPlanPanel && subjectId && (
+          <Suspense fallback={<p className="text-sm text-ink-500">Cargando…</p>}>
+            <StudyPlanPanel subjectId={subjectId} examDate={subject?.examDate} />
+          </Suspense>
         )}
 
         {/* EXÁMENES */}
