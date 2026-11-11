@@ -348,3 +348,7 @@ In **Matrices exactas**, **Transpuesta Aᵀ** exchanges rows and columns of squa
 `math_matrix` and `/api/math/matrix` accept `operation: "transpose"` with `matrix`, returning `transpose_exact`, `transpose_rows` and `transpose_columns` alongside the common fields. This is a transpose of rational entries, with no complex entries, conjugation or step-by-step derivation. Existing operations,75 tools, dependencies and the study bank remain unchanged.
 
 **Usar resultado como matriz A** explicitly replaces A with the exact transpose, product, inverse, RREF or power result. It focuses A, retires the previous result and keeps the operation, B and exponent fields; press **Calcular matriz** to compute again. The action makes no API call or bank write. Scalar determinants and nullspace bases have no such button. This is a local editable draft, without automatic history or persistence across route changes.
+
+## Skills for the agents that connect
+
+This app carries procedures from the skill library of the family's workspace for the agents that connect to it: `exam-study-plan`, `hoard-study-cards`, `notes-from-templates`. They are named in what an agent reads on connecting, read with `skills_list` and `skill_read`, searched and assigned with `skills_library` and `skills_assign`, and offered as prompts. The person chooses them on the skills page (`/api/agent/skills/page`) or in the hub's Skills tab; the `skills` block of `faustus-plugin.json` holds what the app asks for by default.
