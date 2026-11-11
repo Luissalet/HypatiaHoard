@@ -26,6 +26,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent, Tool as MCPTool, ToolAnnotations
 
 from hypatia.hoard_link import proc
+from hypatia.hoard_link import skills as family_skills
 
 ROOT = Path(__file__).resolve().parent
 BASE_URL = os.environ.get("HYPATIA_URL", "http://127.0.0.1:5187").rstrip("/")
@@ -135,7 +136,9 @@ def main() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     _check_local(BASE_URL)
     catalog, instructions = fetch_catalog()
-    HypatiaBridge(catalog, instructions).run(transport="stdio")
+    bridge = HypatiaBridge(catalog, instructions)
+    family_skills.attach(bridge, "hypatia", root=__file__)      # the skills this app carries, for the agent that connects
+    bridge.run(transport="stdio")
 
 
 if __name__ == "__main__":
