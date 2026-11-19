@@ -85,6 +85,8 @@ The app and the server stay in sync: the server stores every app table as JSON r
 
 ## Connection with Faustus and Hoard Hub
 
+Declares its oral-practice handoff with the requirement to register an objection as a question with a reference answer in a subject.
+
 - `faustus-plugin.json` is the manifest (`id: hypatia`, `HYPATIA_DIR` = this folder). The MCP bridge (`python mcp_server.py`) proxies every call to `POST /api/agent/call` with the token in `data/mcp-token`, starts the server when nothing answers and never opens the database.
 - Tools by group:
   - Study: subjects, topics, questions (search, get, add, update, delete, suggest), `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, key concepts, lessons (`lesson_from_document`, `lesson_get`, `concept_mastery`), pages, deliverables, `study_plan`, `study_calendar_export`, `record_get`, `record_patch`.
