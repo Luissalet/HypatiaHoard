@@ -28,6 +28,10 @@ En el repositorio no hay contenido de cursos. Las asignaturas llegan como paquet
 - La corrección se dice en voz alta, la nota se registra en el calendario de repaso y sigue la siguiente tarjeta sola. Funciona sin ratón con teclado y órdenes de voz (repetir, siguiente, parar, «no lo sé»).
 - Sin modelo de lenguaje, las tarjetas de test y completar se califican por reglas y las abiertas te piden la nota.
 
+### Ensayo de objeciones
+- Una presentación de Cicero's Hoard se convierte en una asignatura con un tema por diapositiva y una pregunta difícil por objeción, cada una con la respuesta que la diapositiva debe sostener y la evidencia literal de sus fuentes. Las objeciones se pueden escribir a mano o dejar que el modelo de lenguaje las redacte a partir de las diapositivas y sus fuentes.
+- El texto y las notas de cada diapositiva se comprueban contra sus objeciones; las que no aguantan vuelven a Cicero como defectos y, al comprobar de nuevo tras corregirlas, se cierran allí. Las mismas preguntas se pueden ensayar en voz alta con el repaso oral.
+
 ### Plan de estudio
 - Un plan día a día hasta el examen: repasos programados, tarjetas nuevas repartidas por temas, un simulacro cronometrado semanal y otro antes del examen, ponderados hacia los temas débiles, y un repaso final. Fija la fecha del examen, los minutos diarios, los días de descanso y el tamaño del simulacro; los días sobrecargados se marcan. No interviene ningún modelo.
 
@@ -85,10 +89,13 @@ La app y el servidor se mantienen sincronizados: el servidor guarda cada tabla d
 
 ## Conexión con Faustus y el Hoard Hub
 
+Declara su relevo de práctica oral, con el requisito de registrar la objeción como pregunta con respuesta de referencia en una asignatura, y el ensayo de objeciones que recibe una presentación editable y devuelve a Cicero los defectos de diapositiva.
+
 - `faustus-plugin.json` es el manifiesto (`id: hypatia`, `HYPATIA_DIR` = esta carpeta). El puente MCP (`python mcp_server.py`) reenvía cada llamada a `POST /api/agent/call` con el token de `data/mcp-token`, arranca el servidor si nadie responde y nunca abre la base de datos.
 - Herramientas por grupos:
   - Estudio: asignaturas, temas, preguntas (buscar, leer, añadir, actualizar, borrar, sugerir), `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, conceptos clave, lecciones (`lesson_from_document`, `lesson_get`, `concept_mastery`), páginas, entregas, `study_plan`, `study_calendar_export`, `record_get`, `record_patch`.
   - Repaso oral: `oral_card_next`, `oral_card_answer`, `oral_speak`.
+  - Ensayo de objeciones: `rehearsal_prepare`, `rehearsal_check`, `rehearsal_get`, `rehearsal_undo`.
   - Cuaderno: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`.
   - Profesor: clases, alumnos, `exam_generate` (tarea), revisión y exportación a PDF de exámenes, rúbricas, lotes de corrección y entregas, análisis de clase.
   - Matemáticas: `math_compute`, `math_values`, `math_linear_system`, `math_statistics`, `math_matrix`, `math_polynomial_division`, `math_polynomial_gcd`, `math_partial_fractions`, `math_rational_taylor`, `math_continued_fraction`, `math_linear_congruence`, `math_congruence_system`, `math_integer_pair` y otras.
