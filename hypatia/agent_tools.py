@@ -1051,6 +1051,32 @@ TOOLS += [
          RecordPatchArgs, ann(False), run_record_patch),
 ]
 
+from . import rehearsal  # noqa: E402 — objection rehearsal of a Cicero deck
+
+AGENT_INSTRUCTIONS += (
+    "\nObjection rehearsal of a presentation: rehearsal_prepare turns a Cicero deck (read through the Hub) into a subject with "
+    "one hard question per slide, its expected answer and the verbatim evidence; rehearsal_check judges each slide's text and "
+    "notes against them and sends the slides that do not hold back to Cicero as defects (deck_defects_receive). After the slide "
+    "is fixed, rehearsal_check again closes them. rehearsal_undo takes back the last check or the rehearsal itself.")
+TOOLS += [
+    Tool("rehearsal_prepare", "Prepare an objection rehearsal from a Cicero deck: hard questions per slide with evidence."
+         "\nOne topic per slide, one open question per objection (expected answer, keywords, verbatim quotes in the explanation). "
+         "Pass objections, or let the model draft them from the slides and their sources. Read through the Hub, or pass deck. "
+         "Undo: rehearsal_undo." + SYN + "ensayo de objeciones, preguntas difíciles, preparar la defensa, presentación de Cicero.",
+         rehearsal.PrepareArgs, ann(False), rehearsal.prepare),
+    Tool("rehearsal_check", "Check each slide against its objections and send the weak ones back to Cicero as defects."
+         "\nJudges the slide text and speaker notes with the model (keywords without one). send=true delivers the verdict to "
+         "Cicero's deck_defects_receive, which closes the defects a fixed slide no longer has. Undo: rehearsal_undo."
+         + SYN + "comprobar el ensayo, diapositivas flojas, devolver defectos, ¿aguanta la objeción?",
+         rehearsal.CheckArgs, ann(False), rehearsal.check),
+    Tool("rehearsal_get", "Read a rehearsal: its objections per slide and the last verdict of each. Keywords: ensayo."
+         + SYN + "estado del ensayo, objeciones pendientes, qué diapositivas fallan.",
+         rehearsal.RehearsalRef, ann(True), rehearsal.get),
+    Tool("rehearsal_undo", "Take back a rehearsal's last write: the last check (and its verdict in Cicero) or the rehearsal."
+         "\nWith no check left it removes the questions, topics and subject it created." + SYN + "deshacer el ensayo, deshacer la comprobación.",
+         rehearsal.RehearsalRef, ann(False, True), rehearsal.undo),
+]
+
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
 
 
