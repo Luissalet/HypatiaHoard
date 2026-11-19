@@ -111,6 +111,24 @@ def test_without_a_model_keywords_decide(services, hub):
     assert out["sent_to_cicero"] is None and hub.sent == []
 
 
+def test_unjudged_objection_stays_open_in_cicero(services, hub):
+    """No model answers and the objection has no keywords: nothing is said to hold, and Cicero keeps its open defect."""
+    bare = [{**OBJECTIONS[0], "keywords": []}, OBJECTIONS[1]]
+    rid = call(services, "rehearsal_prepare", deck_id="D1", objections=bare)["rehearsal"]
+    qid = next(o["question_id"] for o in call(services, "rehearsal_get", rehearsal=rid)["objections"] if o["slide_id"] == "S2")
+    out = call(services, "rehearsal_check", rehearsal=rid)
+    verdicts = {r["slide_id"]: r["verdict"] for r in out["results"]}
+    assert verdicts == {"S2": "unjudged", "S1": "holds"} and out["holds"] == 1
+    assert out["unjudged"] == [qid] and "holds its objections" not in out["next"]
+    sent = hub.sent[-1]
+    assert sent["defects"] == [] and sent["pending"] == [qid]            # the judged slide advances, the unjudged one stays open
+    services.link = lambda: FakeLink(chat_handler=judge_by_keywords)     # the model answers again: a real verdict
+    again = call(services, "rehearsal_check", rehearsal=rid)
+    assert again["unjudged"] == [] and [d["key"] for d in hub.sent[-1]["defects"]] == [qid] and hub.sent[-1]["pending"] == []
+    call(services, "rehearsal_undo", rehearsal=rid)
+    assert hub.sent[-1]["defects"] == [] and hub.sent[-1]["pending"] == [qid]   # undo resends the previous verdict as it was
+
+
 def test_model_drafts_objections_and_keeps_only_real_quotes(services, hub):
     def drafter(messages, **kwargs):
         assert "Un CFS admite cuatro colores" in messages[-1]["content"]          # the source text reached the model

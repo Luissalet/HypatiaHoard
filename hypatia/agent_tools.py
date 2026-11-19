@@ -1066,7 +1066,8 @@ TOOLS += [
          rehearsal.PrepareArgs, ann(False), rehearsal.prepare),
     Tool("rehearsal_check", "Check each slide against its objections and send the weak ones back to Cicero as defects."
          "\nJudges the slide text and speaker notes with the model (keywords without one). send=true delivers the verdict to "
-         "Cicero's deck_defects_receive, which closes the defects a fixed slide no longer has. Undo: rehearsal_undo."
+         "Cicero's deck_defects_receive, which closes the defects a fixed slide no longer has; unjudged objections stay open there. "
+         "Undo: rehearsal_undo."
          + SYN + "comprobar el ensayo, diapositivas flojas, devolver defectos, ¿aguanta la objeción?",
          rehearsal.CheckArgs, ann(False), rehearsal.check),
     Tool("rehearsal_get", "Read a rehearsal: its objections per slide and the last verdict of each. Keywords: ensayo."

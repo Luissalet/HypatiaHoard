@@ -266,14 +266,16 @@ def judge(services, objection: dict[str, Any], text: str) -> dict[str, Any]:
             "feedback": "Judged by keywords (no model answered).", "judge": "keywords"}
 
 
-def _send(state: dict[str, Any], defects: list[dict[str, Any]]) -> dict[str, Any]:
+def _send(state: dict[str, Any], defects: list[dict[str, Any]], pending: list[str]) -> dict[str, Any]:
+    """The whole verdict to Cicero: what fails now, and what was not judged (its open defects stay open there)."""
     answer = family.call(CICERO, "deck_defects_receive",
-                         {"deck_id": state["deck_id"], "origin": state["origin"], "defects": defects,
+                         {"deck_id": state["deck_id"], "origin": state["origin"], "defects": defects, "pending": pending,
                           "reason": "Objection rehearsal verdict from Hypatia's Hoard"}, timeout=60)
     if answer.get("ok"):
         result = answer.get("result") or {}
         return {"ok": True, "opened": len(result.get("opened") or []) + len(result.get("reopened") or []),
-                "resolved": len(result.get("resolved") or []), "open_total": result.get("open_total")}
+                "resolved": len(result.get("resolved") or []), "kept_pending": len(result.get("pending") or []),
+                "open_total": result.get("open_total")}
     return {"ok": False, "error": str(answer.get("error") or answer.get("status"))}
 
 
@@ -301,17 +303,21 @@ def check(services, a: CheckArgs) -> dict[str, Any]:
                         **outcome})
         if outcome["verdict"] in ("weak", "fails"):
             defects.append(_defect(item, outcome))
-    run = {"at": services.now_iso(), "results": results, "defects": defects, "sent": None}
+    unjudged = [r["question_id"] for r in results if r["verdict"] == "unjudged"]
+    run = {"at": services.now_iso(), "results": results, "defects": defects, "unjudged": unjudged, "sent": None}
     if a.send:
-        run["sent"] = _send(state, defects)
+        run["sent"] = _send(state, defects, unjudged)
     state["runs"] = [*state["runs"], run][-MAX_RUNS:]
     _save(services, state)
     failing = sorted({d["slide_id"] for d in defects}, key=lambda sid: slides[sid].get("position") or 0)
     return {"rehearsal": state["id"], "deck_id": state["deck_id"], "objections": len(results),
-            "holds": sum(r["verdict"] == "holds" for r in results), "weak_slides": failing,
+            "holds": sum(r["verdict"] == "holds" for r in results), "weak_slides": failing, "unjudged": unjudged,
             "defects": defects, "results": results, "sent_to_cicero": run["sent"],
-            "next": ("Fix the slides in Cicero (deck_defects lists them), then rehearsal_check again." if defects
-                     else "Every slide holds its objections."),
+            "next": " ".join(filter(None, [
+                "Fix the slides in Cicero (deck_defects lists them), then rehearsal_check again." if defects else "",
+                (f"{len(unjudged)} objection(s) could not be judged (no model answered and no keywords): they stay as they were in "
+                 "Cicero. Check again when the model answers, or add keywords to the objection.") if unjudged else "",
+                "Every slide holds its objections." if not defects and not unjudged else ""])),
             "undo": _undo_hint(state["id"])}
 
 
@@ -334,7 +340,7 @@ def undo(services, a: RehearsalRef) -> dict[str, Any]:
         resent = None
         if run.get("sent") and run["sent"].get("ok"):
             previous = next((r for r in reversed(state["runs"]) if r.get("sent") and r["sent"].get("ok")), None)
-            resent = _send(state, previous["defects"] if previous else [])
+            resent = _send(state, previous["defects"] if previous else [], previous.get("unjudged", []) if previous else [])
         _save(services, state)
         return {"undone": "check", "at": run["at"], "runs_left": len(state["runs"]), "cicero_restored": resent}
     created = state.get("created") or {}
