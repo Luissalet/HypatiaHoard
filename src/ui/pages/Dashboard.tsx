@@ -22,6 +22,9 @@ const HoardChip = import.meta.env.VITE_HOARD === '1' ? lazy(() => import('@/ui/c
 const ExactMathPanel = import.meta.env.VITE_HOARD === '1'
   ? lazy(() => import('@/ui/components/ExactMathPanel').then(m => ({ default: m.ExactMathPanel }))) : null;
 
+const paypalDonation = import.meta.env.VITE_DONATION_PAYPAL_URL?.trim();
+const coffeeDonation = import.meta.env.VITE_DONATION_COFFEE_URL?.trim();
+
 const SUBJECT_COLORS = [
   '#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#06b6d4', '#ec4899',
 ];
@@ -29,6 +32,8 @@ const SUBJECT_COLORS = [
 export function Dashboard() {
   const navigate = useNavigate();
   const hoard = useHoardMode();
+  const english = navigator.language.toLowerCase().startsWith('en');
+  const unconfiguredDonation = english ? 'Donation link not configured' : 'Enlace de donación sin configurar';
   const role = useRole();
   const { theme, toggleTheme } = useTheme();
   const {
@@ -388,13 +393,14 @@ export function Dashboard() {
             <div className="relative">
               <button
                 onClick={() => setShowDonateMenu(v => !v)}
-                title="Apoya el proyecto con una donación"
+                title={english ? "Support the project with a donation" : "Apoya el proyecto con una donación"}
+                aria-expanded={showDonateMenu}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium font-body bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 hover:text-amber-300 border border-amber-500/30 hover:border-amber-400/50 transition-all duration-150"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                 </svg>
-                <span className="hidden sm:inline">Donar</span>
+                <span className="hidden sm:inline">{english ? "Donate" : "Donar"}</span>
               </button>
 
               {showDonateMenu && (
@@ -402,9 +408,11 @@ export function Dashboard() {
                   {/* Overlay para cerrar al hacer clic fuera */}
                   <div className="fixed inset-0 z-40" onClick={() => setShowDonateMenu(false)} />
                   <div className="absolute right-0 top-full mt-2 z-50 bg-ink-800 border border-ink-600 rounded-xl shadow-xl overflow-hidden min-w-[180px]">
-                    <p className="text-[10px] font-medium text-ink-500 uppercase tracking-widest px-3 pt-2.5 pb-1">Apoya el proyecto</p>
+                    <p className="text-[10px] font-medium text-ink-500 uppercase tracking-widest px-3 pt-2.5 pb-1">{english ? "Support the project" : "Apoya el proyecto"}</p>
                     <a
-                      href="https://www.paypal.com/donate/?business=luismasc16%40gmail.com&currency_code=EUR"
+                      href={paypalDonation || undefined}
+                      aria-disabled={!paypalDonation}
+                      title={paypalDonation ? undefined : unconfiguredDonation}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => setShowDonateMenu(false)}
@@ -417,7 +425,9 @@ export function Dashboard() {
                       PayPal
                     </a>
                     <a
-                      href="https://buymeacoffee.com/luissalet"
+                      href={coffeeDonation || undefined}
+                      aria-disabled={!coffeeDonation}
+                      title={coffeeDonation ? undefined : unconfiguredDonation}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => setShowDonateMenu(false)}
@@ -1306,7 +1316,9 @@ export function Dashboard() {
           </section>
 
           <p className="text-xs text-ink-600 border-t border-ink-800 pt-3">
-            {hoard ? "© 2026 Luis M. Salete · Servido por Hypatia's Hoard en tu PC" : '© 2026 Luis M. Salete · Código privado · Acceso vía GitHub Pages'}
+            {hoard
+                ? (english ? "Hypatia’s Hoard · Served on your computer" : "Hypatia’s Hoard · Servido en tu PC")
+                : (english ? "Hypatia’s Hoard · Private code · GitHub Pages access" : "Hypatia’s Hoard · Código privado · Acceso vía GitHub Pages")}
           </p>
         </div>
       </Modal>

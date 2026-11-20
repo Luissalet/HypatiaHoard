@@ -248,11 +248,11 @@ def test_installed_packages_add_if_missing_with_subject_remap(merge, store):
 def test_synced_settings_merge():
     local = {"alias": "", "importedPackIds": ["a"], "studyStreak": 2, "lastStudyDate": "2026-09-20",
              "subjectGoals": {"s1": 80}, "marketplacePasswords": {"p": "local"}, "importHistory": [{"packId": "a", "n": 1}]}
-    remote = {"alias": "Luis", "importedPackIds": ["b", "a"], "studyStreak": 5, "lastStudyDate": "2026-09-18",
+    remote = {"alias": "Perfil de estudio", "importedPackIds": ["b", "a"], "studyStreak": 5, "lastStudyDate": "2026-09-18",
               "subjectGoals": {"s1": 50, "s2": 70}, "marketplacePasswords": {"p": "remote", "q": "r"},
               "importHistory": [{"packId": "a", "n": 2}, {"packId": "b"}], "globalBankSyncedAt": T1}
     got = merge_synced_settings(local, remote)
-    assert got["alias"] == "Luis" and got["importedPackIds"] == ["a", "b"] and got["studyStreak"] == 5
+    assert got["alias"] == "Perfil de estudio" and got["importedPackIds"] == ["a", "b"] and got["studyStreak"] == 5
     assert got["lastStudyDate"] == "2026-09-20" and got["subjectGoals"] == {"s1": 80, "s2": 70}
     assert got["marketplacePasswords"] == {"p": "local", "q": "r"} and got["globalBankSyncedAt"] == T1
     assert got["importHistory"] == [{"packId": "a", "n": 1}, {"packId": "b"}]

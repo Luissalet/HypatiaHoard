@@ -234,7 +234,7 @@ Donde:
   "version": 1,
   "kind": "keyconcepts",
   "packId": "550e8400-e29b-41d4-a716-446655440000",
-  "createdBy": "Luis",
+  "createdBy": "Equipo de contenidos",
   "exportedAt": "2026-02-23T12:00:00.000Z",
   "subjectKey": "tecnicas-de-aprendizaje-automatico",
   "subjectName": "Técnicas de Aprendizaje Automático",

@@ -87,6 +87,8 @@ Asignaturas:
 
 La app y el servidor se mantienen sincronizados: el servidor guarda cada tabla de la app como registros JSON con una revisión global y marcas de borrado, y en cada ciclo envía los cambios de la app y trae los del servidor.
 
+El menú de donaciones lee `VITE_DONATION_PAYPAL_URL` y `VITE_DONATION_COFFEE_URL` del entorno de compilación. Pon las URL públicas en `.env.local` o en los ajustes de compilación del despliegue y vuelve a compilar. Al recompilar una instalación local existente, si una variable está sin definir se conserva el enlace de la compilación anterior. Un valor vacío desactiva ese enlace. Cada proveedor sigue visible.
+
 ## Conexión con Faustus y el Hoard Hub
 
 Declara su relevo de práctica oral, con el requisito de registrar la objeción como pregunta con respuesta de referencia en una asignatura, y el ensayo de objeciones que recibe una presentación editable y devuelve a Cicero los defectos de diapositiva.
