@@ -30,7 +30,7 @@ No course content lives in the repository. Subjects arrive as password-protected
 
 ### Objection rehearsal
 - A presentation from Cicero's Hoard becomes a subject with one topic per slide and one hard question per objection, each with the answer the slide must support and the verbatim evidence from its sources. The objections can be written by hand or drafted by the language model from the slides and their sources.
-- Each slide's text and speaker notes are checked against its objections; the slides that do not hold go back to Cicero as defects, and checking again after the fix closes them there. The same questions can be rehearsed aloud with the oral review.
+- Each slide's text and speaker notes are checked against its objections; the slides that do not hold go back to Cicero as defects, and checking again after the fix closes them there. When a source a slide cites changes (a new revision of the report or of its data), the next check writes that slide's objections again against the sources as they are now and says which ones it rewrote. If no model answers at that moment, only their quotes are checked and the objection stays pending: it is not judged against the old answer, its defect stays in Cicero as it was, and the next check writes it again even if the source does not change again. Undoing the check restores them. The same questions can be rehearsed aloud with the oral review.
 
 ### Study plan
 - A day-by-day plan until the exam: scheduled reviews, new cards spread by topic, a weekly timed mock and one before the exam, weighted to weak topics, and a final review. Set the exam date, daily minutes, rest days and mock size; overloaded days are flagged. No model is involved.

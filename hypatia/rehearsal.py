@@ -8,9 +8,16 @@ review tools then work on it like on any other subject.
 ``check`` judges every slide's text and speaker notes against its objections, with the configured model or, without one, by
 its keywords. The slides that do not hold are sent back to Cicero as defects (slide, objection, expected answer, evidence);
 sending the verdict again after the slide is fixed closes them there. Each write can be taken back with ``undo``.
+
+Every objection keeps a print of what the sources its slide cites said when it was written. When one of those sources changes
+(a new revision of the report the slide cites), ``check`` writes that objection again against the sources as they are now
+with the model before judging it, and says which ones it rewrote. When no model answers, it keeps only the evidence quotes the
+sources still hold and leaves the objection pending: it is not judged against the old answer, its defect stays in Cicero as it
+was, and the next check writes it again against the same sources. Undoing a check restores the objections as they were.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from typing import Any
@@ -90,6 +97,15 @@ def fingerprint(slide: dict[str, Any]) -> str:
     return hashlib.sha256(slide_text(slide).encode("utf-8")).hexdigest()[:16]
 
 
+def sources_print(slide: dict[str, Any], texts: dict[str, str]) -> str | None:
+    """A print of what the sources the slide cites say now; None when one of them could not be read."""
+    cited = sorted({str(s) for s in slide.get("sources") or []})
+    if any(sid not in texts for sid in cited):
+        return None
+    body = json.dumps([[sid, texts[sid]] for sid in cited], ensure_ascii=False)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+
+
 def _hub_result(answer: dict[str, Any], what: str) -> Any:
     if not answer.get("ok"):
         raise LookupError(f"Could not {what} through the Hub: {answer.get('error') or answer.get('status')}. "
@@ -139,10 +155,18 @@ DRAFT_SYSTEM = {
 }
 
 
-def draft_objections(services, deck: dict[str, Any], per_slide: int) -> list[ObjectionIn]:
+REDRAFT_NOTE = ("Las fuentes que cita esta diapositiva han cambiado desde que se redactó esta objeción. Rehazla contra las fuentes "
+                "tal como están ahora: la misma duda del público, con la respuesta esperada y la evidencia que dan hoy las fuentes.\n"
+                "Objeción anterior: {question}\nRespuesta esperada anterior: {expected}")
+
+
+def draft_objections(services, deck: dict[str, Any], per_slide: int, sources: dict[str, str] | None = None,
+                     previous: dict[str, Any] | None = None) -> list[ObjectionIn]:
     language = "en" if str(deck.get("language", "es")).startswith("en") else "es"
-    sources = _source_texts(deck)
+    sources = _source_texts(deck) if sources is None else sources
     lines = [f"Presentación: {deck.get('title', '')}", f"Objeciones por diapositiva: {per_slide}", ""]
+    if previous is not None:
+        lines += [REDRAFT_NOTE.format(question=previous["question"], expected=previous["expected"]), ""]
     for slide in deck["slides"]:
         lines += [f"--- slide_id {slide['id']} (diapositiva {slide.get('position')})", slide_text(slide)[:3000],
                   "Fuentes citadas: " + ", ".join(str(s) for s in slide.get("sources") or []) or "ninguna", ""]
@@ -196,7 +220,8 @@ def prepare(services, a: PrepareArgs) -> dict[str, Any]:
     deck = read_deck(a.deck_id, a.deck)
     if not deck["slides"]:
         raise ValueError("The deck has no slides to rehearse.")
-    objections = a.objections if a.objections is not None else draft_objections(services, deck, a.per_slide)
+    texts = _source_texts(deck)
+    objections = a.objections if a.objections is not None else draft_objections(services, deck, a.per_slide, texts)
     slides = {s["id"]: s for s in deck["slides"]}
     unknown = sorted({o.slide_id for o in objections if o.slide_id not in slides})
     if unknown:
@@ -221,7 +246,8 @@ def prepare(services, a: PrepareArgs) -> dict[str, Any]:
         if not existing:
             created_questions.append(question["id"])
         items.append({"question_id": question["id"], "slide_id": objection.slide_id, "question": objection.question,
-                      "expected": objection.expected, "keywords": objection.keywords, "evidence": objection.evidence})
+                      "expected": objection.expected, "keywords": objection.keywords, "evidence": objection.evidence,
+                      "sources_print": sources_print(slide, texts)})
     state = {"id": subject["id"], "subject": subject["name"], "deck_id": a.deck_id, "deck_title": deck.get("title", ""),
              "origin": f"hypatia:rehearsal/{subject['id']}", "created_at": services.now_iso(), "objections": items, "runs": [],
              "created": {"subject": subject_created, "questions": created_questions,
@@ -287,17 +313,68 @@ def _defect(item: dict[str, Any], outcome: dict[str, Any]) -> dict[str, Any]:
             "ref": f"hoard://hypatia/question/{item['question_id']}", "key": item["question_id"]}
 
 
+REFRESHED = ("question", "expected", "keywords", "evidence", "sources_print")
+
+
+def _write_question(services, item: dict[str, Any]) -> None:
+    """The bank question of an objection says what the objection says now (when it is still there)."""
+    question = services.store.get("question", item["question_id"])
+    if question:
+        bank.update_question(services, question, {"prompt": item["question"], "modelAnswer": item["expected"],
+                                                  "keywords": item["keywords"], "explanation": _evidence_text(item["evidence"])})
+
+
+def _refresh(services, deck: dict[str, Any], slide: dict[str, Any], item: dict[str, Any], texts: dict[str, str],
+             now: str) -> dict[str, Any]:
+    """Write the objection again against the sources as they are now.
+
+    Without a model keep only the quotes the sources still hold and leave its print as it was: the redraft stays pending and the
+    next check tries it again, even if the sources do not change again."""
+    before = {k: copy.deepcopy(item.get(k)) for k in REFRESHED}
+    corpus = normalize_text(" ".join(texts.values()))
+    try:
+        drafts = draft_objections(services, {**deck, "slides": [slide]}, 1, texts, previous=item)
+    except (ai.Unavailable, ai.BackendError, ValueError):
+        drafts = []
+    if drafts:
+        new = drafts[0]
+        item.update(question=new.question, expected=new.expected, keywords=new.keywords, evidence=new.evidence,
+                    sources_print=now)
+        by = "model"
+    else:
+        item["evidence"] = [q for q in item["evidence"] if normalize_text(q) in corpus]
+        by = "evidence"
+    _write_question(services, item)
+    return {"question_id": item["question_id"], "slide_id": item["slide_id"], "by": by, "redraft_pending": by != "model",
+            "before": before,
+            "after": {k: copy.deepcopy(item.get(k)) for k in REFRESHED}}
+
+
 def check(services, a: CheckArgs) -> dict[str, Any]:
     state = _load(services, a.rehearsal)
     deck = read_deck(state["deck_id"], a.deck)
     slides = {s["id"]: s for s in deck["slides"]}
-    results, defects = [], []
+    texts = _source_texts(deck)
+    results, defects, refreshed, pending_redraft = [], [], [], []
     for item in state["objections"]:
         slide = slides.get(item["slide_id"])
         if slide is None:
             results.append({"question_id": item["question_id"], "slide_id": item["slide_id"], "verdict": "slide_missing",
                             "question": item["question"], "missing": [], "feedback": "The slide is no longer in the deck."})
             continue
+        now = sources_print(slide, texts)
+        if now and item.get("sources_print") and now != item["sources_print"]:
+            refreshed.append(_refresh(services, deck, slide, item, texts, now))
+            if refreshed[-1]["redraft_pending"]:
+                pending_redraft.append(item["question_id"])
+                results.append({"question_id": item["question_id"], "slide_id": item["slide_id"],
+                                "position": slide.get("position"), "question": item["question"], "verdict": "redraft_pending",
+                                "missing": [], "judge": None,
+                                "feedback": "A source this slide cites changed and the objection could not be written again "
+                                            "yet (no model answered): it is not judged against the old answer."})
+                continue
+        elif now and not item.get("sources_print"):
+            item["sources_print"] = now          # a rehearsal from before prints: this check is its baseline
         text = slide_text(slide)
         outcome = judge(services, item, text)
         results.append({"question_id": item["question_id"], "slide_id": item["slide_id"], "position": slide.get("position"),
@@ -306,20 +383,29 @@ def check(services, a: CheckArgs) -> dict[str, Any]:
         if outcome["verdict"] in ("weak", "fails"):
             defects.append(_defect(item, outcome))
     unjudged = [r["question_id"] for r in results if r["verdict"] == "unjudged"]
-    run = {"at": services.now_iso(), "results": results, "defects": defects, "unjudged": unjudged, "sent": None}
+    run = {"at": services.now_iso(), "results": results, "defects": defects, "unjudged": unjudged, "sent": None,
+           "refreshed": refreshed, "pending_redraft": pending_redraft}
     if a.send:
-        run["sent"] = _send(state, defects, unjudged)
+        run["sent"] = _send(state, defects, unjudged + pending_redraft)
     state["runs"] = [*state["runs"], run][-MAX_RUNS:]
     _save(services, state)
     failing = sorted({d["slide_id"] for d in defects}, key=lambda sid: slides[sid].get("position") or 0)
     return {"rehearsal": state["id"], "deck_id": state["deck_id"], "objections": len(results),
             "holds": sum(r["verdict"] == "holds" for r in results), "weak_slides": failing, "unjudged": unjudged,
-            "defects": defects, "results": results, "sent_to_cicero": run["sent"],
+            "defects": defects, "results": results, "sent_to_cicero": run["sent"], "pending_redraft": pending_redraft,
+            "refreshed": [{"question_id": r["question_id"], "slide_id": r["slide_id"], "by": r["by"],
+                           "redraft_pending": r["redraft_pending"], "question_before": r["before"]["question"],
+                           "question": r["after"]["question"]} for r in refreshed],
             "next": " ".join(filter(None, [
+                (f"{len(refreshed) - len(pending_redraft)} objection(s) were written again because a source their slide cites "
+                 "changed." if len(refreshed) > len(pending_redraft) else ""),
+                (f"{len(pending_redraft)} objection(s) cite a source that changed and were not written again yet (no model "
+                 "answered): only their evidence quotes were checked, they were not judged, and their defects stay as they were "
+                 "in Cicero. Check again when the model answers.") if pending_redraft else "",
                 "Fix the slides in Cicero (deck_defects lists them), then rehearsal_check again." if defects else "",
                 (f"{len(unjudged)} objection(s) could not be judged (no model answered and no keywords): they stay as they were in "
                  "Cicero. Check again when the model answers, or add keywords to the objection.") if unjudged else "",
-                "Every slide holds its objections." if not defects and not unjudged else ""])),
+                "Every slide holds its objections." if not defects and not unjudged and not pending_redraft else ""])),
             "undo": _undo_hint(state["id"])}
 
 
@@ -334,18 +420,44 @@ def get(services, a: RehearsalRef) -> dict[str, Any]:
             "open_defects": (last or {}).get("defects", [])}
 
 
+def _sent_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [r for r in runs if r.get("sent") and r["sent"].get("ok")]
+
+
+def _previous_verdict(runs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    """The verdict Cicero had before the check being undone: the last one sent, where each objection it left pending (unjudged or
+    waiting for a redraft) carries the defect Cicero last received for it from a check that did judge it (if that check failed it).
+    Without this Cicero would keep the text the undone check sent for those defects."""
+    sent = _sent_runs(runs)
+    if not sent:
+        return [], []
+    previous = sent[-1]
+    pending = previous.get("unjudged", []) + previous.get("pending_redraft", [])
+    defects = list(previous["defects"])
+    for qid in pending:
+        judged = next((r for r in reversed(sent) if qid not in r.get("unjudged", []) + r.get("pending_redraft", [])), None)
+        defects += [d for d in (judged or {}).get("defects", []) if d["key"] == qid]
+    return defects, pending
+
+
 def undo(services, a: RehearsalRef) -> dict[str, Any]:
     """Take back the last write: the last check (and its verdict in Cicero), or the rehearsal itself when it has no check left."""
     state = _load(services, a.rehearsal)
     if state["runs"]:
         run = state["runs"].pop()
+        by_question = {o["question_id"]: o for o in state["objections"]}
+        for change in reversed(run.get("refreshed") or []):
+            item = by_question.get(change["question_id"])
+            if item is not None:
+                item.update(copy.deepcopy(change["before"]))
+                _write_question(services, item)
         resent = None
         if run.get("sent") and run["sent"].get("ok"):
-            previous = next((r for r in reversed(state["runs"]) if r.get("sent") and r["sent"].get("ok")), None)
-            resent = _send(state, previous["defects"] if previous else [], previous.get("unjudged", []) if previous else [],
-                           run["sent"].get("resolved_ids") or [])
+            defects, pending = _previous_verdict(state["runs"])
+            resent = _send(state, defects, pending, run["sent"].get("resolved_ids") or [])
         _save(services, state)
-        return {"undone": "check", "at": run["at"], "runs_left": len(state["runs"]), "cicero_restored": resent}
+        return {"undone": "check", "at": run["at"], "runs_left": len(state["runs"]), "cicero_restored": resent,
+                "objections_restored": len(run.get("refreshed") or [])}
     created = state.get("created") or {}
     for qid in created.get("questions") or []:
         if services.store.get("question", qid):
