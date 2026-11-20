@@ -28,6 +28,10 @@ No course content lives in the repository. Subjects arrive as password-protected
 - Feedback is spoken, the grade is recorded in the schedule and the next card follows by itself. Keyboard and voice commands (repeat, next, stop, "I don't know") work without the mouse.
 - Without a language model, test and fill-in cards are graded by rule and open cards ask you for the grade.
 
+### Objection rehearsal
+- A presentation from Cicero's Hoard becomes a subject with one topic per slide and one hard question per objection, each with the answer the slide must support and the verbatim evidence from its sources. The objections can be written by hand or drafted by the language model from the slides and their sources.
+- Each slide's text and speaker notes are checked against its objections; the slides that do not hold go back to Cicero as defects, and checking again after the fix closes them there. The same questions can be rehearsed aloud with the oral review.
+
 ### Study plan
 - A day-by-day plan until the exam: scheduled reviews, new cards spread by topic, a weekly timed mock and one before the exam, weighted to weak topics, and a final review. Set the exam date, daily minutes, rest days and mock size; overloaded days are flagged. No model is involved.
 
@@ -85,12 +89,13 @@ The app and the server stay in sync: the server stores every app table as JSON r
 
 ## Connection with Faustus and Hoard Hub
 
-Declares its oral-practice handoff with the requirement to register an objection as a question with a reference answer in a subject.
+Declares its oral-practice handoff with the requirement to register an objection as a question with a reference answer in a subject, and the objection rehearsal that takes an editable deck and returns slide defects to Cicero.
 
 - `faustus-plugin.json` is the manifest (`id: hypatia`, `HYPATIA_DIR` = this folder). The MCP bridge (`python mcp_server.py`) proxies every call to `POST /api/agent/call` with the token in `data/mcp-token`, starts the server when nothing answers and never opens the database.
 - Tools by group:
   - Study: subjects, topics, questions (search, get, add, update, delete, suggest), `cards_due`, `card_review`, `answer_grade`, `weak_topics`, `exam_mock`, `study_stats`, key concepts, lessons (`lesson_from_document`, `lesson_get`, `concept_mastery`), pages, deliverables, `study_plan`, `study_calendar_export`, `record_get`, `record_patch`.
   - Oral review: `oral_card_next`, `oral_card_answer`, `oral_speak`.
+  - Objection rehearsal: `rehearsal_prepare`, `rehearsal_check`, `rehearsal_get`, `rehearsal_undo`.
   - Notebook: `notebook_sources`, `source_add`, `notebook_search`, `notebook_ask`, `studio_generate`, `studio_get`, `studio_to_questions`, `studio_list`, `tutor_turn`.
   - Teacher: classes, students, `exam_generate` (job), exam review and PDF export, rubrics, grading batches and submissions, class analysis.
   - Math: `math_compute`, `math_values`, `math_linear_system`, `math_statistics`, `math_matrix`, `math_polynomial_division`, `math_polynomial_gcd`, `math_partial_fractions`, `math_rational_taylor`, `math_continued_fraction`, `math_linear_congruence`, `math_congruence_system`, `math_integer_pair` and others.

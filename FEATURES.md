@@ -83,6 +83,12 @@ Feature-by-feature map: what each one does, where it lives in code, the user flo
 - **Without a microphone or a model**: *Subir audio* and a typed answer use the same comparison; without a model, test and fill-in cards are graded by rule and open cards are self-graded with the expected answer on screen.
 - **Where**: `hypatia/oral.py`, `hypatia/api/study.py` (`/api/study/oral/*`), `hypatia/agent_tools.py` (`oral_card_next`, `oral_card_answer`, `oral_speak`), `src/data/oralClient.ts`, `ui/pages/OralReview.tsx` (routes `/oral`, `/oral/:subjectId`); tests `tests/test_oral.py`.
 
+### 2.3f Objection rehearsal of a Cicero deck
+- **What**: `rehearsal_prepare` reads a Cicero deck through the Hub (`deck_get` full) and makes a subject «Ensayo · <deck>» with one topic per slide and one DESARROLLO question per objection: prompt = the objection, `modelAnswer` = what the slide must support, `keywords`, the verbatim evidence in `explanation` and `sourceRef` = `hoard://cicero/deck/<deck>/slide/<slide>`. Objections are passed by the agent or drafted by the model from the slides and the text of their cited sources (`source_get`); a drafted quote that is not in the sources is dropped.
+- **Check**: `rehearsal_check` judges each slide's text and speaker notes against its objections (model verdict holds / weak / fails; keywords without a model) and sends weak and failing slides to Cicero's `deck_defects_receive` with origin `hypatia:rehearsal/<subject>`. That list is the whole verdict, so a fixed slide is closed in Cicero by the next check. An objection that could not be judged (no model answered and it has no keywords) is `unjudged`: it goes in `pending`, its open defect stays open in Cicero, and the check does not say the slides hold.
+- **Undo**: `rehearsal_undo` takes back the last check (and sends Cicero the previous verdict, with `reopen` naming the defects that check closed, so an objection that was pending before it is open again as it was) or, with no check left, the questions, topics and subject the rehearsal created.
+- **Where**: `hypatia/rehearsal.py`, `hypatia/agent_tools.py`; state in kv `rehearsal:<subject id>`; tests `tests/test_rehearsal.py`.
+
 ### 2.4 Auto-scoring
 - **What**:
   - TEST: set-equality on `correctOptionIds`.
