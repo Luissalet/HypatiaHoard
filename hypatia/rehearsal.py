@@ -420,6 +420,26 @@ def get(services, a: RehearsalRef) -> dict[str, Any]:
             "open_defects": (last or {}).get("defects", [])}
 
 
+def _sent_runs(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [r for r in runs if r.get("sent") and r["sent"].get("ok")]
+
+
+def _previous_verdict(runs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    """The verdict Cicero had before the check being undone: the last one sent, where each objection it left pending (unjudged or
+    waiting for a redraft) carries the defect Cicero last received for it from a check that did judge it (if that check failed it).
+    Without this Cicero would keep the text the undone check sent for those defects."""
+    sent = _sent_runs(runs)
+    if not sent:
+        return [], []
+    previous = sent[-1]
+    pending = previous.get("unjudged", []) + previous.get("pending_redraft", [])
+    defects = list(previous["defects"])
+    for qid in pending:
+        judged = next((r for r in reversed(sent) if qid not in r.get("unjudged", []) + r.get("pending_redraft", [])), None)
+        defects += [d for d in (judged or {}).get("defects", []) if d["key"] == qid]
+    return defects, pending
+
+
 def undo(services, a: RehearsalRef) -> dict[str, Any]:
     """Take back the last write: the last check (and its verdict in Cicero), or the rehearsal itself when it has no check left."""
     state = _load(services, a.rehearsal)
@@ -433,10 +453,8 @@ def undo(services, a: RehearsalRef) -> dict[str, Any]:
                 _write_question(services, item)
         resent = None
         if run.get("sent") and run["sent"].get("ok"):
-            previous = next((r for r in reversed(state["runs"]) if r.get("sent") and r["sent"].get("ok")), None)
-            resent = _send(state, previous["defects"] if previous else [],
-                           previous.get("unjudged", []) + previous.get("pending_redraft", []) if previous else [],
-                           run["sent"].get("resolved_ids") or [])
+            defects, pending = _previous_verdict(state["runs"])
+            resent = _send(state, defects, pending, run["sent"].get("resolved_ids") or [])
         _save(services, state)
         return {"undone": "check", "at": run["at"], "runs_left": len(state["runs"]), "cicero_restored": resent,
                 "objections_restored": len(run.get("refreshed") or [])}

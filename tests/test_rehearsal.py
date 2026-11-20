@@ -57,7 +57,7 @@ class FakeHub:
         if tool == "deck_defects_receive":
             self.sent.append(arguments)
             failing, pending = {d["key"] for d in arguments["defects"]}, set(arguments.get("pending") or [])
-            reopened = self.closed & pending & set(arguments.get("reopen") or [])
+            reopened = self.closed & (pending - failing) & set(arguments.get("reopen") or [])   # Cicero: pending minus what is sent
             resolved = sorted(self.open - failing - pending)
             self.open = failing | (self.open & pending) | reopened
             self.closed = (self.closed | set(resolved)) - self.open
@@ -352,3 +352,18 @@ def test_a_redraft_missed_while_the_model_was_down_is_done_once_it_answers_on_th
     [objection] = call(services, "rehearsal_get", rehearsal=rid)["objections"]
     assert objection["evidence"] == [DATA_R1]
     assert len(call(services, "rehearsal_check", rehearsal=rid)["refreshed"]) == 1
+
+
+def test_undo_gives_cicero_back_the_defect_a_pending_objection_had_before_the_undone_check(services, hub):
+    """1/0/3 defect open -> pending (model down) -> redrafted on 6/0/6 and still failing (Cicero's defect now says 6/0/6) -> undo:
+    the objection is pending again, and Cicero's open defect says again what it said before the undone check."""
+    rid, qid = _returns_rehearsal(services, hub)
+    hub.deck["slides"][1]["notes"] = "Devoluciones por puesto."                  # the slide does not give the figures
+    services.link = lambda: FakeLink(capabilities=())
+    call(services, "rehearsal_check", rehearsal=rid)
+    services.link = lambda: FakeLink(chat_handler=model_on_returns)
+    call(services, "rehearsal_check", rehearsal=rid)
+    assert hub.sent[-1]["defects"][0]["expected"] == "Cicero 6, Hypatia 0, Writer 6." and hub.open == {qid}
+    call(services, "rehearsal_undo", rehearsal=rid)
+    [defect] = hub.sent[-1]["defects"]
+    assert defect["key"] == qid and defect["expected"] == "Cicero 1, Hypatia 0, Writer 3." and hub.open == {qid}
