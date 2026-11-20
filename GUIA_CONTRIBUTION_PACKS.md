@@ -370,7 +370,7 @@ Al importar el pack, las imágenes se restauran automáticamente en el IndexedDB
     }
   ],
   "tags": ["tokenizacion", "preprocesamiento", "basico"],
-  "createdBy": "Luis"
+  "createdBy": "Equipo de contenidos"
 }
 ```
 

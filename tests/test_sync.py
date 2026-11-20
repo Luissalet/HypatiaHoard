@@ -15,7 +15,7 @@ def test_push_then_pull_round_trip(client):
     b = backup(subjects=[subject("s1", examDate="2027-01-01")], topics=[topic("t1", "s1")],
                questions=[question("q1"), question("q2", prompt="¿UDP?")],
                questionImages={"img.png": {"base64": base64.b64encode(b"\x89PNG").decode(), "mimeType": "image/png"}},
-               syncedSettings={"alias": "Luis", "importedPackIds": ["p1"], "studyStreak": 3})
+               syncedSettings={"alias": "Perfil de estudio", "importedPackIds": ["p1"], "studyStreak": 3})
     result = push(client, b)
     assert result["added"] == 5 and result["idMap"] == {"subjects": {}, "topics": {}, "questions": {}}
     everything = client.get("/api/sync/pull", params={"since": 0}).json()
@@ -23,7 +23,7 @@ def test_push_then_pull_round_trip(client):
     assert full["kind"] == "full-backup" and full["version"] == 2
     assert {q["id"] for q in full["questions"]} == {"q1", "q2"}
     assert full["subjects"][0]["examDate"] == "2027-01-01"
-    assert full["syncedSettings"]["alias"] == "Luis" and full["syncedSettings"]["studyStreak"] == 3
+    assert full["syncedSettings"]["alias"] == "Perfil de estudio" and full["syncedSettings"]["studyStreak"] == 3
     assert base64.b64decode(full["questionImages"]["img.png"]["base64"]) == b"\x89PNG"
     assert everything["rev"] == result["rev"] and everything["tombstones"] == []
     assert client.get("/api/sync/images/img.png").content == b"\x89PNG"
@@ -35,7 +35,7 @@ def test_push_then_pull_round_trip(client):
     rev = everything["rev"]
     nothing = client.get("/api/sync/pull", params={"since": rev}).json()
     assert nothing["backup"]["questions"] == [] and nothing["backup"]["questionImages"] == {}
-    assert nothing["backup"]["syncedSettings"]["alias"] == "Luis"  # settings always travel
+    assert nothing["backup"]["syncedSettings"]["alias"] == "Perfil de estudio"  # settings always travel
 
     push(client, backup(questions=[question("q2", prompt="¿UDP? (editada)", at=T2)]), deletes=[{"kind": "question", "id": "q1", "deletedAt": T1}])
     delta = client.get("/api/sync/pull", params={"since": rev}).json()

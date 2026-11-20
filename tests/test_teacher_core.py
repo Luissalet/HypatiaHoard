@@ -124,8 +124,8 @@ def test_parse_roster_variants():
     plain = core.parse_roster("Alumna Uno\nAlumno Dos\n\nalumna uno\n")
     assert [s["displayName"] for s in plain["students"]] == ["Alumna Uno", "Alumno Dos"]
     assert plain["skipped"] == ["alumna uno"]
-    swapped = core.parse_roster("Pérez Inventado, Ana\nGómez Ficticio, Luis")
-    assert [s["displayName"] for s in swapped["students"]] == ["Ana Pérez Inventado", "Luis Gómez Ficticio"]
+    swapped = core.parse_roster("Muestra A, Perfil Uno\nMuestra B, Perfil Dos")
+    assert [s["displayName"] for s in swapped["students"]] == ["Perfil Uno Muestra A", "Perfil Dos Muestra B"]
     csv = core.parse_roster("Nombre;Apellidos;Correo\nAna;Ficticia;ana@example.invalid\nBea;Inventada;\n")
     assert csv["students"] == [{"displayName": "Ana Ficticia", "email": "ana@example.invalid"},
                                {"displayName": "Bea Inventada"}]

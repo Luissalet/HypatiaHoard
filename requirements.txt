@@ -1,5 +1,5 @@
 # Hypatia's Hoard (local server). Pinned to the versions verified in the build environment
-# (Python 3.11; 3.11+ required, Luis runs 3.13).
+# Python 3.11 or later is required.
 fastapi==0.141.1
 uvicorn==0.54.0
 pydantic==2.13.5

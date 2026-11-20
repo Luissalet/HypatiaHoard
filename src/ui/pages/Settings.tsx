@@ -596,7 +596,7 @@ export function SettingsPage() {
               label="Mi alias (para contribuciones)"
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
-              placeholder="Ej: Luis, Ana, Pablo..."
+              placeholder={navigator.language.toLowerCase().startsWith('en') ? "E.g. Study profile" : "P. ej., Perfil de estudio"}
               hint="Se añade a las preguntas que crees para identificar tu autoría en contributions packs"
             />
             <div className="flex justify-end">

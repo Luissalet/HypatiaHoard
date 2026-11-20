@@ -137,7 +137,7 @@ def test_typescript_twin_matches_python():
                      {"id": "k1", "topicId": "t2", "title": "Alfa", "category": "definition", "order": 3},
                      {"id": "k3", "topicId": "t3", "title": "Gamma", "category": "formula", "order": 1}],
         "selections": [{"c1": "l2", "c2": "m1", "c3": "n1"}, {"c1": "l1", "c2": "m0", "c3": "n0"}, {"c1": "l1"}, {}],
-        "rosters": ["Alumna Uno\nAlumno Dos\nalumna uno", "Pérez Inventado, Ana\nGómez, Luis",
+        "rosters": ["Alumna Uno\nAlumno Dos\nalumna uno", "Muestra A, Perfil Uno\nMuestra B, Perfil Dos",
                     "Nombre;Apellidos;Correo\nAna;Ficticia;ana@example.invalid\n;;\nBea;Inventada;",
                     "alias\temail\nEstrella\testrella@example.invalid", "\n\n"],
         "grids": ["Alumno;Versión;1;2;3\nAna;b;c;a,c;x\n;A;b\nBea;;a", "Ana\tb\ta\n", "nombre,P1,P3\nAna,a,c"],

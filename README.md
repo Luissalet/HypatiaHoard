@@ -87,6 +87,8 @@ Subjects:
 
 The app and the server stay in sync: the server stores every app table as JSON records with a global revision and tombstones, and each cycle pushes the app's changes and pulls the server's.
 
+The donation menu reads `VITE_DONATION_PAYPAL_URL` and `VITE_DONATION_COFFEE_URL` from the project’s local build environment. Add the public donation URLs to `.env.local` or the deployment’s build settings and rebuild. When rebuilding an existing local installation, unset variables inherit the corresponding links from its previous build. Set a variable to an empty value to disable that link. Each provider remains listed.
+
 ## Connection with Faustus and Hoard Hub
 
 Declares its oral-practice handoff with the requirement to register an objection as a question with a reference answer in a subject, and the objection rehearsal that takes an editable deck and returns slide defects to Cicero.
