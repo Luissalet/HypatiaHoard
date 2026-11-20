@@ -34,11 +34,16 @@ def call(services, name, **args):
 
 
 class FakeHub:
-    """Stands in for family.call: Cicero's deck_get, source_get and deck_defects_receive through the Hub."""
+    """Stands in for family.call: Cicero's deck_get, source_get and deck_defects_receive through the Hub.
+
+    It keeps Cicero's open and closed defects by key (the key is the defect id here), with Cicero's rules: the verdict opens what
+    fails, keeps open what is pending, closes the rest, and reopens the pending ones named in reopen."""
 
     def __init__(self, deck):
         self.deck = deck
         self.sent: list[dict] = []
+        self.open: set[str] = set()
+        self.closed: set[str] = set()
 
     def __call__(self, app, tool, arguments=None, *, timeout=120.0):
         assert app == "cicero"
@@ -48,8 +53,14 @@ class FakeHub:
             return {"ok": True, "result": {"text": "Un CFS admite cuatro colores. La capacidad de 16 requiere cuatro unidades en total."}}
         if tool == "deck_defects_receive":
             self.sent.append(arguments)
-            return {"ok": True, "result": {"opened": [d["key"] for d in arguments["defects"]], "reopened": [], "resolved": [],
-                                           "open_total": len(arguments["defects"])}}
+            failing, pending = {d["key"] for d in arguments["defects"]}, set(arguments.get("pending") or [])
+            reopened = self.closed & pending & set(arguments.get("reopen") or [])
+            resolved = sorted(self.open - failing - pending)
+            self.open = failing | (self.open & pending) | reopened
+            self.closed = (self.closed | set(resolved)) - self.open
+            return {"ok": True, "result": {"opened": sorted(failing), "reopened": sorted(reopened), "resolved": resolved,
+                                           "pending": sorted(self.open & pending),
+                                           "open_total": len(self.open)}}
         return {"ok": False, "error": f"unexpected {tool}"}
 
 
@@ -127,6 +138,32 @@ def test_unjudged_objection_stays_open_in_cicero(services, hub):
     assert again["unjudged"] == [] and [d["key"] for d in hub.sent[-1]["defects"]] == [qid] and hub.sent[-1]["pending"] == []
     call(services, "rehearsal_undo", rehearsal=rid)
     assert hub.sent[-1]["defects"] == [] and hub.sent[-1]["pending"] == [qid]   # undo resends the previous verdict as it was
+
+
+def test_undo_of_the_check_that_closed_a_pending_objection_reopens_it_in_cicero(services, hub):
+    """fails -> unjudged (defect kept) -> holds (defect closed) -> undo: Cicero has the defect open again, as before the undone check."""
+    def verdict(word):
+        return FakeLink(chat_handler=lambda messages, **kw: json.dumps({"verdict": word, "missing": [], "feedback": word}))
+    rid = call(services, "rehearsal_prepare", deck_id="D1", objections=[{**OBJECTIONS[0], "keywords": []}])["rehearsal"]
+    [qid] = [o["question_id"] for o in call(services, "rehearsal_get", rehearsal=rid)["objections"]]
+    services.link = lambda: verdict("fails")
+    call(services, "rehearsal_check", rehearsal=rid)
+    services.link = lambda: FakeLink(capabilities=())                    # the judge does not answer
+    assert call(services, "rehearsal_check", rehearsal=rid)["sent_to_cicero"]["kept_pending"] == 1 and hub.open == {qid}
+    services.link = lambda: verdict("holds")
+    assert call(services, "rehearsal_check", rehearsal=rid)["sent_to_cicero"]["resolved"] == 1 and hub.open == set()
+    undone = call(services, "rehearsal_undo", rehearsal=rid)
+    assert hub.open == {qid} and undone["cicero_restored"]["opened"] == 1 and undone["cicero_restored"]["open_total"] == 1
+    assert hub.sent[-1]["pending"] == [qid] and hub.sent[-1]["reopen"] == [qid]
+
+
+def test_undo_does_not_open_a_pending_objection_that_never_had_a_defect(services, hub):
+    rid = call(services, "rehearsal_prepare", deck_id="D1", objections=[{**OBJECTIONS[0], "keywords": []}])["rehearsal"]
+    call(services, "rehearsal_check", rehearsal=rid)                     # no judge: pending, nothing opened
+    services.link = lambda: FakeLink(chat_handler=lambda messages, **kw: json.dumps({"verdict": "holds", "missing": [], "feedback": ""}))
+    call(services, "rehearsal_check", rehearsal=rid)
+    call(services, "rehearsal_undo", rehearsal=rid)
+    assert hub.open == set() and hub.sent[-1].get("reopen", []) == []
 
 
 def test_model_drafts_objections_and_keeps_only_real_quotes(services, hub):

@@ -266,16 +266,18 @@ def judge(services, objection: dict[str, Any], text: str) -> dict[str, Any]:
             "feedback": "Judged by keywords (no model answered).", "judge": "keywords"}
 
 
-def _send(state: dict[str, Any], defects: list[dict[str, Any]], pending: list[str]) -> dict[str, Any]:
-    """The whole verdict to Cicero: what fails now, and what was not judged (its open defects stay open there)."""
+def _send(state: dict[str, Any], defects: list[dict[str, Any]], pending: list[str], reopen: list[str] = ()) -> dict[str, Any]:
+    """The whole verdict to Cicero: what fails now, and what was not judged (its open defects stay open there).
+
+    ``reopen`` (undo only): the defects the taken-back check closed, so the pending ones among them open again as they were."""
     answer = family.call(CICERO, "deck_defects_receive",
                          {"deck_id": state["deck_id"], "origin": state["origin"], "defects": defects, "pending": pending,
-                          "reason": "Objection rehearsal verdict from Hypatia's Hoard"}, timeout=60)
+                          "reopen": list(reopen), "reason": "Objection rehearsal verdict from Hypatia's Hoard"}, timeout=60)
     if answer.get("ok"):
         result = answer.get("result") or {}
         return {"ok": True, "opened": len(result.get("opened") or []) + len(result.get("reopened") or []),
                 "resolved": len(result.get("resolved") or []), "kept_pending": len(result.get("pending") or []),
-                "open_total": result.get("open_total")}
+                "open_total": result.get("open_total"), "resolved_ids": list(result.get("resolved") or [])}
     return {"ok": False, "error": str(answer.get("error") or answer.get("status"))}
 
 
@@ -340,7 +342,8 @@ def undo(services, a: RehearsalRef) -> dict[str, Any]:
         resent = None
         if run.get("sent") and run["sent"].get("ok"):
             previous = next((r for r in reversed(state["runs"]) if r.get("sent") and r["sent"].get("ok")), None)
-            resent = _send(state, previous["defects"] if previous else [], previous.get("unjudged", []) if previous else [])
+            resent = _send(state, previous["defects"] if previous else [], previous.get("unjudged", []) if previous else [],
+                           run["sent"].get("resolved_ids") or [])
         _save(services, state)
         return {"undone": "check", "at": run["at"], "runs_left": len(state["runs"]), "cicero_restored": resent}
     created = state.get("created") or {}
