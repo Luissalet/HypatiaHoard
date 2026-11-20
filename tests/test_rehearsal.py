@@ -273,3 +273,82 @@ def test_an_unreadable_source_is_not_taken_for_a_change(services, hub):
     assert call(services, "rehearsal_check", rehearsal=rid, send=False)["refreshed"] == []
     hub.source_text = REPORT_R1
     assert call(services, "rehearsal_check", rehearsal=rid, send=False)["refreshed"] == []
+
+
+DATA_R1 = "Devoluciones por puesto: cicero 1, hypatia 0, writer 3."
+DATA_R2 = "Devoluciones por puesto: cicero 6, hypatia 0, writer 6."
+RETURNS = {"slide_id": "S2", "question": "¿Cuántas devoluciones tuvo cada puesto?", "expected": "Cicero 1, Hypatia 0, Writer 3.",
+           "keywords": ["cicero 1", "writer 3"], "evidence": [DATA_R1]}
+
+
+def model_on_returns(messages, **kwargs):
+    """Rewrites the returns objection against the data it is shown; judges a slide by the key points it is given."""
+    user = messages[-1]["content"]
+    if "Objeción anterior" in user:
+        assert DATA_R2 in user and "Cicero 1, Hypatia 0, Writer 3." in user
+        return json.dumps({"objections": [{"slide_id": "S2", "question": RETURNS["question"],
+                                           "expected": "Cicero 6, Hypatia 0, Writer 6.", "keywords": ["cicero 6", "writer 6"],
+                                           "evidence": [DATA_R2]}]})
+    slide, rest = user.split("Objeción:")
+    keys = [k.strip() for k in rest.split("Puntos clave:")[1].split(",")]
+    holds = all(k in slide.lower() for k in keys)
+    return json.dumps({"verdict": "holds" if holds else "fails", "missing": [] if holds else keys, "feedback": ""})
+
+
+def _returns_rehearsal(services, hub):
+    """1/0/3 in the data, a slide that does not give it yet: the objection fails and its defect is open in Cicero.
+    Then the data becomes 6/0/6 and Cicero refreshes the slide's figure."""
+    services.link = lambda: FakeLink(chat_handler=model_on_returns)
+    hub.source_text = DATA_R1
+    hub.deck["slides"][1]["notes"] = "Devoluciones por puesto."
+    rid = call(services, "rehearsal_prepare", deck_id="D1", objections=[RETURNS])["rehearsal"]
+    [qid] = [o["question_id"] for o in call(services, "rehearsal_get", rehearsal=rid)["objections"]]
+    assert call(services, "rehearsal_check", rehearsal=rid)["weak_slides"] == ["S2"] and hub.open == {qid}
+    hub.source_text = DATA_R2
+    hub.deck["slides"][1]["notes"] = "Devoluciones por puesto: cicero 6, hypatia 0, writer 6."
+    return rid, qid
+
+
+def test_while_the_model_is_down_a_changed_source_leaves_the_objection_pending_and_its_defect_as_it_was(services, hub):
+    rid, qid = _returns_rehearsal(services, hub)
+    sent_before = hub.sent[-1]["defects"]
+    services.link = lambda: FakeLink(capabilities=())                          # the drafter (and judge) does not answer
+    out = call(services, "rehearsal_check", rehearsal=rid)
+    [result] = [r for r in out["results"] if r["slide_id"] == "S2"]
+    assert result["verdict"] == "redraft_pending"                              # never judged against the 1/0/3 answer
+    assert hub.sent[-1]["defects"] == [] and hub.sent[-1]["pending"] == [qid] and hub.open == {qid}
+    [change] = out["refreshed"]
+    assert change["by"] == "evidence" and change["redraft_pending"] is True   # quotes checked, question not written again
+    assert out["pending_redraft"] == [qid] and "not written again yet" in out["next"]
+    assert sent_before[0]["expected"] == "Cicero 1, Hypatia 0, Writer 3."      # the defect Cicero keeps is the previous one
+    [objection] = call(services, "rehearsal_get", rehearsal=rid)["objections"]
+    assert objection["expected"] == "Cicero 1, Hypatia 0, Writer 3." and objection["evidence"] == []
+    assert objection["last"]["verdict"] == "redraft_pending"
+
+
+def test_a_redraft_missed_while_the_model_was_down_is_done_once_it_answers_on_the_same_source(services, hub):
+    rid, qid = _returns_rehearsal(services, hub)
+    services.link = lambda: FakeLink(capabilities=())
+    call(services, "rehearsal_check", rehearsal=rid)                            # pending: model down
+    services.link = lambda: FakeLink(chat_handler=model_on_returns)            # the model is back; nothing else changes
+    out = call(services, "rehearsal_check", rehearsal=rid)
+    [change] = out["refreshed"]
+    assert change["by"] == "model" and change["redraft_pending"] is False and change["question"] == RETURNS["question"]
+    assert out["pending_redraft"] == [] and out["weak_slides"] == []
+    [objection] = call(services, "rehearsal_get", rehearsal=rid)["objections"]
+    assert objection["expected"] == "Cicero 6, Hypatia 0, Writer 6." and objection["evidence"] == [DATA_R2]
+    [question] = services.store.list("question", rid)
+    assert question["modelAnswer"] == "Cicero 6, Hypatia 0, Writer 6." and DATA_R2 in question["explanation"]
+    assert hub.sent[-1]["defects"] == [] and hub.open == set()                  # judged on 6/0/6: the slide holds, closed in Cicero
+    assert call(services, "rehearsal_check", rehearsal=rid)["refreshed"] == []  # written against this source: no further redraft
+
+    call(services, "rehearsal_undo", rehearsal=rid)                             # the last check
+    undone = call(services, "rehearsal_undo", rehearsal=rid)                    # the check that wrote it again
+    assert undone["objections_restored"] == 1 and hub.open == {qid}             # Cicero has the previous defect open again
+    [objection] = call(services, "rehearsal_get", rehearsal=rid)["objections"]
+    assert objection["expected"] == "Cicero 1, Hypatia 0, Writer 3." and objection["evidence"] == []
+    undone = call(services, "rehearsal_undo", rehearsal=rid)                    # the pending check
+    assert undone["objections_restored"] == 1
+    [objection] = call(services, "rehearsal_get", rehearsal=rid)["objections"]
+    assert objection["evidence"] == [DATA_R1]
+    assert len(call(services, "rehearsal_check", rehearsal=rid)["refreshed"]) == 1

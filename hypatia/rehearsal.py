@@ -11,8 +11,9 @@ sending the verdict again after the slide is fixed closes them there. Each write
 
 Every objection keeps a print of what the sources its slide cites said when it was written. When one of those sources changes
 (a new revision of the report the slide cites), ``check`` writes that objection again against the sources as they are now
-(with the model; without one it keeps only the evidence quotes the sources still hold) before judging it, and says which ones
-it rewrote. Undoing that check restores them as they were.
+with the model before judging it, and says which ones it rewrote. When no model answers, it keeps only the evidence quotes the
+sources still hold and leaves the objection pending: it is not judged against the old answer, its defect stays in Cicero as it
+was, and the next check writes it again against the same sources. Undoing a check restores the objections as they were.
 """
 from __future__ import annotations
 
@@ -325,7 +326,10 @@ def _write_question(services, item: dict[str, Any]) -> None:
 
 def _refresh(services, deck: dict[str, Any], slide: dict[str, Any], item: dict[str, Any], texts: dict[str, str],
              now: str) -> dict[str, Any]:
-    """Write the objection again against the sources as they are now; without a model keep only the quotes they still hold."""
+    """Write the objection again against the sources as they are now.
+
+    Without a model keep only the quotes the sources still hold and leave its print as it was: the redraft stays pending and the
+    next check tries it again, even if the sources do not change again."""
     before = {k: copy.deepcopy(item.get(k)) for k in REFRESHED}
     corpus = normalize_text(" ".join(texts.values()))
     try:
@@ -334,14 +338,15 @@ def _refresh(services, deck: dict[str, Any], slide: dict[str, Any], item: dict[s
         drafts = []
     if drafts:
         new = drafts[0]
-        item.update(question=new.question, expected=new.expected, keywords=new.keywords, evidence=new.evidence)
+        item.update(question=new.question, expected=new.expected, keywords=new.keywords, evidence=new.evidence,
+                    sources_print=now)
         by = "model"
     else:
         item["evidence"] = [q for q in item["evidence"] if normalize_text(q) in corpus]
         by = "evidence"
-    item["sources_print"] = now
     _write_question(services, item)
-    return {"question_id": item["question_id"], "slide_id": item["slide_id"], "by": by, "before": before,
+    return {"question_id": item["question_id"], "slide_id": item["slide_id"], "by": by, "redraft_pending": by != "model",
+            "before": before,
             "after": {k: copy.deepcopy(item.get(k)) for k in REFRESHED}}
 
 
@@ -350,7 +355,7 @@ def check(services, a: CheckArgs) -> dict[str, Any]:
     deck = read_deck(state["deck_id"], a.deck)
     slides = {s["id"]: s for s in deck["slides"]}
     texts = _source_texts(deck)
-    results, defects, refreshed = [], [], []
+    results, defects, refreshed, pending_redraft = [], [], [], []
     for item in state["objections"]:
         slide = slides.get(item["slide_id"])
         if slide is None:
@@ -360,6 +365,14 @@ def check(services, a: CheckArgs) -> dict[str, Any]:
         now = sources_print(slide, texts)
         if now and item.get("sources_print") and now != item["sources_print"]:
             refreshed.append(_refresh(services, deck, slide, item, texts, now))
+            if refreshed[-1]["redraft_pending"]:
+                pending_redraft.append(item["question_id"])
+                results.append({"question_id": item["question_id"], "slide_id": item["slide_id"],
+                                "position": slide.get("position"), "question": item["question"], "verdict": "redraft_pending",
+                                "missing": [], "judge": None,
+                                "feedback": "A source this slide cites changed and the objection could not be written again "
+                                            "yet (no model answered): it is not judged against the old answer."})
+                continue
         elif now and not item.get("sources_print"):
             item["sources_print"] = now          # a rehearsal from before prints: this check is its baseline
         text = slide_text(slide)
@@ -371,24 +384,28 @@ def check(services, a: CheckArgs) -> dict[str, Any]:
             defects.append(_defect(item, outcome))
     unjudged = [r["question_id"] for r in results if r["verdict"] == "unjudged"]
     run = {"at": services.now_iso(), "results": results, "defects": defects, "unjudged": unjudged, "sent": None,
-           "refreshed": refreshed}
+           "refreshed": refreshed, "pending_redraft": pending_redraft}
     if a.send:
-        run["sent"] = _send(state, defects, unjudged)
+        run["sent"] = _send(state, defects, unjudged + pending_redraft)
     state["runs"] = [*state["runs"], run][-MAX_RUNS:]
     _save(services, state)
     failing = sorted({d["slide_id"] for d in defects}, key=lambda sid: slides[sid].get("position") or 0)
     return {"rehearsal": state["id"], "deck_id": state["deck_id"], "objections": len(results),
             "holds": sum(r["verdict"] == "holds" for r in results), "weak_slides": failing, "unjudged": unjudged,
-            "defects": defects, "results": results, "sent_to_cicero": run["sent"],
+            "defects": defects, "results": results, "sent_to_cicero": run["sent"], "pending_redraft": pending_redraft,
             "refreshed": [{"question_id": r["question_id"], "slide_id": r["slide_id"], "by": r["by"],
-                           "question_before": r["before"]["question"], "question": r["after"]["question"]} for r in refreshed],
+                           "redraft_pending": r["redraft_pending"], "question_before": r["before"]["question"],
+                           "question": r["after"]["question"]} for r in refreshed],
             "next": " ".join(filter(None, [
-                (f"{len(refreshed)} objection(s) were written again because a source their slide cites changed."
-                 if refreshed else ""),
+                (f"{len(refreshed) - len(pending_redraft)} objection(s) were written again because a source their slide cites "
+                 "changed." if len(refreshed) > len(pending_redraft) else ""),
+                (f"{len(pending_redraft)} objection(s) cite a source that changed and were not written again yet (no model "
+                 "answered): only their evidence quotes were checked, they were not judged, and their defects stay as they were "
+                 "in Cicero. Check again when the model answers.") if pending_redraft else "",
                 "Fix the slides in Cicero (deck_defects lists them), then rehearsal_check again." if defects else "",
                 (f"{len(unjudged)} objection(s) could not be judged (no model answered and no keywords): they stay as they were in "
                  "Cicero. Check again when the model answers, or add keywords to the objection.") if unjudged else "",
-                "Every slide holds its objections." if not defects and not unjudged else ""])),
+                "Every slide holds its objections." if not defects and not unjudged and not pending_redraft else ""])),
             "undo": _undo_hint(state["id"])}
 
 
@@ -417,7 +434,8 @@ def undo(services, a: RehearsalRef) -> dict[str, Any]:
         resent = None
         if run.get("sent") and run["sent"].get("ok"):
             previous = next((r for r in reversed(state["runs"]) if r.get("sent") and r["sent"].get("ok")), None)
-            resent = _send(state, previous["defects"] if previous else [], previous.get("unjudged", []) if previous else [],
+            resent = _send(state, previous["defects"] if previous else [],
+                           previous.get("unjudged", []) + previous.get("pending_redraft", []) if previous else [],
                            run["sent"].get("resolved_ids") or [])
         _save(services, state)
         return {"undone": "check", "at": run["at"], "runs_left": len(state["runs"]), "cicero_restored": resent,
