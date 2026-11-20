@@ -44,13 +44,16 @@ class FakeHub:
         self.sent: list[dict] = []
         self.open: set[str] = set()
         self.closed: set[str] = set()
+        self.source_text: str | None = "Un CFS admite cuatro colores. La capacidad de 16 requiere cuatro unidades en total."
 
     def __call__(self, app, tool, arguments=None, *, timeout=120.0):
         assert app == "cicero"
         if tool == "deck_get":
             return {"ok": True, "result": copy.deepcopy(self.deck)}
         if tool == "source_get":
-            return {"ok": True, "result": {"text": "Un CFS admite cuatro colores. La capacidad de 16 requiere cuatro unidades en total."}}
+            if self.source_text is None:
+                return {"ok": False, "error": "source unavailable"}
+            return {"ok": True, "result": {"text": self.source_text}}
         if tool == "deck_defects_receive":
             self.sent.append(arguments)
             failing, pending = {d["key"] for d in arguments["defects"]}, set(arguments.get("pending") or [])
@@ -203,3 +206,70 @@ def test_unknown_slide_and_unreachable_cicero_are_explained(services, monkeypatc
         call(services, "rehearsal_prepare", deck_id="D1", objections=OBJECTIONS)   # the test Hub is closed
     with pytest.raises(ValueError, match="not in deck"):
         call(services, "rehearsal_prepare", deck_id="D1", deck=DECK, objections=[{**OBJECTIONS[0], "slide_id": "S7"}])
+
+
+REPORT_R1 = "Un CFS admite cuatro colores. La capacidad de 16 requiere cinco unidades en total."
+REPORT_R2 = "Un CFS admite cuatro colores. La capacidad de 16 requiere cuatro unidades en total."
+STALE = {"slide_id": "S2", "question": "¿Cuántas unidades CFS hacen falta para llegar a 16 colores?", "expected": "Cinco unidades.",
+         "keywords": ["cinco unidades"], "evidence": ["La capacidad de 16 requiere cinco unidades en total."]}
+
+
+def model_that_redrafts(messages, **kwargs):
+    """Rewrites an objection against the sources it is shown; judges a slide by the key points it is given."""
+    user = messages[-1]["content"]
+    if "Objeción anterior" in user:
+        assert REPORT_R2 in user and "Cinco unidades." in user          # the new source and the old objection reached the model
+        return json.dumps({"objections": [{"slide_id": "S2", "question": STALE["question"], "expected": "Cuatro unidades.",
+                                           "keywords": ["cuatro unidades"],
+                                           "evidence": ["La capacidad de 16 requiere cuatro unidades en total."]}]})
+    slide, rest = user.split("Objeción:")
+    keys = [k.strip() for k in rest.split("Puntos clave:")[1].split(",")]
+    holds = all(k in slide.lower() for k in keys)
+    return json.dumps({"verdict": "holds" if holds else "fails", "missing": [] if holds else keys, "feedback": ""})
+
+
+def test_objection_is_written_again_when_the_source_it_cites_changes(services, hub):
+    services.link = lambda: FakeLink(chat_handler=model_that_redrafts)
+    hub.source_text = REPORT_R1
+    hub.deck["slides"][1]["notes"] = "Para 16 colores hacen falta cuatro unidades."
+    rid = call(services, "rehearsal_prepare", deck_id="D1", objections=[STALE])["rehearsal"]
+    first = call(services, "rehearsal_check", rehearsal=rid)
+    assert first["weak_slides"] == ["S2"] and first["refreshed"] == []      # judged against the report it was written from
+
+    hub.source_text = REPORT_R2                                              # the report gets a new revision
+    second = call(services, "rehearsal_check", rehearsal=rid)
+    [change] = second["refreshed"]
+    assert change["slide_id"] == "S2" and change["by"] == "model" and "written again" in second["next"]
+    assert second["weak_slides"] == [] and hub.sent[-1]["defects"] == []     # the slide holds the new objection: closed in Cicero
+    [question] = services.store.list("question", rid)
+    assert question["modelAnswer"] == "Cuatro unidades." and "cuatro unidades en total" in question["explanation"]
+    third = call(services, "rehearsal_check", rehearsal=rid)
+    assert third["refreshed"] == []                                          # the source did not change again
+
+    call(services, "rehearsal_undo", rehearsal=rid)                         # the third check
+    undone = call(services, "rehearsal_undo", rehearsal=rid)                # the check that rewrote it
+    assert undone["objections_restored"] == 1
+    [question] = services.store.list("question", rid)
+    assert question["modelAnswer"] == "Cinco unidades." and question["keywords"] == ["cinco unidades"]
+    assert [d["slide_id"] for d in hub.sent[-1]["defects"]] == ["S2"]       # Cicero gets the previous verdict back
+    again = call(services, "rehearsal_check", rehearsal=rid)
+    assert len(again["refreshed"]) == 1                                      # the change is seen again after the undo
+
+
+def test_without_a_model_a_changed_source_keeps_only_the_quotes_it_still_holds(services, hub):
+    hub.source_text = REPORT_R1
+    rid = call(services, "rehearsal_prepare", deck_id="D1", objections=[STALE])["rehearsal"]
+    hub.source_text = REPORT_R2
+    out = call(services, "rehearsal_check", rehearsal=rid, send=False)
+    assert [c["by"] for c in out["refreshed"]] == ["evidence"]
+    [objection] = call(services, "rehearsal_get", rehearsal=rid)["objections"]
+    assert objection["evidence"] == [] and objection["expected"] == "Cinco unidades."
+
+
+def test_an_unreadable_source_is_not_taken_for_a_change(services, hub):
+    hub.source_text = REPORT_R1
+    rid = call(services, "rehearsal_prepare", deck_id="D1", objections=[STALE])["rehearsal"]
+    hub.source_text = None                                                   # Cicero does not hand the source over
+    assert call(services, "rehearsal_check", rehearsal=rid, send=False)["refreshed"] == []
+    hub.source_text = REPORT_R1
+    assert call(services, "rehearsal_check", rehearsal=rid, send=False)["refreshed"] == []
