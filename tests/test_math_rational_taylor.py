@@ -2,6 +2,7 @@ from fractions import Fraction
 
 import pytest
 
+from hoardtest import EXPECTED_TOOL_COUNT
 from hypatia.agent_tools import call_tool, tool_catalog
 from hypatia.math_tool import rational_taylor
 from test_math_polynomial_division import rational_value
@@ -59,5 +60,5 @@ def test_api_agent_match_and_preserve_study_tables(client):
     for invalid in ({'numerator':'x','denominator':'0'}, {'numerator':3,'denominator':'1'}, {'numerator':'1','denominator':'1','order':1.5}, {}):
         assert client.post('/api/math/rational-taylor',json=invalid).status_code==400
     catalog={t['name']:t for t in tool_catalog()}
-    assert len(catalog)==75 and catalog['math_rational_taylor']['annotations']['readOnlyHint']
+    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_rational_taylor']['annotations']['readOnlyHint']
     assert snapshot()==before

@@ -122,6 +122,8 @@ Declara su relevo de práctica oral, con el requisito de registrar la objeción 
 
 ## Desarrollo
 
+Ejecuta `npm ci` antes de pytest para instalar las dependencias de las pruebas de paridad del frontend. Las pruebas de migración crean una base antigua a partir de un esquema incluido en las pruebas.
+
 ```bat
 venv\Scripts\pip install pytest reportlab
 venv\Scripts\python -m pytest -q tests

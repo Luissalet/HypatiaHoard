@@ -7,6 +7,7 @@ import pytest
 
 from fakes import FakeLink, tiny_wav
 from hypatia import oral
+from hoardtest import EXPECTED_TOOL_COUNT
 from hypatia.agent_tools import call_tool, tool_catalog
 
 TEST_Q = {"type": "TEST", "prompt": "¿En qué capa trabaja **TCP**?",
@@ -311,7 +312,7 @@ def test_speak_without_a_voice(services):
 
 def test_catalog_has_the_oral_tools():
     catalog = {item["name"]: item for item in tool_catalog()}
-    assert len(catalog) == 79
+    assert len(catalog) == EXPECTED_TOOL_COUNT
     assert catalog["oral_card_next"]["annotations"]["readOnlyHint"] is True
     assert catalog["oral_card_answer"]["annotations"]["readOnlyHint"] is False
     assert set(catalog["oral_card_answer"]["inputSchema"]["properties"]) >= {"id", "audio_path", "transcript", "record", "exclude"}

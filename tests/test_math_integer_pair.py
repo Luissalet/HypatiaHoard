@@ -1,5 +1,6 @@
 import math
 import pytest
+from hoardtest import EXPECTED_TOOL_COUNT
 from hypatia.agent_tools import call_tool, tool_catalog
 from hypatia.math_tool import integer_pair
 
@@ -39,4 +40,4 @@ def test_integer_pair_api_agent_contract_and_bank_preservation(client):
     assert client.post('/api/math/integer-pair', json={'a': 240, 'b': '46'}).status_code == 400
     assert snapshot() == before
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == 75 and catalog['math_integer_pair']['annotations']['readOnlyHint']
+    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_integer_pair']['annotations']['readOnlyHint']

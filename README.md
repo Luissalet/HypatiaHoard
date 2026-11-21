@@ -122,6 +122,8 @@ Declares its oral-practice handoff with the requirement to register an objection
 
 ## Development
 
+Run `npm ci` before pytest so the frontend parity checks have their dependencies. The migration tests build a legacy database from a local fixture.
+
 ```bat
 venv\Scripts\pip install pytest reportlab
 venv\Scripts\python -m pytest -q tests

@@ -2,6 +2,7 @@ from fractions import Fraction
 
 import pytest
 
+from hoardtest import EXPECTED_TOOL_COUNT
 from hypatia.agent_tools import call_tool, tool_catalog
 from hypatia.math_tool import partial_fractions
 from test_math_polynomial_division import rational_value
@@ -52,5 +53,5 @@ def test_api_agent_match_and_preserve_study_tables(client):
     for invalid in ({'numerator':'x','denominator':'0'}, {'numerator':3,'denominator':'x'}, {}):
         assert client.post('/api/math/partial-fractions',json=invalid).status_code == 400
     catalog = {tool['name']:tool for tool in tool_catalog()}
-    assert len(catalog) == 75 and catalog['math_partial_fractions']['annotations']['readOnlyHint']
+    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_partial_fractions']['annotations']['readOnlyHint']
     assert snapshot() == before
