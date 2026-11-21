@@ -1,27 +1,60 @@
 """migrate-hypatia: an old Hypatia's Hoard database becomes subjects/DESARROLLO questions."""
 
-import importlib.util
 import json
 import sqlite3
-from pathlib import Path
 
 import pytest
 
 from hypatia.__main__ import main
 from hypatia.migrate_hypatia import migrate
 
-OLD_DB_PY = Path("/home/claude/w/hy/hypatia/db.py")
+# Table definitions from the first flashcard database migration.
+LEGACY_SCHEMA = """
+    CREATE TABLE decks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      normalized_name TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL DEFAULT '',
+      new_per_day INTEGER NOT NULL DEFAULT 20,
+      created_at REAL NOT NULL
+    );
+    CREATE TABLE cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deck_id INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+      front TEXT NOT NULL,
+      back TEXT NOT NULL,
+      normalized_front TEXT NOT NULL,
+      tags TEXT NOT NULL DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT '',
+      source_url TEXT NOT NULL DEFAULT '',
+      suspended INTEGER NOT NULL DEFAULT 0,
+      ease REAL NOT NULL DEFAULT 2.5,
+      interval_days INTEGER NOT NULL DEFAULT 0,
+      repetitions INTEGER NOT NULL DEFAULT 0,
+      due_at REAL NOT NULL,
+      state TEXT NOT NULL DEFAULT 'new',
+      lapses INTEGER NOT NULL DEFAULT 0,
+      last_reviewed_at REAL,
+      times_seen INTEGER NOT NULL DEFAULT 0,
+      created_at REAL NOT NULL,
+      updated_at REAL NOT NULL,
+      UNIQUE(deck_id, normalized_front)
+    );
+    CREATE TABLE reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+      deck_id INTEGER NOT NULL,
+      reviewed_at REAL NOT NULL,
+      grade INTEGER NOT NULL,
+      interval_before INTEGER NOT NULL,
+      interval_after INTEGER NOT NULL,
+      ease_after REAL NOT NULL,
+      elapsed_ms INTEGER,
+      was_new INTEGER NOT NULL DEFAULT 0
+    );
+"""
 DAY = 86400
 T = 1_790_000_000.0  # 2026-09-21
-
-
-def _old_schema() -> str:
-    if OLD_DB_PY.is_file():
-        spec = importlib.util.spec_from_file_location("old_hypatia_db", OLD_DB_PY)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module.MIGRATIONS[0]
-    pytest.skip("the old Hypatia repo is not available")
 
 
 @pytest.fixture
@@ -29,7 +62,7 @@ def old_db(tmp_path):
     path = tmp_path / "old" / "hypatia-hoard.db"
     path.parent.mkdir()
     conn = sqlite3.connect(path)
-    conn.executescript(_old_schema())
+    conn.executescript(LEGACY_SCHEMA)
     conn.execute("INSERT INTO decks(id, name, normalized_name, created_at) VALUES (1, 'Biología', 'biologia', ?)", (T,))
     conn.execute("INSERT INTO decks(id, name, normalized_name, created_at) VALUES (2, 'Vacío', 'vacio', ?)", (T,))
     cards = [
