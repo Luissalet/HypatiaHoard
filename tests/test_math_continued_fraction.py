@@ -2,6 +2,7 @@ from fractions import Fraction
 
 import pytest
 
+from hoardtest import EXPECTED_TOOL_COUNT
 from hypatia.agent_tools import call_tool, tool_catalog
 from hypatia.math_tool import continued_fraction
 
@@ -53,5 +54,5 @@ def test_api_agent_and_catalog_preserve_all_study_tables(client):
     for args in ({'value': 'pi'}, {'value': '1/0'}, {'value': 3}, {}):
         assert client.post('/api/math/continued-fraction', json=args).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == 75 and catalog['math_continued_fraction']['annotations']['readOnlyHint']
+    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_continued_fraction']['annotations']['readOnlyHint']
     assert snapshot() == before

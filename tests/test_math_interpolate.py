@@ -2,6 +2,7 @@
 
 import pytest
 
+from hoardtest import EXPECTED_TOOL_COUNT
 from hypatia.agent_tools import call_tool, tool_catalog
 from hypatia.math_tool import interpolate
 
@@ -43,5 +44,5 @@ def test_interpolation_ui_agent_contract_preserves_study_bank(client):
     assert snapshot() == before
     catalog = {item["name"]: item for item in tool_catalog()}
     assert catalog["math_interpolate"]["annotations"]["readOnlyHint"] is True
-    assert len(catalog) == 75
+    assert len(catalog) == EXPECTED_TOOL_COUNT
     assert client.post("/api/math/interpolate", json={"points": [[".5", "1"], ["1/2", "2"]]}).status_code == 400

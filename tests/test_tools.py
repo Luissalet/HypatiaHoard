@@ -5,6 +5,7 @@ import re
 import pytest
 from pydantic import BaseModel
 
+from hoardtest import EXPECTED_STUDENT_TOOL_COUNT, EXPECTED_TOOL_COUNT
 from hypatia import agent_tools
 from hypatia.agent_tools import TOOLS, call_tool, tool_catalog
 
@@ -41,7 +42,9 @@ def test_catalog_descriptions_and_schemas():
     names = [t.name for t in TOOLS]
     teacher = {t.name for t in agent_tools.TEACHER_TOOLS}
     # The exact calculators, page cards, lessons and oral cards are all in the student catalog.
-    assert len(names) == len(set(names)) and len(names) - len(teacher) == 61 and len(teacher) <= 20
+    assert len(names) == len(set(names)) == EXPECTED_TOOL_COUNT
+    assert len(names) - len(teacher) == EXPECTED_STUDENT_TOOL_COUNT
+    assert len(teacher) <= 20
     for name in ("subjects_list", "cards_due", "card_review", "answer_grade", "exam_mock", "questions_suggest",
                  "cards_add", "decks_list", "deliverables_upcoming", "key_concept_add"):
         assert name in names

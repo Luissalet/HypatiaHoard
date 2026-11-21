@@ -1,6 +1,7 @@
 """Integer strings stay exact through every supported output radix."""
 
 import pytest
+from hoardtest import EXPECTED_TOOL_COUNT
 from hypatia.agent_tools import call_tool, tool_catalog
 from hypatia.math_tool import convert_base
 
@@ -34,5 +35,5 @@ def test_base_conversion_api_agent_contract_and_bank(client):
     assert ui.json() == agent.json() == call_tool(client.services,'math_base_convert',args)
     assert ui.json()['result'] == '11111111' and snapshot() == before
     catalog = {item['name']:item for item in tool_catalog()}
-    assert len(catalog) == 75 and catalog['math_base_convert']['annotations']['readOnlyHint']
+    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_base_convert']['annotations']['readOnlyHint']
     assert client.post('/api/math/base-convert',json={'number':'2','source_base':2}).status_code == 400
