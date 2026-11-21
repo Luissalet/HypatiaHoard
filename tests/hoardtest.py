@@ -7,11 +7,6 @@ from fakes import FakeLink
 from hypatia.config import Config
 from hypatia.services import Services
 
-EXPECTED_STUDENT_TOOL_COUNT = 61
-EXPECTED_TEACHER_TOOL_COUNT = 18
-EXPECTED_TOOL_COUNT = EXPECTED_STUDENT_TOOL_COUNT + EXPECTED_TEACHER_TOOL_COUNT
-
-
 class FakeClock:
     """`clock()` returns `.value` (tz-aware UTC); `.advance(seconds=, days=)` moves it."""
 

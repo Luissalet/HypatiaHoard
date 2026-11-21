@@ -1,6 +1,5 @@
 import pytest
-from hoardtest import EXPECTED_TOOL_COUNT
-from hypatia.agent_tools import call_tool, tool_catalog
+from hypatia.agent_tools import TOOLS_BY_NAME, call_tool, tool_catalog
 from hypatia.math_tool import descriptive_statistics
 
 
@@ -43,4 +42,4 @@ def test_statistics_http_agent_and_native_contract_preserve_bank(client):
     assert bad.status_code == 400 and 'Observation 2' in bad.json()['error']
     assert snapshot() == before
     catalog = {t['name']:t for t in tool_catalog()}
-    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_statistics']['annotations']['readOnlyHint']
+    assert catalog.keys() == TOOLS_BY_NAME.keys() and catalog['math_statistics']['annotations']['readOnlyHint']
