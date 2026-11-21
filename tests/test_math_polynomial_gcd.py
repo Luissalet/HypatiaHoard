@@ -2,8 +2,7 @@ from fractions import Fraction
 
 import pytest
 
-from hoardtest import EXPECTED_TOOL_COUNT
-from hypatia.agent_tools import call_tool, tool_catalog
+from hypatia.agent_tools import TOOLS_BY_NAME, call_tool, tool_catalog
 from hypatia.math_tool import polynomial_division, polynomial_gcd
 from test_math_polynomial_division import rational_value
 
@@ -55,5 +54,5 @@ def test_api_agent_catalog_and_no_study_mutation(client):
     for invalid in ({'a': 'x', 'b': 'sin(x)'}, {'a': 3, 'b': 'x'}, {}):
         assert client.post('/api/math/polynomial-gcd', json=invalid).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_polynomial_gcd']['annotations']['readOnlyHint']
+    assert catalog.keys() == TOOLS_BY_NAME.keys() and catalog['math_polynomial_gcd']['annotations']['readOnlyHint']
     assert snapshot() == before

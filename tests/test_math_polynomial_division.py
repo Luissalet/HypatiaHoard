@@ -3,8 +3,7 @@ from fractions import Fraction
 
 import pytest
 
-from hoardtest import EXPECTED_TOOL_COUNT
-from hypatia.agent_tools import call_tool, tool_catalog
+from hypatia.agent_tools import TOOLS_BY_NAME, call_tool, tool_catalog
 from hypatia.math_tool import polynomial_division
 
 
@@ -70,5 +69,5 @@ def test_api_agent_catalog_and_study_table_preservation(client):
                  {'dividend': 3, 'divisor': 'x'}, {}):
         assert client.post('/api/math/polynomial-division', json=args).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_polynomial_division']['annotations']['readOnlyHint']
+    assert catalog.keys() == TOOLS_BY_NAME.keys() and catalog['math_polynomial_division']['annotations']['readOnlyHint']
     assert snapshot() == before

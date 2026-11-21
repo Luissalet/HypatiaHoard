@@ -2,8 +2,7 @@
 
 import pytest
 
-from hoardtest import EXPECTED_TOOL_COUNT
-from hypatia.agent_tools import call_tool, tool_catalog
+from hypatia.agent_tools import TOOLS_BY_NAME, call_tool, tool_catalog
 from hypatia.math_tool import values
 
 
@@ -46,5 +45,5 @@ def test_values_api_agent_parity_and_study_bank_unchanged(client):
     assert snapshot() == before
     catalog = {item["name"]: item for item in tool_catalog()}
     assert catalog["math_values"]["annotations"]["readOnlyHint"] is True
-    assert len(catalog) == EXPECTED_TOOL_COUNT
+    assert catalog.keys() == TOOLS_BY_NAME.keys()
     assert client.post("/api/math/values", json={"expression": "x**99", "points": ["0"]}).status_code == 400

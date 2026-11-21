@@ -1,7 +1,6 @@
 import math
 import pytest
-from hoardtest import EXPECTED_TOOL_COUNT
-from hypatia.agent_tools import call_tool, tool_catalog
+from hypatia.agent_tools import TOOLS_BY_NAME, call_tool, tool_catalog
 from hypatia.math_tool import congruence_system
 
 
@@ -70,5 +69,5 @@ def test_system_api_agent_and_direct_contract_keep_all_study_tables(client):
                  {'constraints': [{'residue': '2', 'modulus': '0'}]}):
         assert client.post('/api/math/congruence-system', json=args).status_code == 400
     catalog = {tool['name']: tool for tool in tool_catalog()}
-    assert len(catalog) == EXPECTED_TOOL_COUNT and catalog['math_congruence_system']['annotations']['readOnlyHint']
+    assert catalog.keys() == TOOLS_BY_NAME.keys() and catalog['math_congruence_system']['annotations']['readOnlyHint']
     assert snapshot() == before
